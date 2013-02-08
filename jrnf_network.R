@@ -9,19 +9,21 @@ library(igraph)
 
 # Loads a jrnf-file and returns a list of two data frames
 # - The first data frame contains all species with 'type' (integer),
-# 'name' (character) and 'constant' (boolean).
+# energy (numeric), 'name' (character) and 'constant' (boolean).
 # - The second data frame contains all reactions with information whether
 # it is 'reversible' (boolean), the reaction constants 'c', 'k', 'k_b', 
 # 'activation' energy (numeric), lists on 'products' and 'educts' and 
 # their multiplicity in the reaction ('educts_mul' and 'products_mul')
 
 load_jrnf <- function(filename) {
+    # Open file and verify the right header is there
     con <- file(filename, 'r');
     if(readLines(con, 1) != "jrnf0003") {
         cat("File ", filename, "is not in valid jrnf format!")
         return(0)
     }    
 
+    # Declaring empty data frames for species and reactions
     species <- data.frame(type=factor(integer()),
                  name=character(), 
                  energy=integer(),
@@ -32,6 +34,8 @@ load_jrnf <- function(filename) {
                             k_b=numeric(), activation=numeric(), 
                             educts=list(), educts_mul=list(),
                             products=list(), products_mul=list())
+
+    # Read line using ' ' to separate and put parts in 'last_line'-vector
     last_line <- scan(textConnection(readLines(con,1)), sep=" ", quiet="TRUE")
     if(length(last_line) != 2) {
         cat("Error at reading header of ", filename, "!")
@@ -41,6 +45,7 @@ load_jrnf <- function(filename) {
     no_species <- last_line[1]
     no_reactions <- last_line[2]
 
+    # Input species data
     for(i in 1:no_species) {
         last_line <- strsplit(readLines(con,1), " ", fixed = TRUE)[[1]]
         if(length(last_line) != 4) {
@@ -53,7 +58,9 @@ load_jrnf <- function(filename) {
                                              constant=as.logical(as.integer(last_line[4]))))
     }
 
+    # Input data on reactions
     for(i in 1:no_reactions) {
+        # read entire line and separate into last_line
         last_line <- strsplit(readLines(con,1), " ", fixed = TRUE)[[1]]
         if(length(last_line) < 7) {
             cat("Error at reading reaction", i, "!")
@@ -67,25 +74,27 @@ load_jrnf <- function(filename) {
         p <- c()
         pm <- c()
 
+        # Fill educts ... 
         for(j in 1:e_number) {
             e <- c(e, as.numeric(last_line[7+j*2-1])+1)
             em <- c(em, as.numeric(last_line[7+j*2])) 
 	}
 
+        # ...and product vectors
         for(j in 1:p_number) {
             p <- c(p, as.numeric(last_line[7+e_number*2+j*2-1])+1)
             pm <- c(pm, as.numeric(last_line[7+e_number*2+j*2])) 
 	}
 
- 
-	    reactions <- rbind(reactions, data.frame(reversible=factor(as.logical(as.integer(last_line[1]))), 
+        # Add it all togother to reactions data frame
+	reactions <- rbind(reactions, data.frame(reversible=factor(as.logical(as.integer(last_line[1]))), 
                                                  c=as.numeric(last_line[2]), k=as.numeric(last_line[3]),
                                                  k_b=as.numeric(last_line[4]), activation=as.numeric(last_line[5]),
                                                  educts=I(list(e)), educts_mul=I(list(em)),
                                                  products=I(list(p)), products_mul=I(list(pm))))
     }
 
-
+    # close connection and concatenate it to jrnf-object
     close(con)
     return(list(species, reactions))
 }
@@ -94,6 +103,7 @@ load_jrnf <- function(filename) {
 # Writes reaction network data frames to file
 
 write_jrnf <- function(filename, data) {
+    # open file and write header
     con <- file(filename, 'w');
     species <- data[[1]]
     reactions <- data[[2]]
@@ -103,11 +113,12 @@ write_jrnf <- function(filename, data) {
 
     # write species
     for(i in 1:nrow(species)) {
-        if(species$constant[i])
+        if(species$constant[i])  # constant?
             sc <- "\ 1"
         else
             sc <- "\ 0"
 
+        # species type, name and energy
         writeLines(paste(as.character(as.vector(species$type)[i]),
                          "\ ", as.character(species$name[i]),"\ ",
                          as.character(species$energy[i]), sc, sep=""), con=con)
@@ -115,16 +126,19 @@ write_jrnf <- function(filename, data) {
 
     # write reactions
     for(i in 1:nrow(reactions)) {
+        # Rename (for convenience)
         educts <- unlist(reactions$educts[[i]])
         educts_mul <- unlist(reactions$educts_mul[[i]])
         products <- unlist(reactions$products[[i]])
         products_mul <- unlist(reactions$products_mul[[i]])
 
-
+        # reversible?
         if(as.vector(reactions$reversible)[i])
             line <- "1\ "
         else 
             line <- "0\ "
+
+        # Reaction constants and number of educts and products
         line <- paste(line, as.character(as.numeric(reactions$c[i])), " ",
                       as.character(as.numeric(reactions$k[i])), " ",
         	      as.character(as.numeric(reactions$k_b[i])), " ",
@@ -132,6 +146,7 @@ write_jrnf <- function(filename, data) {
                       " ", as.character(length(educts)), 
                       " ",as.character(length(products)), sep="")
 
+        # Add educts and products
         if(length(educts) != 0)
 	    for(j in 1:length(educts)) 
                 line <- paste(line, " ", as.character(educts[j]-1), 
@@ -142,20 +157,21 @@ write_jrnf <- function(filename, data) {
                 line <- paste(line, " ", as.character(products[j]-1), 
                               " ", as.character(products_mul[j]), sep="")
 	
+        # write reaction to file
 	writeLines(line, con=con)
 
     }
     
+    # close and good bye
     close(con)
 }
 
 
-#
-#
-#
+# Calculates the koefficients k and k_b for the networks from
+# energies of educts and products and activation energy of the
+# reaction.
 
-calculate_rev_koef <- function (net, kT=1.0) {
-    network <- net
+calculate_rev_koef <- function (network, kT=1.0) {
 
     for(i in 1:nrow(network[[2]])) {
         e_educts <- 0.0
@@ -180,13 +196,12 @@ calculate_rev_koef <- function (net, kT=1.0) {
         network[[2]]$k_b[i] <- exp((e_products-e_activation)/kT)
     }
 
-    eval.parent(substitute(net<-network))
+    return(network)
 }
 
 
-#
-#
-#
+# Calculates the flow / reaction rates for a given concentration vector
+# TODO: calculate energy dif, check
 
 calculate_flow <- function(network, concentrations) {
     result <- data.frame(flow_effective=numeric(), flow_forward=numeric(), flow_backward=numeric(),
@@ -334,6 +349,12 @@ jrnf_to_dense_network <- function(jrnf_data) {
 }
 
 
+# Takes a jrnf-network and a boolean vector indicating which species to keep and 
+# calculates the reduced network. The parameter 'rm_reaction' indicates whether 
+# to remove every reaction that contains a removed species ('r') or if just the species
+# should be removed from all reactions ('s'). If rm_reaction is neither 'r' or 's' reactions
+# are removed if they have no educts or products but had them before.
+# The 'list_changes' tells the function to write which species are removed.
 
 jrnf_subnet <- function(jrnf_network, keep_flag, rm_reaction="r", list_changes=FALSE) {
     new_to_old <- which(keep_flag)
@@ -413,7 +434,10 @@ jrnf_subnet <- function(jrnf_network, keep_flag, rm_reaction="r", list_changes=F
 }
 
 
-
+# For a jrnf-reaction network object. This function calculates the associated
+# substrate graph / network (using jrnf_to_directed_network), calculates
+# the biggest strongly connected subgraph and returns a boolean vector indicating
+# which nodes are in this subgraph.
 
 jrnf_get_s_con_subnet <- function(jrnf_network) {
     directed_substrate_net <- jrnf_to_directed_network(jrnf_network)
@@ -424,29 +448,37 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 }
 
 
-#
-#
-#
+# Simplifies a atmospheric reaction network in a common form. M (3rd body) is removed,
+# and hv, CH4 and CO2 are kept even if they are not produced inside of the network.
+# The function returns the reduced subnetwork.
+# TODO: Add parameter that allows creation of addition reactions for some species (hv, CH4)
+
 
 jrnf_simplify_AC_RN <- function(jrnf_network) {
     id_hv <- which(jrnf_network[[1]]$name == "hv")
     id_M <- which(jrnf_network[[1]]$name == "M")
     id_CH4 <- which(jrnf_network[[1]]$name == "CH4")
+    id_CO2 <- which(jrnf_network[[1]]$name == "CO2")
+    id_N2 <- which(jrnf_network[[1]]$name == "N2")
 
     keep <- jrnf_get_s_con_subnet(jrnf_network)
 
     keep[id_M] <- FALSE
     keep[id_hv] <- TRUE
     keep[id_CH4] <- TRUE
-
+    keep[id_CO2] <- TRUE
+    keep[id_N2] <- TRUE
     return(jrnf_subnet(jrnf_network, keep, rm_reaction="s", list_changes=FALSE))
 }
 
 
 
-# 
+# After drawing a histogram with the rainbow(20) palette 
+# this function returns a vector associating the same colors
+# used in the histogramms to the values given.
 #
-# 
+# 'values' vector of values
+# 'hi' object returned from the hist-call
 
 get_color_by_hist <- function(hi, values) {
     d <- character()
