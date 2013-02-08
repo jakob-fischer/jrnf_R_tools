@@ -424,7 +424,9 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 }
 
 
-
+#
+#
+#
 
 jrnf_simplify_AC_RN <- function(jrnf_network) {
     id_hv <- which(jrnf_network[[1]]$name == "hv")
@@ -442,8 +444,10 @@ jrnf_simplify_AC_RN <- function(jrnf_network) {
 
 
 
+# 
 #
-#
+# 
+
 get_color_by_hist <- function(hi, values) {
     d <- character()
 
@@ -478,6 +482,7 @@ get_fenthalpy_species <- function(names, ent) {
 
     return(res)
 }
+
 
 # Function takes a vector of chemical species names and a data frame of
 # entropy-enthaly information and return a vector associating each species
