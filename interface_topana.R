@@ -57,17 +57,7 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
     writeLines("-ENZIRREV", con=con)
     ac <- ""
 
-
-    nxt <- nrow(sp)
-    for(i in 1:length(input)) 
-         if(input[i]) 
-             nxt <- nxt+1
-     
-    for(i in 1:length(output)) 
-        if(output[i]) 
-             nxt <- nxt+1
-
-
+    nxt <- nrow(sp) + length(input) + length(output)
     for(i in 1:nxt) 
         ac <- paste(ac, "R", as.character(i), " ", sep="")
 
@@ -86,18 +76,14 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
         writeLines(paste("R", as.character(i), " : ", wjtm_m_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
 
     nxt <- nrow(sp)+1
-    for(i in 1:length(input)) {
-         if(input[i]) {
-             writeLines(paste("R", as.character(nxt), " : = ", sp$name[i], sep=""), con=con)
-             nxt <- nxt+1
-         }
+    for(i in input) {
+         writeLines(paste("R", as.character(nxt), " : = ", sp$name[i], sep=""), con=con)
+         nxt <- nxt+1
     }
 
-    for(i in 1:length(output)) {
-        if(output[i]) {
-             writeLines(paste("R", as.character(nxt), " :", sp$name[i], "   = ", sep=""), con=con)
-             nxt <- nxt+1
-         }
+    for(i in 1:output) {
+         writeLines(paste("R", as.character(nxt), " :", sp$name[i], "   = ", sep=""), con=con)
+         nxt <- nxt+1
     }
 
     close(con)
@@ -106,13 +92,40 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
 
 
 read_elementary_modes <- function(filename) {
-    return(0)
+    con <- file(filename, "r")
+    lines <- readLines(con)
+    first_em <- grep("ELEMENTARY MODE", lines)+3
+
+    if(is.na(first_em)) {
+        cat("Did not find elementary mode in input file!")
+        return(NA)
+    }
+
+    suppressWarnings( last_line <- as.numeric(unlist(strsplit(lines[first_em], split=" "))) )
+    first_size <- length(last_line)
+    em <- numeric()
+
+    if(first_size == 0) {
+        cat("Elementary modes set found empty!")
+        return(NA)
+    }
+
+    while(length(last_line) != 0 && length(last_line) == first_size) {
+        em <- c(em, last_line)
+        first_em <- first_em + 1
+        tryCatch(last_line <- as.numeric(unlist(strsplit(lines[first_em], split=" "))),
+                 warning=function(x) {  last_line<<-c()} )
+    }
+
+     
+
+    return(matrix(em, ncol=first_size, byrow=T))
 }
 
 
 
 
-calculate_elementary_modes <- function(network, in_names, out_names) {
+calculate_elementary_modes <- function(network, in_names, out_names, ext_names) {
     in_vector <- logical(length=nrow(network[[1]]))
     out_vector <- logical(length=nrow(network[[1]]))
     
@@ -129,7 +142,7 @@ calculate_elementary_modes <- function(network, in_names, out_names) {
         li <- which(i == network[[1]]$name)
 
         if(length(li) > 0)
-            in_vector[li] = TRUE
+            out_vector[li] = TRUE
         else 
             cat("Error in calculate_elementary_modes: could not find ", i) 
     }
