@@ -469,7 +469,7 @@ jrnf_simplify_AC_RN <- function(jrnf_network) {
     keep[id_CH4] <- TRUE
     keep[id_CO2] <- TRUE
     keep[id_N2] <- TRUE
-    return(jrnf_subnet(jrnf_network, keep, rm_reaction="s", list_changes=FALSE))
+    return(jrnf_subnet(jrnf_network, keep, rm_reaction="r", list_changes=FALSE))
 }
 
 
