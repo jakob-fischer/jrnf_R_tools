@@ -454,21 +454,22 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 # TODO: Add parameter that allows creation of addition reactions for some species (hv, CH4)
 # CAUTION: the pseudo species "M" cannot be removed as the other by deleting all reactions containing
 # it without changing the topologic structure signigicantly
+# TODO: Removing reactions related with removed species may lead to the result again being not
+# strongly connected?
 
 jrnf_simplify_AC_RN <- function(jrnf_network) {
     id_hv <- which(jrnf_network[[1]]$name == "hv")
-    #id_M <- which(jrnf_network[[1]]$name == "M")
+    id_M <- which(jrnf_network[[1]]$name == "M")
     id_CH4 <- which(jrnf_network[[1]]$name == "CH4")
     id_CO2 <- which(jrnf_network[[1]]$name == "CO2")
     id_N2 <- which(jrnf_network[[1]]$name == "N2")
+    id_O2 <- which(jrnf_network[[1]]$name == "O2")
+
+    id_externals <- c(id_hv, id_CO2, id_N2, id_O2)
 
     keep <- jrnf_get_s_con_subnet(jrnf_network)
+    keep[id_externals] <- TRUE
 
-    #keep[id_M] <- FALSE
-    keep[id_hv] <- TRUE
-    keep[id_CH4] <- TRUE
-    keep[id_CO2] <- TRUE
-    keep[id_N2] <- TRUE
     return(jrnf_subnet(jrnf_network, keep, rm_reaction="r", list_changes=FALSE))
 }
 
