@@ -452,7 +452,7 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 # N2, hv, CH4 and CO2 are kept even if they are not produced / consumed inside of the network.
 # The function returns the reduced subnetwork.
 # TODO: Add parameter that allows creation of addition reactions for some species (hv, CH4)
-# CAUTION: the pseudo species "M" cannot be removed as the other by deleting all reactions containing
+# CAUTION: the pseudo species "M" cannot be removed as the others by deleting all reactions containing
 # it without changing the topologic structure signigicantly
 # TODO: Removing reactions related with removed species may lead to the result again being not
 # strongly connected?
@@ -471,6 +471,40 @@ jrnf_simplify_AC_RN <- function(jrnf_network) {
     keep[id_externals] <- TRUE
 
     return(jrnf_subnet(jrnf_network, keep, rm_reaction="r", list_changes=FALSE))
+}
+
+
+
+# Create a initial file for a certain jrnf network which can 
+# then be used as a starting point for solving an ode...
+
+jrnf_create_initial <- function(jrnf_network, init_file, bc_id=NA, bc_v=NA) {
+    jrnf_species <- jrnf_data[[1]]
+    jrnf_reactions <- jrnf_data[[2]]    
+
+    df <- data.frame(time=as.numeric(0))
+    df[as.vector(jrnf_species$name)] <- 0
+
+    df[1,] <- abs(1+rnorm(1001))
+    df[1,1] <- 0  # set time zero again
+
+    if(!NA)
+
+    # and write 
+    write.csv(df, init_file, row.names=FALSE)
+}
+
+
+# This function creates information ...
+#
+#
+
+jrnf_create_pnn_file <- function(jrnf_network, pfile, nfile) {
+    N <- nrow(jrnf_network[[1]])
+    df <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
+                     shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(NA, N*N)), 
+                     stringsAsFactors=FALSE)
+
 }
 
 
