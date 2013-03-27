@@ -655,7 +655,7 @@ rplancklike <- function(N) {
             y <- (6/pi^2)/(x^3*(exp(1/x)-1))
         }
         
-        r <- c(r, x)
+        r <- c(r, y)
     }
 
     return(r)
