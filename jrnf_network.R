@@ -614,10 +614,10 @@ jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
     M <- nrow(jrnf_network[[2]])
 
     for(i in 1:M) {
-        e <- unlist(net[[2]]$educts[33])
-        e_m <- unlist(net[[2]]$educts_mul[33])
-        p <- unlist(net[[2]]$products[33])
-        p_m <- unlist(net[[2]]$products_mul[33])
+        e <- unlist(net[[2]]$educts[i])
+        e_m <- unlist(net[[2]]$educts_mul[i])
+        p <- unlist(net[[2]]$products[i])
+        p_m <- unlist(net[[2]]$products_mul[i])
 
         E_e <- sum(jrnf_network[[1]]$energy[e]*e_m)   # Energy of educts
         E_p <- sum(jrnf_network[[1]]$energy[p]*p_m)   # Energy of products
