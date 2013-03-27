@@ -450,60 +450,135 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 
 # Simplifies a atmospheric reaction network in a common form. 
 # N2, hv, CH4 and CO2 are kept even if they are not produced / consumed inside of the network.
-# The function returns the reduced subnetwork.
-# TODO: Add parameter that allows creation of addition reactions for some species (hv, CH4)
-# CAUTION: the pseudo species "M" cannot be removed as the others by deleting all reactions containing
-# it without changing the topologic structure signigicantly
-# TODO: Removing reactions related with removed species may lead to the result again being not
-# strongly connected?
+# For hv a inflow reaction is added. The function returns the reduced subnetwork.
+#
+# If all reactions containing one species not belonging to the first strongly connected 
+# subnet are removed this may lead again to a not strongly connected subset. If recursive
+# is true this leads to applying the reduction until this does not happen. 
 
-jrnf_simplify_AC_RN <- function(jrnf_network) {
-    id_hv <- which(jrnf_network[[1]]$name == "hv")
-    id_M <- which(jrnf_network[[1]]$name == "M")
-    id_CH4 <- which(jrnf_network[[1]]$name == "CH4")
-    id_CO2 <- which(jrnf_network[[1]]$name == "CO2")
-    id_N2 <- which(jrnf_network[[1]]$name == "N2")
-    id_O2 <- which(jrnf_network[[1]]$name == "O2")
+jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv"), outflow=c(""), 
+                                keep=c("N2", "hv", "CH4", "CO2"), remove_M=TRUE) {
+    id_external <- c()
 
-    id_externals <- c(id_hv, id_CO2, id_N2, id_O2)
+    # Handling inflow species
+    for(i in inflow) {
+        x <- which(jrnf_network[[1]]$name == i)
 
-    keep <- jrnf_get_s_con_subnet(jrnf_network)
-    keep[id_externals] <- TRUE
+        # adding to external list if necessary
+        if(length(x) > 0 && length(which(id_external == x)) == 0)
+            id_external <- c(id_external, x)
 
-    return(jrnf_subnet(jrnf_network, keep, rm_reaction="r", list_changes=FALSE))
+        # adding inflow reaction to network        
+	    jrnf_network[[2]] <- rbind(jrnf_network[[2]], data.frame(reversible=factor(c(FALSE)), 
+                                   c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
+                                   activation=as.numeric(c(0)),educts=I(list(c())), educts_mul=I(list(c())),
+                                   products=I(list(x)), products_mul=I(list(1))))
+    }
+
+    # Handling outflow species
+    for(i in outflow) {
+        x <- which(jrnf_network[[1]]$name == i)
+
+        # adding to external list if necessary
+        if(length(x) > 0 && length(which(id_external == x)) == 0)
+            id_external <- c(id_external, x)
+
+        # adding outflow reaction to network
+	    jrnf_network[[2]] <- rbind(jrnf_network[[2]], data.frame(reversible=factor(c(FALSE)), 
+                                   c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
+                                   activation=as.numeric(c(0)),educts=I(list(c(x))), educts_mul=I(list(c(1))),
+                                   products=I(list(c())), products_mul=I(list(c()))))
+    }
+
+    # Species that are kept (without adding inflow or outflow reaction)
+    for(i in keep) {
+        x <- which(jrnf_network[[1]]$name == i)
+        if(length(x) > 0 && length(which(id_external == x)) == 0)
+            id_external <- c(id_external, x)
+    }
+
+     
+    kp <- jrnf_get_s_con_subnet(jrnf_network)
+    kp[id_external] <- TRUE
+    jrnf_sn <- jrnf_subnet(jrnf_network, kp, rm_reaction="r", list_changes=FALSE)
+
+    # 
+    if(sum(kp) < length(kp) && recursive)
+        return(jrnf_simplify_AC_RN(jrnf_sn, TRUE, c(), c(), c(inflow, outflow, keep), remove_M))
+    else
+        if(remove_M)
+            return(jrnf_subnet(jrnf_network, jrnf_network[[1]]$name != "M", rm_reaction="s", list_changes=FALSE))
+        else
+            return(jrnf_sn)
 }
 
 
 
 # Create a initial file for a certain jrnf network which can 
-# then be used as a starting point for solving an ode...
+# then be used as a starting point for solving an ode. In default every 
+# concentration is initialized with random values drawn from a gaussian
+# distribution, added to one. 
+# Additional 'bc_id' can be given a vector of species id names or a vector
+# of (1-indexed) ids. If this is done, then 'bc_v' should be set to a 
+# numeric vector of the same size indicating the respective concentrations.
 
 jrnf_create_initial <- function(jrnf_network, init_file, bc_id=NA, bc_v=NA) {
-    jrnf_species <- jrnf_data[[1]]
-    jrnf_reactions <- jrnf_data[[2]]    
+    jrnf_species <- jrnf_network[[1]]
+    jrnf_reactions <- jrnf_network[[2]]    
 
     df <- data.frame(time=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- 0
 
-    df[1,] <- abs(1+rnorm(1001))
+    df[1,] <- abs(1+rnorm(length(jrnf_species$name)+1))
     df[1,1] <- 0  # set time zero again
 
-    if(!NA)
+    if(!is.na(bc_id) && !is.na(bc_v)) {
+        if(length(bc_id) != length(bc_v)) {
+            cat("Error in jrnf_create_initial; bc_id,bc_v length missmatch!")
+            return() 
+        }
+
+        if(is.numeric(bc_id)) 
+            df[1,bc_id+1] <- bc_v 
+        else 
+            for(i in 1:length(bc_v)) 
+                df[1,which(jrnf_species$name == bc_id[i])+1] <- bc_v[i]
+    } 
 
     # and write 
     write.csv(df, init_file, row.names=FALSE)
 }
 
 
-# This function creates information ...
-#
-#
+# This function calculates information on the network topology using igraph and 
+# writes it to two files. 
+# - One file (pfile) contains information specific to pairs of nodes
+# shortest path, number of different shortest paths, ...
+# - The second file (nfile) contains information specific to nodes, like degree,
+# betweenness and whether the node belongs to the biggest cluster of the network.
+# This two outputs can be enabled separately. The topological analysis is done
+# on the directed graph one gets from 'jrnf_to_directed_network'
+# TODO implement
 
-jrnf_create_pnn_file <- function(jrnf_network, pfile, nfile) {
+jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     N <- nrow(jrnf_network[[1]])
-    df <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
-                     shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(NA, N*N)), 
-                     stringsAsFactors=FALSE)
+    g <- jrnf_to_directed_network(jrnf_network)
+
+
+    if(!is.na(pfile)) {
+        df_1 <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
+                           shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(NA, N*N)), 
+                           stringsAsFactors=FALSE)
+
+        write.csv(df_1, pfile, row.names=FALSE)
+    }
+
+    if(!is.na(nfile)) {
+        df_2 <- data.frame(node=as.numeric(rep(NA,N)), degree=as.numeric(rep(NA,N)), 
+                           betweenness=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
+
+        write.csv(df_2, nfile, row.names=FALSE)
+    }
 
 }
 
@@ -530,6 +605,72 @@ get_color_by_hist <- function(hi, values) {
 
     return(d)
 }
+
+
+# TODO comment + test
+#
+
+jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
+    M <- nrow(jrnf_network[[2]])
+
+    for(i in 1:M) {
+        e <- unlist(net[[2]]$educts[33])
+        e_m <- unlist(net[[2]]$educts_mul[33])
+        p <- unlist(net[[2]]$products[33])
+        p_m <- unlist(net[[2]]$products_mul[33])
+
+        E_e <- sum(jrnf_network[[1]]$energy[e]*e_m)   # Energy of educts
+        E_p <- sum(jrnf_network[[1]]$energy[p]*p_m)   # Energy of products
+        E_a <- max(E_e, E_p) + jrnf_network[[2]]$activation[i]        # (absolute) activation energy
+
+        jrnf_network[[2]]$k <- exp(-(E_a-E_e)/kB_T)
+
+        if(jrnf_network[[2]]reversible[i]) 
+            jrnf_network[[2]]$k_b <- exp(-(E_a-E_p)/kB_T)
+        else 
+            jrnf_network[[2]]$k_b[i] <- 0    
+    }
+}
+
+
+
+
+# Function that samples species energies from normal distribution and 
+# activation energies from a distribution of the form p(E) = 6/(pi^2*(exp(1/x)-1))
+# After that the right reaction rates (k and k_b) are calculated.
+#
+# TODO test
+
+rplancklike <- function(N) {
+    r <- c()    
+
+    for(i in 1:N) {
+        x <- runif(min=0, max=100,n=1)
+        y <- (6/pi^2)/(x^3*(exp(1/x)-1))
+
+        while(x < runif(min=0, max=1, n=1)) {
+            x <- runif(min=0, max=100,n=1)
+            y <- (6/pi^2)/(x^3*(exp(1/x)-1))
+        }
+        
+        r <- c(r, x)
+    }
+
+    return(r)
+}
+
+
+jrnf_sample_energies <- function(jrnf_network, kB_T=1) {
+    N <- nrow(jrnf_network[[1]])
+    M <- nrow(jrnf_network[[2]])
+
+    # Draw numbers for species energy and activation energy   
+    jrnf_network[[1]]$energy <- rnorm(N)
+    jrnf_network[[2]]$activation <- rplancklike(M)
+
+    return (jrnf_calc_reaction_r(jrnf_network, kB_T))
+}
+
 
 
 # Function takes a vector of chemical species names and a data frame of
