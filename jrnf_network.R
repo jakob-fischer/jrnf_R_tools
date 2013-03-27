@@ -623,10 +623,10 @@ jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
         E_p <- sum(jrnf_network[[1]]$energy[p]*p_m)   # Energy of products
         E_a <- max(E_e, E_p) + jrnf_network[[2]]$activation[i]        # (absolute) activation energy
 
-        jrnf_network[[2]]$k <- exp(-(E_a-E_e)/kB_T)
+        jrnf_network[[2]]$k[i] <- exp(-(E_a-E_e)/kB_T)
 
         if(jrnf_network[[2]]$reversible[i]) 
-            jrnf_network[[2]]$k_b <- exp(-(E_a-E_p)/kB_T)
+            jrnf_network[[2]]$k_b[i] <- exp(-(E_a-E_p)/kB_T)
         else 
             jrnf_network[[2]]$k_b[i] <- 0    
     }
