@@ -531,7 +531,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     # ensure bc_id (if given) is numeric
     if(is.numeric(bc_id)) 
         for(i in 1:length(bc_v)) 
-            df[1,which(jrnf_species$name == bc_id[i])+1] <- bc_v[i]
+            bc_id <- which(jrnf_species$name == bc_id[i])
 
     df <- data.frame(time=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- 0
