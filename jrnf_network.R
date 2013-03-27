@@ -630,6 +630,8 @@ jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
         else 
             jrnf_network[[2]]$k_b[i] <- 0    
     }
+
+    return(jrnf_network)
 }
 
 
