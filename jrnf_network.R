@@ -597,10 +597,10 @@ get_color_by_hist <- function(hi, values) {
     for(i in values) {
         if(is.na(i)) {
             d <- c(d, "#FFFFFFFF")
-	} else {
+	    } else {
             lisa <- max(which(i > hi$breaks))
             d <- c(d, rainbow(20)[lisa])
-	}
+	    }
     }
 
     return(d)
@@ -625,7 +625,7 @@ jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
 
         jrnf_network[[2]]$k <- exp(-(E_a-E_e)/kB_T)
 
-        if(jrnf_network[[2]]reversible[i]) 
+        if(jrnf_network[[2]]$reversible[i]) 
             jrnf_network[[2]]$k_b <- exp(-(E_a-E_p)/kB_T)
         else 
             jrnf_network[[2]]$k_b[i] <- 0    
