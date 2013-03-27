@@ -521,10 +521,17 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv"), ou
 # Additional 'bc_id' can be given a vector of species id names or a vector
 # of (1-indexed) ids. If this is done, then 'bc_v' should be set to a 
 # numeric vector of the same size indicating the respective concentrations.
+#
+#
 
-jrnf_create_initial <- function(jrnf_network, init_file, bc_id=NA, bc_v=NA) {
+jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1) {
     jrnf_species <- jrnf_network[[1]]
     jrnf_reactions <- jrnf_network[[2]]    
+
+    # ensure bc_id (if given) is numeric
+    if(is.numeric(bc_id)) 
+        for(i in 1:length(bc_v)) 
+            df[1,which(jrnf_species$name == bc_id[i])+1] <- bc_v[i]
 
     df <- data.frame(time=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- 0
@@ -538,15 +545,17 @@ jrnf_create_initial <- function(jrnf_network, init_file, bc_id=NA, bc_v=NA) {
             return() 
         }
 
-        if(is.numeric(bc_id)) 
-            df[1,bc_id+1] <- bc_v 
-        else 
-            for(i in 1:length(bc_v)) 
-                df[1,which(jrnf_species$name == bc_id[i])+1] <- bc_v[i]
+        df[1,bc_id+1] <- bc_v 
     } 
 
     # and write 
     write.csv(df, init_file, row.names=FALSE)
+
+    # Writing a network with the boundary species set constant
+    if(!is.na(network_file) && !is.na(bc_id) 
+        jrnf_network[[1]]$constant[bc_id] <- TRUE;
+
+    write_jrnf(network_file, jrnf_network)
 }
 
 
