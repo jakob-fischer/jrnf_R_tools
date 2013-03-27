@@ -552,7 +552,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     write.csv(df, init_file, row.names=FALSE)
 
     # Writing a network with the boundary species set constant
-    if(!is.na(network_file) && !is.na(bc_id) 
+    if(!is.na(network_file) && !is.na(bc_id))
         jrnf_network[[1]]$constant[bc_id] <- TRUE;
 
     write_jrnf(network_file, jrnf_network)
