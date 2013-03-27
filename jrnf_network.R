@@ -650,12 +650,12 @@ rplancklike <- function(N) {
         x <- runif(min=0, max=100,n=1)
         y <- (6/pi^2)/(x^3*(exp(1/x)-1))
 
-        while(x < runif(min=0, max=1, n=1)) {
+        while(y < runif(min=0, max=1, n=1)) {
             x <- runif(min=0, max=100,n=1)
             y <- (6/pi^2)/(x^3*(exp(1/x)-1))
         }
         
-        r <- c(r, y)
+        r <- c(r, x)
     }
 
     return(r)
