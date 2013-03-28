@@ -529,9 +529,9 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     jrnf_reactions <- jrnf_network[[2]]    
 
     # ensure bc_id (if given) is numeric
-    if(is.numeric(bc_id)) 
-        for(i in 1:length(bc_v)) 
-            bc_id <- which(jrnf_species$name == bc_id[i])
+    if(!is.na(bc_id) && !is.numeric(bc_id)) 
+        for(i in 1:length(bc_id)) 
+            bc_id[i] <- which(jrnf_species$name == bc_id[i])
 
     df <- data.frame(time=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- 0
