@@ -167,38 +167,6 @@ write_jrnf <- function(filename, data) {
 }
 
 
-# Calculates the koefficients k and k_b for the networks from
-# energies of educts and products and activation energy of the
-# reaction.
-
-calculate_rev_koef <- function (network, kT=1.0) {
-
-    for(i in 1:nrow(network[[2]])) {
-        e_educts <- 0.0
-        e_products <- 0.0
-        e_activation <- network[[2]]$activation[i]  
-
-        # Iterate educts
-        for(j in 1:length(network[[2]]$educts[[i]])) {
-            id <- network[[2]]$educts[[i]][j]
-            mul <- network[[2]]$educts_mul[[i]][j]
-            e_educts <- e_educts + network[[1]]$energy[id]*mul
-        }
-
-        # Iterate products
-        for(j in 1:length(network[[2]]$products[[i]])) {
-            id <- network[[2]]$products[[i]][j]
-            mul <- network[[2]]$products_mul[[i]][j]
-            e_products <- e_products + network[[1]]$energy[id]*mul
-	}
-
-        network[[2]]$k[i] <- exp((e_educts-e_activation)/kT)
-        network[[2]]$k_b[i] <- exp((e_products-e_activation)/kT)
-    }
-
-    return(network)
-}
-
 
 # Calculates the flow / reaction rates for a given concentration vector
 # TODO: calculate energy dif, check
@@ -619,28 +587,28 @@ get_color_by_hist <- function(hi, values) {
 # TODO comment + test
 #
 
-jrnf_calc_reaction_r <- function(jrnf_network, kB_T) {
-    M <- nrow(jrnf_network[[2]])
+jrnf_calc_reaction_r <- function(network, kB_T) {
+    M <- nrow(network[[2]])
 
     for(i in 1:M) {
-        e <- unlist(net[[2]]$educts[i])
-        e_m <- unlist(net[[2]]$educts_mul[i])
-        p <- unlist(net[[2]]$products[i])
-        p_m <- unlist(net[[2]]$products_mul[i])
+        e <- unlist(network[[2]]$educts[i])
+        e_m <- unlist(network[[2]]$educts_mul[i])
+        p <- unlist(network[[2]]$products[i])
+        p_m <- unlist(network[[2]]$products_mul[i])
 
-        E_e <- sum(jrnf_network[[1]]$energy[e]*e_m)   # Energy of educts
-        E_p <- sum(jrnf_network[[1]]$energy[p]*p_m)   # Energy of products
-        E_a <- max(E_e, E_p) + jrnf_network[[2]]$activation[i]        # (absolute) activation energy
+        E_e <- sum(network[[1]]$energy[e]*e_m)   # Energy of educts
+        E_p <- sum(network[[1]]$energy[p]*p_m)   # Energy of products
+        E_a <- max(E_e, E_p) + network[[2]]$activation[i]        # (absolute) activation energy
 
-        jrnf_network[[2]]$k[i] <- exp(-(E_a-E_e)/kB_T)
+        network[[2]]$k[i] <- exp(-(E_a-E_e)/kB_T)
 
-        if(jrnf_network[[2]]$reversible[i]) 
-            jrnf_network[[2]]$k_b[i] <- exp(-(E_a-E_p)/kB_T)
+        if(network[[2]]$reversible[i]) 
+            network[[2]]$k_b[i] <- exp(-(E_a-E_p)/kB_T)
         else 
-            jrnf_network[[2]]$k_b[i] <- 0    
+            network[[2]]$k_b[i] <- 0    
     }
 
-    return(jrnf_network)
+    return(network)
 }
 
 
