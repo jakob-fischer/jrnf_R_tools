@@ -584,6 +584,8 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     g <- jrnf_to_directed_network(jrnf_network)
     g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
 
+    sps_g <- shortest.paths(g)
+
 
     if(!is.na(pfile)) {
         df_1 <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
@@ -591,25 +593,50 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
                            sp_multiplicity_s=as.numeric(rep(0, N*N)),
                            stringsAsFactors=FALSE)
 
-        
+        for(i in 1:(N*N)) {
+            fr <- floor((i-1)/N) + 1
+            t <- (i-1) %% N + 1
 
+            df_1$from[i] <- fr
+            df_1$to[i] <- t
+            df_1$shortest_path[i] <- sps_g[fr, t]
+            df_1$sp_multiplicity[i] <- 0
+            df_1$sp_multiplicity_s[i] <- 0
+        }
+
+
+        for(k in 1:N) {
+            sp <- get.all.shortest.paths(g, from=k, mode="out")$res
+            sp_s <- get.all.shortest.paths(g_s, from=k, mode="out")$res                     
+
+            for(x in sp) {
+                sel <- which(df_1$from == k & df_1$to == x[length(x)])
+                df_1$sp_multiplicity[sel] <- df_1$sp_multiplicity[sel] + 1
+            }
+
+            for(x in sp_s) {
+                sel <- which(df_1$from == k & df_1$to == x[length(x)])
+                df_1$sp_multiplicity_s[sel] <- df_1$sp_multiplicity_s[sel] + 1 
+            }
+        }
 
         write.csv(df_1, pfile, row.names=FALSE)
     }
+
 
     if(!is.na(nfile)) {
         df_2 <- data.frame(node=as.numeric(1:N), deg_in=as.numeric(rep(NA,N)), deg_out=as.numeric(rep(NA,N)), deg_all=as.numeric(rep(NA,N)),
                            deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_both=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
 
-        df_2$deg_in <- degree(g, mode="in")
-        df_2$deg_out <- degree(g, mode="out")
-        df_2$deg_all <- degree(g, mode="all")
-        df_2$deg_s_in <- degree(g_s, mode="in")
-        df_2$deg_s_out <- degree(g_s, mode="out")
-        df_2$deg_s_all <- degree(g_s, mode="all")
-        df_2$betweenness <- betweenness(g)
-        df_2$betweenness_s <- betweenness(s)
-    
+        df_2$deg_in <- as.numeric(degree(g, mode="in"))
+        df_2$deg_out <- as.numeric(degree(g, mode="out"))
+        df_2$deg_all <- as.numeric(degree(g, mode="all"))
+        df_2$deg_s_in <- as.numeric(degree(g_s, mode="in"))
+        df_2$deg_s_out <- as.numeric(degree(g_s, mode="out"))
+        df_2$deg_s_all <- as.numeric(degree(g_s, mode="all"))
+        df_2$betweenness <- as.numeric(betweenness(g))
+        df_2$betweenness_s <- as.numeric(betweenness(g_s))
+
         strong_clusters <- clusters(g, mode="strong")
         weak_clusters <- clusters(g, mode="weak")
         df_2$main <- (strong_clusters$membership == which.max(strong_clusters$csize))
@@ -634,10 +661,10 @@ get_color_by_hist <- function(hi, values) {
 
     for(i in values) {
         if(is.na(i)) {
-            d <- c(d, "#FFFFFFFF")
+                d <- c(d, "#FFFFFFFF")
 	    } else {
-            lisa <- max(which(i > hi$breaks))
-            d <- c(d, rainbow(20)[lisa])
+                lisa <- max(which(i > hi$breaks))
+                d <- c(d, rainbow(20)[lisa])
 	    }
     }
 
@@ -695,9 +722,9 @@ get_fenthalpy_species <- function(names, ent) {
     for(i in names) {
         t <- which(i == ent$name)
 	    if(length(t) == 1) {
-            res <- c(res,ent$dHf[t[1]]) 
+                res <- c(res,ent$dHf[t[1]]) 
 	    } else {
-            res <- c(res, NA)
+                res <- c(res, NA)
 	    }
     }
 
