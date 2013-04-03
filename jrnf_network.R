@@ -15,7 +15,7 @@ library(igraph)
 # 'activation' energy (numeric), lists on 'products' and 'educts' and 
 # their multiplicity in the reaction ('educts_mul' and 'products_mul')
 
-load_jrnf <- function(filename) {
+jrnf_read <- function(filename) {
     # Open file and verify the right header is there
     con <- file(filename, 'r');
     if(readLines(con, 1) != "jrnf0003") {
@@ -100,9 +100,14 @@ load_jrnf <- function(filename) {
 }
 
 
+# backward compatibility
+
+load_jrnf <- jrnf_read
+
+
 # Writes reaction network data frames to file
 
-write_jrnf <- function(filename, data) {
+jrnf_write <- function(filename, data) {
     # open file and write header
     con <- file(filename, 'w');
     species <- data[[1]]
@@ -166,6 +171,10 @@ write_jrnf <- function(filename, data) {
     close(con)
 }
 
+
+# Backward compatibility
+
+write_jrnf <- jrnf_write
 
 
 # Calculates the flow / reaction rates for a given concentration vector
@@ -481,6 +490,34 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv"), ou
 }
 
 
+# TODO comment + test
+#
+
+jrnf_calc_reaction_r <- function(network, kB_T=1) {
+    M <- nrow(network[[2]])
+
+    for(i in 1:M) {
+        e <- unlist(network[[2]]$educts[i])
+        e_m <- unlist(network[[2]]$educts_mul[i])
+        p <- unlist(network[[2]]$products[i])
+        p_m <- unlist(network[[2]]$products_mul[i])
+
+        E_e <- sum(network[[1]]$energy[e]*e_m)   # Energy of educts
+        E_p <- sum(network[[1]]$energy[p]*p_m)   # Energy of products
+        E_a <- max(E_e, E_p) + network[[2]]$activation[i]        # (absolute) activation energy
+
+        network[[2]]$k[i] <- exp(-(E_a-E_e)/kB_T)
+
+        if(network[[2]]$reversible[i]) 
+            network[[2]]$k_b[i] <- exp(-(E_a-E_p)/kB_T)
+        else 
+            network[[2]]$k_b[i] <- 0    
+    }
+
+    return(network)
+}
+
+
 
 # Create a initial file for a certain jrnf network which can 
 # then be used as a starting point for solving an ode. In default every 
@@ -492,7 +529,7 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv"), ou
 #
 #
 
-jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1) {
+jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=FALSE) {
     jrnf_species <- jrnf_network[[1]]
     jrnf_reactions <- jrnf_network[[2]]    
 
@@ -523,6 +560,11 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     if(!is.na(network_file) && !is.na(bc_id))
         jrnf_network[[1]]$constant[bc_id] <- TRUE;
 
+    if(!is.na(network_file) && !is.na(bc_id) && setBCE0) {
+        jrnf_network[[1]]$energy[bc_id] <- 0
+        jrnf_network <- jrnf_calc_reaction_r(jrnf_network, kB_T)
+    }
+
     write_jrnf(network_file, jrnf_network)
 }
 
@@ -540,19 +582,38 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
 jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     N <- nrow(jrnf_network[[1]])
     g <- jrnf_to_directed_network(jrnf_network)
+    g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
 
 
     if(!is.na(pfile)) {
         df_1 <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
-                           shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(NA, N*N)), 
+                           shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(0, N*N)), 
+                           sp_multiplicity_s=as.numeric(rep(0, N*N)),
                            stringsAsFactors=FALSE)
+
+        
+
 
         write.csv(df_1, pfile, row.names=FALSE)
     }
 
     if(!is.na(nfile)) {
-        df_2 <- data.frame(node=as.numeric(rep(NA,N)), degree=as.numeric(rep(NA,N)), 
-                           betweenness=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
+        df_2 <- data.frame(node=as.numeric(1:N), deg_in=as.numeric(rep(NA,N)), deg_out=as.numeric(rep(NA,N)), deg_all=as.numeric(rep(NA,N)),
+                           deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_both=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
+
+        df_2$deg_in <- degree(g, mode="in")
+        df_2$deg_out <- degree(g, mode="out")
+        df_2$deg_all <- degree(g, mode="all")
+        df_2$deg_s_in <- degree(g_s, mode="in")
+        df_2$deg_s_out <- degree(g_s, mode="out")
+        df_2$deg_s_all <- degree(g_s, mode="all")
+        df_2$betweenness <- betweenness(g)
+        df_2$betweenness_s <- betweenness(s)
+    
+        strong_clusters <- clusters(g, mode="strong")
+        weak_clusters <- clusters(g, mode="weak")
+        df_2$main <- (strong_clusters$membership == which.max(strong_clusters$csize))
+        df_2$main_w <- (weak_clusters$membership == which.max(weak_clusters$csize))
 
         write.csv(df_2, nfile, row.names=FALSE)
     }
@@ -584,41 +645,13 @@ get_color_by_hist <- function(hi, values) {
 }
 
 
-# TODO comment + test
-#
 
-jrnf_calc_reaction_r <- function(network, kB_T) {
-    M <- nrow(network[[2]])
-
-    for(i in 1:M) {
-        e <- unlist(network[[2]]$educts[i])
-        e_m <- unlist(network[[2]]$educts_mul[i])
-        p <- unlist(network[[2]]$products[i])
-        p_m <- unlist(network[[2]]$products_mul[i])
-
-        E_e <- sum(network[[1]]$energy[e]*e_m)   # Energy of educts
-        E_p <- sum(network[[1]]$energy[p]*p_m)   # Energy of products
-        E_a <- max(E_e, E_p) + network[[2]]$activation[i]        # (absolute) activation energy
-
-        network[[2]]$k[i] <- exp(-(E_a-E_e)/kB_T)
-
-        if(network[[2]]$reversible[i]) 
-            network[[2]]$k_b[i] <- exp(-(E_a-E_p)/kB_T)
-        else 
-            network[[2]]$k_b[i] <- 0    
-    }
-
-    return(network)
-}
 
 
 
 
 # Function that samples species energies from normal distribution and 
 # activation energies from a distribution of the form p(E) = 6/(pi^2*(exp(1/x)-1))
-# After that the right reaction rates (k and k_b) are calculated.
-#
-# TODO test
 
 rplancklike <- function(N) {
     r <- c()    
