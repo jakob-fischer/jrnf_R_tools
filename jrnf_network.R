@@ -281,6 +281,14 @@ jrnf_to_directed_network <- function(jrnf_data) {
 }
 
 
+# TODO comment
+
+jrnf_to_undirected_network <- function(jrnf_network) {
+    return(as.undirected(jrnf_to_directed_network(jrnf_network)))
+}
+
+
+
 # Transforms a jrnf-network (pair of data frames) to an undirected 
 # igraph network where for every pair of species in every reaction on
 # node is created.
@@ -593,7 +601,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
 
 jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     N <- nrow(jrnf_network[[1]])
-    g <- jrnf_to_directed_network(jrnf_network)
+    g <- jrnf_to_undirected_network(jrnf_network)
     g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
 
     sps_g <- shortest.paths(g)
