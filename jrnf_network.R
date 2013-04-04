@@ -425,6 +425,18 @@ jrnf_get_s_con_subnet <- function(jrnf_network) {
 }
 
 
+# TODO comment 
+#
+
+jrnf_get_w_con_subnet <- function(jrnf_network) {
+    directed_substrate_net <- jrnf_to_directed_network(jrnf_network)
+    strong_clusters <- clusters(directed_substrate_net, mode="weak")
+    keep_flag <- (strong_clusters$membership == which.max(strong_clusters$csize))
+
+    return(keep_flag)
+}
+
+
 # Simplifies a atmospheric reaction network in a common form. 
 # N2, hv, CH4 and CO2 are kept even if they are not produced / consumed inside of the network.
 # For hv a inflow reaction is added. The function returns the reduced subnetwork.
