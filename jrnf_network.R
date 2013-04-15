@@ -18,25 +18,17 @@ library(igraph)
 jrnf_read <- function(filename) {
     # Open file and verify the right header is there
     con <- file(filename, 'r');
-    if(readLines(con, 1) != "jrnf0003") {
+    lines <- readLines(con)
+    close(con)
+
+
+    if(lines[1] != "jrnf0003") {
         cat("File ", filename, "is not in valid jrnf format!")
         return(0)
     }    
 
-    # Declaring empty data frames for species and reactions
-    species <- data.frame(type=factor(integer()),
-                 name=character(), 
-                 energy=integer(),
-                 constant=factor(logical()),
-                 stringsAsFactors=FALSE)
-    reactions <- data.frame(reversible=factor(logical()),
-                            c=numeric(), k=numeric(),
-                            k_b=numeric(), activation=numeric(), 
-                            educts=list(), educts_mul=list(),
-                            products=list(), products_mul=list())
-
     # Read line using ' ' to separate and put parts in 'last_line'-vector
-    last_line <- scan(textConnection(readLines(con,1)), sep=" ", quiet="TRUE")
+    last_line <- scan(textConnection(lines[2]), sep=" ", quiet="TRUE")
     if(length(last_line) != 2) {
         cat("Error at reading header of ", filename, "!")
         return(0)
@@ -45,57 +37,86 @@ jrnf_read <- function(filename) {
     no_species <- last_line[1]
     no_reactions <- last_line[2]
 
+
+    # Declaring empty data frames for species and reactions
+    erep <- rep(NA, no_species)
+    species <- data.frame(type=as.integer(erep), name=as.character(erep), 
+                 energy=as.integer(erep),
+                 constant=as.logical(erep),
+                 stringsAsFactors=FALSE)
+
+    
+    erep <- rep(NA, no_reactions)
+    reactions <- data.frame(reversible=as.logical(erep),
+                            c=as.numeric(erep), 
+                            k=as.numeric(erep),
+                            k_b=as.numeric(erep), 
+                            activation=as.numeric(erep), 
+                            educts=erep, 
+                            educts_mul=erep,
+                            products=erep, 
+                            products_mul=erep)
+ 
     # Input species data
     for(i in 1:no_species) {
-        last_line <- strsplit(readLines(con,1), " ", fixed = TRUE)[[1]]
+        last_line <- strsplit(lines[i+2], " ", fixed = TRUE)[[1]]
         if(length(last_line) != 4) {
             cat("Error at reading species", i, "!")
             return(last_line)
         }
 
-	species <- rbind(species, data.frame(type=factor(as.integer(last_line[1])), name=last_line[2], 
-                                             energy=as.numeric(last_line[3]), 
-                                             constant=as.logical(as.integer(last_line[4]))))
+	species$type[i] <- as.integer(last_line[1])
+        species$name[i] <- last_line[2]
+        species$energy[i] <- as.numeric(last_line[3])
+        species$constant[i] <- as.logical(as.integer(last_line[4]))
     }
 
     # Input data on reactions
     for(i in 1:no_reactions) {
+        if(i%%100 == 0)
+            cat(".")
+
         # read entire line and separate into last_line
-        last_line <- strsplit(readLines(con,1), " ", fixed = TRUE)[[1]]
+        last_line <- strsplit(lines[2+no_species+i], " ", fixed = TRUE)[[1]]
         if(length(last_line) < 7) {
             cat("Error at reading reaction", i, "!")
             return(0)
         }
 
         e_number <- as.numeric(last_line[6])
-        e <- c()
-        em <- c()
+        e <- as.numeric((rep(0, e_number)))
+        em <- as.numeric((rep(0, e_number)))
         p_number <- as.numeric(last_line[7])
-        p <- c()
-        pm <- c()
+        p <- as.numeric((rep(0, p_number)))
+        pm <- as.numeric((rep(0, p_number)))
 
         # Fill educts ... 
         for(j in 1:e_number) {
-            e <- c(e, as.numeric(last_line[7+j*2-1])+1)
-            em <- c(em, as.numeric(last_line[7+j*2])) 
+            e[j] <- as.numeric(last_line[7+j*2-1])+1
+            em[j] <- as.numeric(last_line[7+j*2]) 
 	}
 
         # ...and product vectors
         for(j in 1:p_number) {
-            p <- c(p, as.numeric(last_line[7+e_number*2+j*2-1])+1)
-            pm <- c(pm, as.numeric(last_line[7+e_number*2+j*2])) 
+            p[j] <- as.numeric(last_line[7+e_number*2+j*2-1])+1
+            pm[j] <- as.numeric(last_line[7+e_number*2+j*2]) 
 	}
 
         # Add it all togother to reactions data frame
-	reactions <- rbind(reactions, data.frame(reversible=factor(as.logical(as.integer(last_line[1]))), 
-                                                 c=as.numeric(last_line[2]), k=as.numeric(last_line[3]),
-                                                 k_b=as.numeric(last_line[4]), activation=as.numeric(last_line[5]),
-                                                 educts=I(list(e)), educts_mul=I(list(em)),
-                                                 products=I(list(p)), products_mul=I(list(pm))))
+	reactions$reversible[i] <-as.logical(as.integer(last_line[1]))
+        reactions$c[i] <- as.numeric(last_line[2])
+        reactions$k[i] <- as.numeric(last_line[3])
+        reactions$k_b[i] <- as.numeric(last_line[4])
+        reactions$activation[i] <- as.numeric(last_line[5])
+        reactions$educts[i] <- I(list(e))
+        reactions$educts_mul[i] <- I(list(em))
+        reactions$products[i] <- I(list(p))
+        reactions$products_mul[i] <- I(list(pm))
     }
 
-    # close connection and concatenate it to jrnf-object
-    close(con)
+    cat("\n")
+
+    # concatenate it to jrnf-object
     return(list(species, reactions))
 }
 
@@ -547,22 +568,25 @@ jrnf_calc_reaction_r <- function(network, kB_T=1) {
 # of (1-indexed) ids. If this is done, then 'bc_v' should be set to a 
 # numeric vector of the same size indicating the respective concentrations.
 #
-#
+# setBCE0  -  setting the boundary condition species energy to zero
 
-jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=FALSE) {
+jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=TRUE) {
     jrnf_species <- jrnf_network[[1]]
     jrnf_reactions <- jrnf_network[[2]]    
+
+    #cat("HALLO bc_id=", bc_id, " bc_v=", bc_v, "\n")
 
     # ensure bc_id (if given) is numeric
     if(!is.na(bc_id) && !is.numeric(bc_id)) 
         for(i in 1:length(bc_id)) 
             bc_id[i] <- which(jrnf_species$name == bc_id[i])
 
-    df <- data.frame(time=as.numeric(0))
-    df[as.vector(jrnf_species$name)] <- 0
+    #cat("TAT\n")
 
-    df[1,] <- abs(1+rnorm(length(jrnf_species$name)+1))
-    df[1,1] <- 0  # set time zero again
+    df <- data.frame(time=as.numeric(0))
+    df[as.vector(jrnf_species$name)] <- abs(1+rnorm(length(jrnf_species$name)))
+
+    #cat("BIB\n")
 
     if(!is.na(bc_id) && !is.na(bc_v)) {
         if(length(bc_id) != length(bc_v)) {
@@ -606,39 +630,44 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
 
     sps_g <- shortest.paths(g)
 
-
     if(!is.na(pfile)) {
-        df_1 <- data.frame(from=as.numeric(rep(NA, N*N)), to=as.numeric(rep(NA, N*N)), 
-                           shortest_path=as.numeric(rep(NA, N*N)), sp_multiplicity=as.numeric(rep(0, N*N)), 
+        df_1 <- data.frame(from=as.numeric(rep(0, N*N)), to=as.numeric(rep(0, N*N)), 
+                           shortest_path=as.numeric(rep(0, N*N)), sp_multiplicity=as.numeric(rep(0, N*N)), 
                            sp_multiplicity_s=as.numeric(rep(0, N*N)),
                            stringsAsFactors=FALSE)
-
-        for(i in 1:(N*N)) {
-            fr <- floor((i-1)/N) + 1
-            t <- (i-1) %% N + 1
-
-            df_1$from[i] <- fr
-            df_1$to[i] <- t
-            df_1$shortest_path[i] <- sps_g[fr, t]
-            df_1$sp_multiplicity[i] <- 0
-            df_1$sp_multiplicity_s[i] <- 0
-        }
+        df_1$from <- floor((1:(N*N)-1)/N) + 1
+        df_1$to <- (1:(N*N)-1) %% N + 1
+            
+        df_1$shortest_path <- as.vector(sps_g)
+        #for(i in 1:(N*N)) {
+        #    df_1$shortest_path[i] <- sps_g[floor((i-1)/N) + 1, (i-1) %% N + 1]
+        #}
+        df_1$sp_multiplicity <- 0
+        df_1$sp_multiplicity_s <- 0
 
 
         for(k in 1:N) {
+            if(k %% 10 == 1)
+                cat(".")
             sp <- get.all.shortest.paths(g, from=k, mode="out")$res
             sp_s <- get.all.shortest.paths(g_s, from=k, mode="out")$res                     
 
-            for(x in sp) {
-                sel <- which(df_1$from == k & df_1$to == x[length(x)])
-                df_1$sp_multiplicity[sel] <- df_1$sp_multiplicity[sel] + 1
-            }
+            sp_x <- c()
+            for(x in sp)
+                sp_x <- c(sp_x, x[length(x)])
 
-            for(x in sp_s) {
-                sel <- which(df_1$from == k & df_1$to == x[length(x)])
-                df_1$sp_multiplicity_s[sel] <- df_1$sp_multiplicity_s[sel] + 1 
-            }
+            adf <- as.data.frame(table(sp_x))
+            df_1$sp_multiplicity[(k-1)*N+as.numeric(as.vector(adf$sp_x))] <- adf$Freq
+
+
+            sp_s_x <- c()
+            for(x in sp_s)
+                sp_s_x <- c(sp_s_x, x[length(x)])
+
+            adf <- as.data.frame(table(sp_s_x))
+            df_1$sp_multiplicity_s[(k-1)*N+as.numeric(as.vector(adf$sp_s_x))] <- adf$Freq
         }
+        cat("\n")
 
         write.csv(df_1, pfile, row.names=FALSE)
     }
