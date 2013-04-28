@@ -8,6 +8,63 @@
 
 source("jrnf_network.R")
 
+# Executed in the directory ..
+#
+# TODO comment and implement
+
+netodeint_collect_results <- function(out="results.csv") {
+    save_wd <- getwd()   # just to be save
+    df <- data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
+                     flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=list(), re_df=list())
+
+    bdir_v <- list.dirs(recursive=FALSE)
+
+    for(bp in bdir_v) {
+        l <- strsplit(bp, "b")[[1]][2]
+        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
+        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
+        net <- jrnf_read("net.jrnf")
+
+        setwd(bp)
+        vdir_v <- list.dirs(recursive=FALSE)
+        for(vp in vdir_v) {
+            l <- strsplit(vp, "v")[[1]][2]
+            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
+            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
+            setwd(vp)
+
+            edir_v <- list.dirs(recursive=FALSE)
+            for(ep in edir_v) {
+                i <- as.numeric(strsplit(ep,"/")[[1]][2])
+                setwd(ep)
+                
+                cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
+                run <- read.csv("run.con")
+
+                last_time <- run[nrow(run),1]
+                last_msd  <- run[nrow(run),2]
+                last_con <- as.numeric(run[nrow(run), 3:ncol(run)])
+                
+                last_flow <- calculate_flow(net, last_con)
+
+                df <- rbind(df,
+                              data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
+                              flow1=as.numeric(0), flow2=as.numeric(0), ep_tot=as.numeric(0), sp_df=list(c(0)), re_df=list(c(0))))
+
+                setwd("..")
+            }
+ 
+            setwd("..")
+        }
+
+        setwd("..")
+    }
+
+    setwd(save_wd)
+    write.csv(df, out)
+}
+
+
 
 # The file first analyses the netfile with jrnf_create_pnn_file. The results
 # ("pfile.dat", "nfile.dat") are written to the same directory in which the
@@ -23,17 +80,21 @@ source("jrnf_network.R")
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=c(), sampling_sym=TRUE,
-                            odeint_p="~/apps/odeint_rnet", Tmax=100000, deltaT=0.1, wint=10000) {
+                            odeint_p="~/apps/odeint_rnet", Tmax=100000, deltaT=0.1, wint=1000) {
     # Save old and set new working directory
     scripts <- as.character()
     path_old <- getwd()
     path <- unlist(strsplit(netfile, "/", fixed=TRUE))
+    cat("path=", path, "\n")
+    cat("newpath=", paste(path[-length(path)], collapse="/"), "\n")
     setwd(paste(path[-length(path)], collapse="/"))
 
     cat("loading network\n")
 
     # load network / calculate topologic properties
     net <- jrnf_read(path[length(path)])
+    net <- jrnf_sample_energies(net)
+    jrnf_write("net_energies.jrnf", net)
 
     cat("topological analysis \n")
 
@@ -73,14 +134,21 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
         return() 
     }
 
- 
+
     cat("creating directory structure and initial files\n")
 
     # create directory structure
+    cat(paste("having", as.character(length(bids_l)), "boundary ids\n"))
+
     for(b in bids_l) {
-        for(v in bvalues_l) {
-            ff <- paste(c("b", as.character(b[1]), as.character(b[2]), "v", 
-                          as.character(v[1]), as.character(v[2])), collapse="_")
+        cat(".")
+        ff_mid <- paste(c("b", as.character(b[1]), "_" ,as.character(b[2])), collapse="")
+        system(paste("mkdir", ff_mid))
+
+        for(v in 1:length(bvalues_l)) {
+
+            ff <- paste(c("b", as.character(b[1]), "_", as.character(b[2]), "/v", 
+                          as.character(bvalues_l[[v]][1]), "_" ,as.character(bvalues_l[[v]][2])), collapse="")
 
             system(paste("mkdir", ff))  
 
@@ -89,16 +157,25 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                 fff <- paste(c(ff, as.character(i)), collapse="/")
                 system(paste(c("mkdir", fff), collapse=" "))
 
-               #cat("b=", b, "\n")
-               #cat("v=", v, "\n")
+                #cat("b=", b, "\n")
+                #cat("v=", v, "\n")
 
                 # create network-files and (initial) concentration files
-                jrnf_create_initial(net, paste(fff, "run.con", sep="/"), 
-                                    paste(fff, "net.jrnf", sep="/"), bc_id=b, bc_v=v)
+                if(i == 1 && v == 1) { # Create network-file only if first in esemble and boundary
+                    netref <- paste(ff_mid, "/net.jrnf", sep="/")
+                    jrnf_create_initial(net, paste(fff, "run.con", sep="/"), 
+                                        netref, bc_id=b, bc_v=bvalues_l[[v]])
+                } else { # 
+                    #cat("command: ", paste("cp ", ff, "/1/net.jrnf ", fff, "/net.jrnf", sep=""), "\n")
+                    #system(paste("cp ", netref, " ", fff, "/net.jrnf", sep=""))
+
+                    jrnf_create_initial(net, paste(fff, "run.con", sep="/"), 
+                                        NA, bc_id=b, bc_v=bvalues_l[[v]])
+                }
 
                 # add script command
                 cmd <-odeint_p
-                scripts <- c(scripts, paste(odeint_p, " simsim net=", fff, "/net.jrnf con=", fff, "/run.con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=", as.character(wint) , sep=""))
+                scripts <- c(scripts, paste(odeint_p, " simsim net=", ff_mid, "/net.jrnf con=", fff, "/run.con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=", as.character(wint) , sep=""))
             }
         }
 
@@ -109,7 +186,12 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     sel <- sample(no_scripts, length(scripts), replace=TRUE)
 
     for(i in 1:no_scripts) {
-        con <- file(paste("bscript_", as.character(i), sep=""), "w")
+        con <- file(paste("bscript_", as.character(i), ".sh", sep=""), "w")
+        writeLines("#!/bin/sh",con)
+        writeLines(paste("#$ -N oi_33_", as.character(i) ,sep=""), con)
+        writeLines("#$ -j y", con)
+        writeLines("#$ -cwd", con)
+
         writeLines(scripts[sel == i], con)
         close(con)
     }

@@ -305,7 +305,7 @@ jrnf_to_directed_network <- function(jrnf_data) {
 # TODO comment
 
 jrnf_to_undirected_network <- function(jrnf_network) {
-    return(as.undirected(jrnf_to_directed_network(jrnf_network)))
+    return(as.undirected(jrnf_to_directed_network(jrnf_network), mode="each"))
 }
 
 
@@ -474,7 +474,7 @@ jrnf_get_w_con_subnet <- function(jrnf_network) {
 # subnet are removed this may lead again to a not strongly connected subset. If recursive
 # is true this leads to applying the reduction until this does not happen. 
 
-jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv"), outflow=c(""), 
+jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv", "O2"), outflow=c("CO2"), 
                                 keep=c("N2", "hv", "CH4", "CO2"), remove_M=TRUE) {
     id_external <- c()
 
@@ -559,6 +559,13 @@ jrnf_calc_reaction_r <- function(network, kB_T=1) {
 }
 
 
+# TODO comment + test
+#
+jrnf_reaction_to_string <- function(jrnf_network, reaction_id) {
+    return("TODO")
+}
+
+
 
 # Create a initial file for a certain jrnf network which can 
 # then be used as a starting point for solving an ode. In default every 
@@ -583,7 +590,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
 
     #cat("TAT\n")
 
-    df <- data.frame(time=as.numeric(0))
+    df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- abs(1+rnorm(length(jrnf_species$name)))
 
     #cat("BIB\n")
@@ -594,11 +601,14 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
             return() 
         }
 
-        df[1,bc_id+1] <- bc_v 
+        df[1,bc_id+2] <- bc_v 
     } 
 
     # and write 
     write.csv(df, init_file, row.names=FALSE)
+
+    if(is.na(network_file)) 
+        return()
 
     # Writing a network with the boundary species set constant
     if(!is.na(network_file) && !is.na(bc_id))
@@ -675,7 +685,7 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
 
     if(!is.na(nfile)) {
         df_2 <- data.frame(node=as.numeric(1:N), deg_in=as.numeric(rep(NA,N)), deg_out=as.numeric(rep(NA,N)), deg_all=as.numeric(rep(NA,N)),
-                           deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_both=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
+                           deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_all=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
 
         df_2$deg_in <- as.numeric(degree(g, mode="in"))
         df_2$deg_out <- as.numeric(degree(g, mode="out"))
@@ -695,6 +705,85 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     }
 
 }
+
+
+
+#
+# TODO implement + comment
+# copy parameters from original reactions, even if it doesnt make sense
+
+jrnf_copy_linearize <- function(infile, outfile, C) {
+    net_in <- jrnf_read(infile)
+
+    s_in <- net_in[[1]]
+    r_in <- net_in[[2]]
+
+    flag_11 <- logical()
+    flag_22 <- logical()
+
+    for(i in 1:nrow(r_in)) {
+        flag_11 <- c(flag_11, sum(unlist(r_in$educts_mul[i])) == 1 & sum(unlist(r_in$products_mul[i])) == 1)
+        flag_22 <- c(flag_22, sum(unlist(r_in$educts_mul[i])) == 2 & sum(unlist(r_in$products_mul[i])) == 2)
+    }
+    
+    if(sum(!xor(flag_11, flag_22)) != 0) {
+        cat("jrnf_copy_linearize - found non 1-1 / 2-2 reaction. Aborting!\n")
+        return()
+    }
+
+    if(sum(flag_22) < C) {
+        cat("Less 2-2 reactions than desired C!\n")
+        return()
+    }
+
+    flag_keep <- logical(nrow(r_in)) 
+    flag_keep[sample(which(flag_22), C)] <- TRUE
+
+    r_out <- rbind(r_in[flag_keep,], r_in[flag_11,])
+
+    # Transform and add linear version of substrate graph representation
+    for(i in which(!flag_keep & !flag_11)) {
+        educts <- unlist(r_in$educts[i])
+        products <- unlist(r_in$products[i])
+        ff <- educts[1]
+        fs <- educts[length(educts)]
+        sf <- products[1]
+        ss <- products[length(products)]
+
+        r1 <- data.frame(reversible=factor(TRUE), c=as.numeric(0), k=as.numeric(0),
+                         k_b=as.numeric(0), activation=as.numeric(0), 
+                         educts=as.numeric(ff), educts_mul=as.numeric(1),
+                         products=as.numeric(sf), products_mul=as.numeric(1))
+
+        r2 <- data.frame(reversible=factor(TRUE), c=as.numeric(0), k=as.numeric(0),
+                         k_b=as.numeric(0), activation=as.numeric(0), 
+                         educts=as.numeric(ff), educts_mul=as.numeric(1),
+                         products=as.numeric(ss), products_mul=as.numeric(1))
+
+        r3 <- data.frame(reversible=factor(TRUE), c=as.numeric(0), k=as.numeric(0),
+                         k_b=as.numeric(0), activation=as.numeric(0), 
+                         educts=as.numeric(fs), educts_mul=as.numeric(1),
+                         products=as.numeric(sf), products_mul=as.numeric(1))
+
+        r4 <- data.frame(reversible=factor(TRUE), c=as.numeric(0), k=as.numeric(0),
+                         k_b=as.numeric(0), activation=as.numeric(0), 
+                         educts=as.numeric(fs), educts_mul=as.numeric(1),
+                         products=as.numeric(ss), products_mul=as.numeric(1))
+
+        r_out <- rbind(r_out, r1)
+        r_out <- rbind(r_out, r2)
+        r_out <- rbind(r_out, r3)
+        r_out <- rbind(r_out, r4)
+
+    } 
+
+    #return(list(s_in, r_out))
+
+    net_out <-   
+    jrnf_write(outfile, list(s_in, r_out))
+}
+
+
 
 
 
