@@ -293,3 +293,21 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     # Restore working directory
     setwd(path_old)
 }
+
+
+
+create_pfile_bignet <- function(calc_sp_mul = TRUE) {
+    net <- jrnf_read("net.jrnf")
+
+    lf <- list.files()
+    lf <- lf[file.info(lf)$isdir]
+    bids_l <- list()
+
+    for(x in lf) 
+        if(substring(x,1,1) == "b"){
+            x <- substring(x,2)
+            bids_l[[length(bids_l)+1]] <- as.integer(unlist(strsplit(x, "_")))
+        }
+
+    jrnf_create_pfile_bignet(net, bids_l, "pfile.csv", calc_sp_mul) 
+}

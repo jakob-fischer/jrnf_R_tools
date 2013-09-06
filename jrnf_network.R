@@ -780,6 +780,44 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
 
 
 
+# a faster variant of pfile generation. Only calculates thes pairs that are given in 
+# b_list structure...
+# TODO
+
+
+
+jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TRUE) {
+    L <- length(b_list)
+    g <- jrnf_to_undirected_network(jrnf_network)
+    g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
+
+    df_1 <- data.frame(from=as.numeric(rep(0, L)), to=as.numeric(rep(0, L)), 
+                       shortest_path=as.numeric(rep(0, L)), sp_multiplicity=as.numeric(rep(0, L)), 
+                       sp_multiplicity_s=as.numeric(rep(0, L)),
+                       stringsAsFactors=FALSE)
+
+    for(x in 1:length(b_list)) {
+        from <- b_list[[x]][1]
+        to <- b_list[[x]][2]
+        df_1$from[x] <- from
+        df_1$to[x] <- to
+            
+        cat(".")
+
+        df_1$shortest_path[x] <- as.numeric(shortest.paths(g, from, to))
+        df_1$sp_multiplicity[x] <- length(get.all.shortest.paths(g, from=from, to=to, mode="all")$res)        
+        df_1$sp_multiplicity_s[x] <- length(get.all.shortest.paths(g_s, from=from, to=to, mode="all")$res)
+    }        
+    cat("\n")
+
+    write.csv(df_1, pfile, row.names=FALSE)
+}
+
+
+
+
+
+
 #
 # TODO implement + comment
 # copy parameters from original reactions, even if it doesnt make sense
