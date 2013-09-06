@@ -38,49 +38,23 @@ jrnf_read <- function(filename) {
     no_reactions <- last_line[2]
 
 
-    # Declaring empty data frames for species and reactions
-    erep <- rep(NA, no_species)
-    species <- data.frame(type=as.integer(erep), name=as.character(erep), 
-                 energy=as.integer(erep),
-                 constant=as.logical(erep),
-                 stringsAsFactors=FALSE)
-
-    
-    erep <- rep(NA, no_reactions)
-    reactions <- data.frame(reversible=as.logical(erep),
-                            c=as.numeric(erep), 
-                            k=as.numeric(erep),
-                            k_b=as.numeric(erep), 
-                            activation=as.numeric(erep), 
-                            educts=erep, 
-                            educts_mul=erep,
-                            products=erep, 
-                            products_mul=erep)
- 
-    # Input species data
-    for(i in 1:no_species) {
-        last_line <- strsplit(lines[i+2], " ", fixed = TRUE)[[1]]
-        if(length(last_line) != 4) {
-            cat("Error at reading species", i, "!")
-            return(last_line)
-        }
-
-	species$type[i] <- as.integer(last_line[1])
-        species$name[i] <- last_line[2]
-        species$energy[i] <- as.numeric(last_line[3])
-        species$constant[i] <- as.logical(as.integer(last_line[4]))
+    # Declaring apply methods 
+    sp_a <- function(sp_string) {
+        last_line <- strsplit(sp_string, " ", fixed = TRUE)[[1]]
+        if(length(last_line) != 4) 
+            cat("Error at reading species!")
+        
+        return(data.frame(type=as.integer(last_line[1]), name=as.character(last_line[2]), 
+                          energy=as.numeric(last_line[3]),
+                          constant=as.logical(as.logical(as.integer(last_line[4]))),
+                          stringsAsFactors=FALSE))
     }
 
-    # Input data on reactions
-    for(i in 1:no_reactions) {
-        if(i%%100 == 0)
-            cat(".")
-
-        # read entire line and separate into last_line
-        last_line <- strsplit(lines[2+no_species+i], " ", fixed = TRUE)[[1]]
+    re_a <- function(re_string) {
+        last_line <- strsplit(re_string, " ", fixed = TRUE)[[1]]
         if(length(last_line) < 7) {
-            cat("Error at reading reaction", i, "!")
-            return(0)
+            cat("Error at reading reaction:\n")
+            cat(last_line, "\n")
         }
 
         e_number <- as.numeric(last_line[6])
@@ -102,23 +76,40 @@ jrnf_read <- function(filename) {
             pm[j] <- as.numeric(last_line[7+e_number*2+j*2]) 
 	}
 
-        # Add it all togother to reactions data frame
-	reactions$reversible[i] <-as.logical(as.integer(last_line[1]))
-        reactions$c[i] <- as.numeric(last_line[2])
-        reactions$k[i] <- as.numeric(last_line[3])
-        reactions$k_b[i] <- as.numeric(last_line[4])
-        reactions$activation[i] <- as.numeric(last_line[5])
-        reactions$educts[i] <- I(list(e))
-        reactions$educts_mul[i] <- I(list(em))
-        reactions$products[i] <- I(list(p))
-        reactions$products_mul[i] <- I(list(pm))
+        if(is.na(e[1])) {
+            e <- c()
+            em <- c()
+        }
+
+        if(is.na(p[1])) {
+            p <- c()
+            pm <- c()
+        }
+
+        return(data.frame(reversible=as.logical(as.integer(last_line[1])),
+                          c=as.numeric(last_line[2]), 
+                          k=as.numeric(last_line[3]),
+                          k_b=as.numeric(last_line[4]), 
+                          activation=as.numeric(last_line[5]), 
+                          educts=I(list(e)), educts_mul=I(list(em)),
+                          products=I(list(p)), products_mul=I(list(pm))))
+
     }
 
-    cat("\n")
+    # Input species data
+    sp_list <- lapply(lines[3:(2+no_species)], sp_a)
+    species <- do.call("rbind", sp_list)
+
+    # Input data on reactions
+    re_list <- lapply(lines[(3+no_species):(2+no_species+no_reactions)], re_a)
+
+    reactions <- do.call("rbind", re_list)
+
 
     # concatenate it to jrnf-object
     return(list(species, reactions))
 }
+
 
 
 # backward compatibility
@@ -201,47 +192,92 @@ write_jrnf <- jrnf_write
 # Calculates the flow / reaction rates for a given concentration vector
 # TODO: calculate energy dif, check
 
-calculate_flow <- function(network, concentrations) {
-    result <- data.frame(flow_effective=numeric(), flow_forward=numeric(), flow_backward=numeric(),
-                         energy_flow=numeric(), entropy_prod=numeric())
-
-    for(i in 1:nrow(network[[2]])) {
-        f_forward <- network[[2]]$k[i]
-        f_backward <- network[[2]]$k_b[i]
+jrnf_calculate_flow <- function(network, concentrations) {
+    cf_a <- function(reaction) {
+        f_forward <- reaction$k
+        f_backward <- reaction$k_b
         energy_dif <- 0 
  
 
         # Iterate educts
-        for(j in 1:length(network[[2]]$educts[[i]])) {
-            id <- network[[2]]$educts[[i]][j]
-            mul <- network[[2]]$educts_mul[[i]][j]
+        for(j in 1:length(reaction$educts)) {
+            id <- reaction$educts[j]
+            mul <- reaction$educts_mul[j]
             energy_dif <- energy_dif - network[[1]]$energy[id]*mul
             f_forward <- f_forward * concentrations[id]^mul
         }
 
         # Iterate products
-        for(j in 1:length(network[[2]]$products[[i]])) {
-            id <- network[[2]]$products[[i]][j]
-            mul <- network[[2]]$products_mul[[i]][j]
+        for(j in 1:length(reaction$products)) {
+            id <- reaction$products[j]
+            mul <- reaction$products_mul[j]
             energy_dif <- energy_dif + network[[1]]$energy[id]*mul
             f_backward <- f_backward * concentrations[id]^mul
 	}
 
         f_effective <- f_forward - f_backward
         energy_f <- energy_dif*f_effective
-        entrop_p <- (f_forward-f_backward)*log(f_forward/f_backward)
+        if(is.finite(f_forward/f_backward) && f_forward != 0)
+            entrop_p <- (f_forward-f_backward)*log(abs(f_forward/f_backward))    # TODO check if abs is right
+        else
+            entrop_p <- 0
 
-        #cat(f_effective, ", ", f_backward, ", ", f_forward, "\n")
-        result <- rbind(result, 
-                        data.frame(flow_effective=as.numeric(f_effective), 
-                                   flow_forward=as.numeric(f_forward), 
-                                   flow_backward=as.numeric(f_backward), 
-                                   energy_flow=as.numeric(energy_f), 
-                                   entropy_prod=as.numeric(entrop_p)))
+        return(data.frame(flow_effective=as.numeric(f_effective), 
+                          flow_forward=as.numeric(f_forward), 
+                          flow_backward=as.numeric(f_backward), 
+                          energy_flow=as.numeric(energy_f), 
+                          entropy_prod=as.numeric(entrop_p)))
+
     }
 
-    return(result)
+    f_list <- apply(network[[2]], 1, cf_a)
+    return(do.call("rbind", f_list))
 }
+
+
+# Backward compatibility
+calculate_flow <- jrnf_calculate_flow
+
+
+
+
+calculate_flow_dif <- function(x, network, flow_effective) {
+    dif <- 0
+
+    for(i in 1:nrow(network[[2]])) {
+        # Iterate educts
+        for(j in 1:length(network[[2]]$educts[[i]])) {
+            id <- network[[2]]$educts[[i]][j]
+            if(id == x) {
+                mul <- network[[2]]$educts_mul[[i]][j]
+                dif <- dif + flow_effective[i]*mul  
+                if(length(dif) != 1) {
+                    cat("BADERROR\n")
+                    cat("i=", i, "j=", j, "id=", id, "\n")
+                }
+            }
+        }
+
+        # Iterate products
+        for(j in 1:length(network[[2]]$products[[i]])) {
+            id <- network[[2]]$products[[i]][j]
+            if(id == x) {
+                mul <- network[[2]]$products_mul[[i]][j]
+                dif <- dif - flow_effective[i]*mul
+                if(length(dif) != 1) {
+                    cat("BADERROR\n")
+                    cat("i=", i, "j=", j, "id=", id, "\n")
+                }
+            }     
+        }
+    }
+
+    return(dif)
+}
+
+
+
+
 
 
 # This function associates a propertie that is given for reactions to
@@ -534,7 +570,7 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv", "O2
 # TODO comment + test
 #
 
-jrnf_calc_reaction_r <- function(network, kB_T=1) {
+jrnf_calc_reaction_r_OLD <- function(network, kB_T=1) {
     M <- nrow(network[[2]])
 
     for(i in 1:M) {
@@ -557,6 +593,41 @@ jrnf_calc_reaction_r <- function(network, kB_T=1) {
 
     return(network)
 }
+
+# new version of function above (should be faster through using apply...)
+# TODO CHECK!
+
+jrnf_calc_reaction_r <- function(network, kB_T=1) {
+    calc_kkb <- function(x) {
+        e <- unlist(x$educts)
+        e_m <- unlist(x$educts_mul)
+        p <- unlist(x$products)
+        p_m <- unlist(x$products_mul)
+
+        E_e <- sum(network[[1]]$energy[e]*e_m)
+        E_p <- sum(network[[1]]$energy[p]*p_m)
+        E_a <- max(E_e, E_p) + x$activation
+        k <- exp(-(E_a-E_e)/kB_T)
+  
+        if(x$reversible)
+            k_b <- exp(-(E_a-E_p)/kB_T)
+        else
+            k_b <- 0   
+
+        return(data.frame(k=as.numeric(k), k_b=as.numeric(k_b)))
+   }
+
+   sp_list <- apply(network[[2]], 1, calc_kkb)
+
+   sp <- do.call("rbind", sp_list)
+
+   network[[2]]$k <- sp$k
+   network[[2]]$k_b <- sp$k_b
+
+   return(network)
+}
+
+
 
 
 # TODO comment + test
@@ -591,7 +662,8 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     #cat("TAT\n")
 
     df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
-    df[as.vector(jrnf_species$name)] <- abs(1+rnorm(length(jrnf_species$name)))
+    df[as.vector(jrnf_species$name)] <- abs(rnorm(length(jrnf_species$name), mean=mean(bc_v), sd=sqrt(mean((bc_v- mean(bc_v))^2))))
+
 
     #cat("BIB\n")
 
@@ -837,13 +909,26 @@ rplancklike <- function(N) {
 }
 
 
-jrnf_sample_energies <- function(jrnf_network, kB_T=1) {
+jrnf_sample_energies <- function(jrnf_network, kB_T=1, v=1, zero=FALSE) {
     N <- nrow(jrnf_network[[1]])
     M <- nrow(jrnf_network[[2]])
 
+    rea_is_1on1 <- (as.numeric(lapply(jrnf_network[[2]]$educts, FUN=length)) == 1) &&
+                   (as.numeric(lapply(jrnf_network[[2]]$educts_mul, FUN=length)) == 1) &&
+                   (as.numeric(lapply(jrnf_network[[2]]$products, FUN=length)) == 1) &&
+                   (as.numeric(lapply(jrnf_network[[2]]$products_mul, FUN=length)) == 1) 
+
+
     # Draw numbers for species energy and activation energy   
-    jrnf_network[[1]]$energy <- rnorm(N)
-    jrnf_network[[2]]$activation <- rplancklike(M)
+    if(zero) {
+        jrnf_network[[1]]$energy <- rep(0,N)
+        jrnf_network[[2]]$activation <- rep(0,M)
+    } else {
+        jrnf_network[[1]]$energy <- rnorm(N)
+        jrnf_network[[2]]$activation <- rplancklike(M)+log(v)*as.numeric(!rea_is_1on1)
+    }
+
+
 
     return (jrnf_calc_reaction_r(jrnf_network, kB_T))
 }

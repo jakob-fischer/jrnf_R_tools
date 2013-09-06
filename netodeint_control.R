@@ -130,7 +130,7 @@ calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=c(), sampling_sym=TRUE,
                             odeint_p="~/apps/odeint_rnet", Tmax=100000, deltaT=0.1, v=1, 
-                            wint=1000, b_seed=c(), script_lead="bscript_", zero_E=FALSE) {
+                            wint=1000, b_seed=c(), script_lead="bscript_", zero_E=FALSE, bignet=FALSE) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     scripts_level <- as.integer()    # difficulty of each scripts call
@@ -163,14 +163,35 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
         cat("writing energies in netfile.\n")
         jrnf_write("net_energies.jrnf", net)
 
-        cat("topological analysis \n")
+        if(bignet) {
+            cat("doing bignet sampling\n")
 
-        jrnf_create_pnn_file(net, "pfile.csv", "nfile.csv")
+            jrnf_create_pnn_file(net, NA, "nfile.csv")
 
-        pfile <- read.csv("pfile.csv")
-        bids_l <- list()
+            bids_l <- list()
+            N <- nrow(net[[1]])  
+ 
+            for(i in 1:sampling_par) {
+                a <- sample(1:N, 1)
+                b <- sample(1:N, 1)
 
-        bids_l <- calculate_bids_l(pfile, sampling, sampling_par, b_seed)
+                while(a == b)
+                    b <- sample(1:N, 1)
+
+                bids_l[[length(bids_l)+1]] <- c(min(a,b), max(a,b))
+            }
+
+
+        } else {
+            cat("topological analysis \n")
+
+            jrnf_create_pnn_file(net, "pfile.csv", "nfile.csv")
+
+            pfile <- read.csv("pfile.csv")
+            bids_l <- list()
+
+            bids_l <- calculate_bids_l(pfile, sampling, sampling_par, b_seed)
+        }
 
         cat("creating directory structure and initial files\n")
 
