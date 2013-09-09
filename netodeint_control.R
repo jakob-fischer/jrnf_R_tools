@@ -74,6 +74,88 @@ netodeint_collect_results <- function() {
 }
 
 
+#
+# Above command has to be already executed we are only reloading those samples that are not finished
+#
+
+netodeint_recollect_results <- function() {
+    save_wd <- getwd()   # just to be save
+    load("results.Rdata")
+
+    df <-     data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
+                         flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=I(list()),
+                         re_df=I(list()), last_time=numeric(), last_msd=numeric())
+
+
+    nfinished <- which(results$last_time < 40000 & (results$last_msd > 1e-20 | results$last_msd < 1e-55)) 
+    if(length(nfinished) == 0) {
+        cat("already finished all the runs!\n")
+        return()
+    } else {
+        cat(nfinished, "  - are not yet done!\n")
+    }
+
+    bdir_v <- list.dirs(recursive=FALSE)
+
+    for(bp in bdir_v) {
+        l <- strsplit(bp, "b")[[1]][2]
+        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
+        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
+        setwd(bp)
+        net <- jrnf_read("net.jrnf")
+
+        vdir_v <- list.dirs(recursive=FALSE)
+        for(vp in vdir_v) {
+            l <- strsplit(vp, "v")[[1]][2]
+            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
+            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
+            setwd(vp)
+
+            edir_v <- list.dirs(recursive=FALSE)
+            for(ep in edir_v) {
+                if(!((nrow(df)+1) %in% nfinished)) {
+                    df <- rbind(df, results[nrow(df)+1,])
+                    cat(".")
+                } else {
+                    i <- as.numeric(strsplit(ep,"/")[[1]][2])
+                    setwd(ep)
+                
+                    cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
+                    run <- read.csv("run.con")
+
+                    last_time_ <- run[nrow(run),1]
+                    last_msd_  <- run[nrow(run),2]
+                    last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
+                
+                    last_flow <- calculate_flow(net, last_con$con)
+
+                    flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
+                    flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
+
+                    #cat("flowb1 = ", flowb1, "\n")
+                    #cat("flowb2 = ", flowb2, "\n")
+
+                    df <- rbind(df,
+                                data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
+                                    flow1=as.numeric(flowb1), flow2=as.numeric(flowb2), ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
+                                    sp_df=I(list(last_con)), re_df=I(list(last_flow)), last_time=last_time_, last_msd=last_msd_))
+
+                    setwd("..")
+                }
+            }
+ 
+            setwd("..")
+        }
+
+        setwd("..")
+    }
+
+    setwd(save_wd)
+    results <- df
+    save(results, file="results.Rdata")
+}
+
+
 
 # The file first analyses the netfile with jrnf_create_pnn_file. The results
 # ("pfile.dat", "nfile.dat") are written to the same directory in which the
