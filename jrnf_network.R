@@ -476,6 +476,21 @@ jrnf_subnet <- function(jrnf_network, keep_flag, rm_reaction="r", list_changes=F
 }
 
 
+
+#
+# Subnet function that removes all reactions indicated. After that it additionally 
+# removes all species that are not occuring in any reaction...
+#
+#
+
+jrnf_subnet_r <- function(jrnf_network, keep_flag) {
+    net <- list(jrnf_network[[1]], jrnf_network[[2]][keep_flag,])
+    degs <- degree(jrnf_to_undirected_network(net))
+    net <- jrnf_subnet(net, degs != 0)   
+    return(net)
+}
+
+
 # For a jrnf-reaction network object. This function calculates the associated
 # substrate graph / network (using jrnf_to_directed_network), calculates
 # the biggest strongly connected subgraph and returns a boolean vector indicating
