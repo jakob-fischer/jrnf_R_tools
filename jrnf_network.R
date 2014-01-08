@@ -763,6 +763,49 @@ jrnf_calc_reaction_r <- function(network, kB_T=1) {
 }
 
 
+#
+#
+#
+
+jrnf_Ea_rel_to_abs <- function(network, Ea_rel) {
+    calc_abs <- function(x) {
+        e <- unlist(x$educts)
+        e_m <- unlist(x$educts_mul)
+        p <- unlist(x$products)
+        p_m <- unlist(x$products_mul)
+
+        E_e <- sum(network[[1]]$energy[e]*e_m)
+        E_p <- sum(network[[1]]$energy[p]*p_m)
+        E_a <- max(E_e, E_p) + x$activation_rel
+
+        return(E_a)
+   }
+
+   network[[2]]$activation_rel <- Ea_rel
+   sp <- as.numeric(apply(network[[2]], 1, calc_abs))
+   return(sp)
+}
+
+
+jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
+    calc_abs <- function(x) {
+        e <- unlist(x$educts)
+        e_m <- unlist(x$educts_mul)
+        p <- unlist(x$products)
+        p_m <- unlist(x$products_mul)
+
+        E_e <- sum(network[[1]]$energy[e]*e_m)
+        E_p <- sum(network[[1]]$energy[p]*p_m)
+        E_a <- x$activation - max(E_e, E_p)
+
+        return(E_a)
+   }
+
+   network[[2]]$activation <- Ea_abs
+   sp <- as.numeric(apply(network[[2]], 1, calc_abs))
+   return(sp)
+}
+
 
 
 # TODO comment + test
