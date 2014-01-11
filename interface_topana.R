@@ -91,7 +91,7 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
     }
 
     for(i in output) {
-         writeLines(paste("R", as.character(nxt), " :", sp$name[i], "   = ", sep=""), con=con)
+         writeLines(paste("R", as.character(nxt), " : ", sp$name[i], "   = ", sep=""), con=con)
          nxt <- nxt+1
     }
 
