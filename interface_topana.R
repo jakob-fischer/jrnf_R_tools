@@ -52,6 +52,47 @@ wjtm_m_reaction_to_string <- function(reaction, species) {
 
 
 
+wjte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
+    bla <- ""
+
+    if(length(co))
+        for(i in 1:length(co)) {
+            for(j in 1:co_mul[i]) {
+                if(sgn)
+                    bla <- paste(bla, " 1 ", as.character(species$name[co[i]]), " ", sep="")
+                else
+                    bla <- paste(bla, " -1 ", as.character(species$name[co[i]]), " ", sep="")
+            }  
+        }
+
+    return(bla)
+
+}
+
+
+
+wjte_e_reaction_to_string <- function(reaction, species) {
+    bla <- ""
+
+    bla <- paste(bla,
+                 wjte_e_rpart_to_string(reaction$educts[[1]],
+                                        reaction$educts_mul[[1]],
+                                        FALSE,
+                                        species), 
+                 sep="")
+
+    bla <- paste(bla,
+                 wjte_e_rpart_to_string(reaction$products[[1]],
+                                        reaction$products_mul[[1]],
+                                        TRUE,
+                                        species), 
+                 sep="")
+
+    return(bla)
+
+}
+
+
 # Writes a jrnf-network given by network to 
 
 write_jrnf_to_metatool <- function(network, filename, input, output) {
@@ -100,10 +141,44 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
 
 
 
+write_jrnf_to_expa <- function(network, filename, input, output) {
+    sp <- network[[1]]
+    re <- network[[2]]
+
+    con <- file(filename, 'w');
+
+    writeLines("(Internal fluxes)", con=con)
+
+    for(i in 1:nrow(re))
+        writeLines(paste("R", as.character(i), "  I  ", wjte_e_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
+
+    nxt <- nrow(re)+1
+
+
+    for(i in input) {
+         writeLines(paste("R", as.character(nxt), " I  1 ", sp$name[i], sep=""), con=con)
+         nxt <- nxt+1
+    }
+
+    for(i in output) {
+         writeLines(paste("R", as.character(nxt), " I  -1 ", sp$name[i], "   = ", sep=""), con=con)
+         nxt <- nxt+1
+    }
+
+
+    writeLines("(External fluxes)\n", con=con)
+    close(con)
+}
+
+
+
 read_elementary_modes <- function(filename) {
     con <- file(filename, "r")
     lines <- readLines(con)
     first_em <- grep("ELEMENTARY MODE", lines)+3
+    em_head <- lines[first_em-1]
+    em_no <- as.numeric(strsplit(strsplit(em_head, split="r")[[1]][3], split=" x")[[1]][1])
+
 
     if(length(first_em) && is.na(first_em)) {
         cat("Did not find elementary mode in input file!")
@@ -121,16 +196,13 @@ read_elementary_modes <- function(filename) {
         return(NA)
     }
 
-    while(length(last_line) != 0 && length(last_line) == first_size) {
-        em <- c(em, last_line)
-        first_em <- first_em + 1
-        tryCatch(last_line <- as.numeric(unlist(strsplit(lines[first_em], split=" "))),
-                 warning=function(x) {  last_line<<-c()} )
+    trans <- function(x) {
+        return(as.numeric(unlist(strsplit(x, split=" "))))
     }
 
-     
+    x <- unlist(lapply(lines[first_em:(first_em+em_no-1)],trans))
 
-    return(matrix(em, ncol=first_size, byrow=T))
+    return(matrix(x, ncol=first_size, byrow=T))
 }
 
 
@@ -178,6 +250,42 @@ calculate_elementary_modes <- function(network, in_names=c(), out_names=c(), ext
     return(em)
 }
 
+
+
+calculate_elementary_modes_coefficients <- function(ems, v, mx=F) {
+    ems <- ems[,1:length(v)]
+    coeff <- rep(0,nrow(ems))
+
+    for(i in 1:nrow(ems)) {
+        y <- ems[i,]*v
+        if(length(which(y>0)) > 0) {
+            x <- min(y[ems[i,]>0])
+            coeff[i] <- x
+            if(!mx)
+                v <- v - ems[i,]*x
+            if(min(v) < 0) {
+                cat("i=",i, "\n")
+                cat("v=", v, "\n")
+            }
+        } else {
+            coeff[i] <- 0
+        }
+    }
+
+    cat(v, "\n")
+    return(coeff)  
+}
+
+calculate_flow_elementary_modes <- function(ems, coeffs) {
+    ems <- ems[,1:(ncol(ems)-2)]
+    v <- rep(0,ncol(ems))
+
+    for(i in 1:nrow(ems)) {
+        v <- v + ems[i,]*coeffs[i]
+    }
+
+    return(v)
+}
 
 
 

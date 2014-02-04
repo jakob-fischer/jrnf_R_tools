@@ -240,6 +240,31 @@ jrnf_write_to_rea <- function(filename, data) {
     close(con)
 }
 
+
+# Calculate the rate of concentration change assuming the reactions are
+# happening at the rates
+
+jrnf_calculate_concentration_change <- function(network, rates) {
+    chng <- rep(0, nrow(network[[1]]))
+
+    for(i in 1:nrow(network[[2]])) {
+        for(j in 1:length(network[[2]]$educts[[i]])) {
+            sp <- network[[2]]$educts[[i]][j]
+            mul <- network[[2]]$educts_mul[[i]][j]
+            chng[sp] <- chng[sp] - rates[i]*mul
+        }
+
+        for(j in 1:length(network[[2]]$products[[i]])) {
+            sp <- network[[2]]$products[[i]][j]
+            mul <- network[[2]]$products_mul[[i]][j] 
+            chng[sp] <- chng[sp] + rates[i]*mul
+        }
+    }
+
+    return(chng)
+}
+
+
 # Calculates the flow / reaction rates for a given concentration vector
 # TODO: calculate energy dif, check
 
@@ -329,6 +354,66 @@ calculate_flow_dif <- function(x, network, flow_effective) {
 
 
 
+#
+#
+#
+
+jrnf_reverse_reactions <- function(net, rev) {
+    if(!is.logical(rev))
+        rev <- (rev < 0)
+
+    for(i in nrow(net[[2]])) {
+        if(rev[i]) {
+            e <- net[[2]]$educts[[i]]
+            e_m <- net[[2]]$educts_mul[[i]]
+            p <- net[[2]]$products[[i]]
+            p_m <- net[[2]]$products_mul[[i]]
+
+            net[[2]]$educts[[i]] <- p
+            net[[2]]$educts_mul[[i]] <- p_m
+            net[[2]]$products[[i]] <- e
+            net[[2]]$products_mul[[i]] <- e_m
+        }
+    }
+    
+    return(net)
+}
+
+
+# randomizes the reaction direction...
+
+jrnf_randomize_dir <- function(net) {
+    N <- nrow(net[[2]])
+    x <- runif(N)*2-1
+    return(jrnf_reverse_reactions(net, x))
+}
+
+
+
+get_n_cycles_directed <- function(g, n) {
+    v_count <- rep(0, length(V(g)))
+
+    if(n == 1) {
+        loops <- which(is.loop(g))
+        for(i in loops) { 
+           v <- get.edge(g, E(g)[i])[1]
+           v_count[v] <- v_count[v] + 1 
+        }
+
+        return(list(length(loops), v_count))   
+    }
+
+
+    si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
+    for(i in si) 
+        v_count[i+1] <- v_count[i+1] + 1
+    
+    r <- list(length(si)/n, v_count/n) 
+    return(r)
+}
+
+
+
 
 
 # This function associates a propertie that is given for reactions to
@@ -402,7 +487,7 @@ associate_reaction_to_species <- function(network, sp_prop) {
 # two species / nodes if there is a reaction with the first as educt and the
 # second as product
 
-jrnf_to_directed_network <- function(jrnf_data) {
+jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
     jrnf_species <- jrnf_data[[1]]
     jrnf_reactions <- jrnf_data[[2]]    
     g <- graph.empty()
@@ -412,7 +497,15 @@ jrnf_to_directed_network <- function(jrnf_data) {
     for(i in 1:nrow(jrnf_reactions)) {
         for(ed in jrnf_reactions$educts[[i]]) {
             for(prod in jrnf_reactions$products[[i]]) {
-                g <- add.edges(g, c(ed, prod))
+                if(rnd) {
+                    b <- runif(1) > 0.5
+                    if(b)
+                        g <- add.edges(g, c(ed, prod))
+                    else 
+                        g <- add.edges(g, c(prod, ed))
+                } else {
+                    g <- add.edges(g, c(ed, prod))
+                }
             }
         } 
     }
