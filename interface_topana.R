@@ -172,6 +172,49 @@ write_jrnf_to_expa <- function(network, filename, input, output) {
 
 
 
+
+
+
+
+write_jrnf_to_stomat <- function(network, filename, input, output) {
+    sp <- network[[1]]
+    re <- network[[2]]
+
+    con <- file(filename, 'w');
+
+    N <- matrix(0, nrow(sp), nrow(re)+length(input)+length(output))
+
+    for(i in 1:nrow(re)) {
+        for(j in 1:length(re$educts[[i]])) 
+            N[re$educts[[i]][j],i] <- -(re$educts_mul[[i]][j])
+
+
+        for(j in 1:length(re$products[[i]])) 
+            N[re$products[[i]][j],i] <- (re$products_mul[[i]][j])
+    }
+
+    for(i in 1:length(input)) 
+        N[input[i],nrow(re)+i] <- 1
+
+    for(i in 1:length(output)) 
+        N[output[i], nrow(re)+length(input)+i] <- -1
+
+    close(con)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 read_elementary_modes <- function(filename) {
     con <- file(filename, "r")
     lines <- readLines(con)
