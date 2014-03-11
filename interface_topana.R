@@ -300,10 +300,14 @@ calculate_elementary_modes_coefficients <- function(ems, v, mx=F) {
     coeff <- rep(0,nrow(ems))
 
     for(i in 1:nrow(ems)) {
-        y <- ems[i,]*v
+        y <- v/ems[i,]
         if(length(which(y>0)) > 0) {
             x <- min(y[ems[i,]>0])
             coeff[i] <- x
+            #cat("i=", i, "   x=", x, "\n")
+            #if(any((v - ems[i,]*x < 0)))
+            #    return(v)
+            
             if(!mx)
                 v <- v - ems[i,]*x
             if(min(v) < 0) {
@@ -320,7 +324,7 @@ calculate_elementary_modes_coefficients <- function(ems, v, mx=F) {
 }
 
 calculate_flow_elementary_modes <- function(ems, coeffs) {
-    ems <- ems[,1:(ncol(ems)-2)]
+    ems <- ems[,1:(ncol(ems))]
     v <- rep(0,ncol(ems))
 
     for(i in 1:nrow(ems)) {
