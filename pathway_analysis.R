@@ -197,15 +197,16 @@ check_pathway_present <- function(path_M, path_rates, path_M_el) {
     id <- rep(0, nrow(path_M_el))
     present <- rep(F, nrow(path_M_el))
 
-    for(i in 1:nrow(path_M_el)) {
-        if(nrow(path_M) != 0)
-            for(j in 1:nrow(path_M)) {
-                if(all(path_M[j,] == path_M_el[i,])) {
-                    present[i] <- T
-                    id[i] <- j
-                }            
-            }
-    }
+    if(length(path_rates) != 0 & is.matrix(path_M))
+        for(i in 1:nrow(path_M_el)) {
+            if(nrow(path_M) != 0)
+                for(j in 1:nrow(path_M)) {
+                    if(all(path_M[j,] == path_M_el[i,])) {
+                        present[i] <- T
+                        id[i] <- j
+                    }            
+                }
+        }
 
     rate <- rep(0, nrow(path_M_el))
     rate[present] <- path_rates[id[present]]
