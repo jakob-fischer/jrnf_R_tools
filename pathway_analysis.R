@@ -15,53 +15,6 @@ vec_gcd <- function(x) {
 }
 
 
-# Calculates the 'in' stoichiometric matrix of the jrnf-network net. 
-# 'in' means every column contains the left side of one reaction. 
-# All values are positive.
-
-jrnf_calculate_stoich_mat_in <- function(net) {
-    no_sp <- nrow(net[[1]])
-    no_re <- nrow(net[[2]])
-    N <- matrix(0, no_sp, no_re)
-    
-    for(i in 1:no_re) {
-        for(j in 1:length(net[[2]]$educts[[i]])) {
-            e <- net[[2]]$educts[[i]][j]
-            N[e, i] <- N[e, i] + net[[2]]$educts_mul[[i]][j]
-        }
-    }
-
-    return(N)
-}
-
-
-# Calculates the 'out' stoichiometric matrix of the jrnf-network net. 
-# 'out' means every column contains the right side of one reaction. 
-# All values are positive.
-
-jrnf_calculate_stoich_mat_out <- function(net) {
-    no_sp <- nrow(net[[1]])
-    no_re <- nrow(net[[2]])
-    N <- matrix(0, no_sp, no_re)
-    
-    for(i in 1:no_re) {
-        for(j in 1:length(net[[2]]$products[[i]])) {
-            p <- net[[2]]$products[[i]][j]
-            N[p, i] <- N[p, i] + net[[2]]$products_mul[[i]][j]
-        }
-    }
-
-    return(N)
-}
-
-
-# Calculates the stoichiometric matrix for a jrnf-network
-# (matrix contains information on net change of species with reactions)
-
-jrnf_calculate_stoich_mat <- function(net) {
-    return(jrnf_calculate_stoich_mat_out(net)-jrnf_calculate_stoich_mat_in(net))
-}
-
 
 # Checks matrix for pathway_analysis_prototype function. Every row and every
 # column has to have at least one TRUE element.
