@@ -746,31 +746,51 @@ em_develop_rates_min <- function(ems, v) {
 # Here 'individual' fraction means the maximum fraction of this and all previous elementary modes.
 # min_R ( max_{1...i} ( f ) )
 #
-# For every elementary mode also it's complexity is put into the data frame
+# For every elementary mode also it's complexity is put into the data frame. 
 #
 
-em_iterate_rates_max <- function(em, v, order="max", develop=F) {
-    ems <- ems[,1:length(v)]
+em_iterate_rates_max <- function(em, v, order="max") {
+    # cut columns of data frame or elements of rate vector 'v'
+    if(length(v) < ncol(em))
+        em <- em[,1:length(v)]
+    else
+        v <- v[1:ncol(em)]
 
+    em_id <- c()       # index of the elementary mode in matrix 'em'
+    coeff <- c()       # coefficient of em for initial v 
+    coeff_acc <- c()   # coefficient of em for v - parts explained by previous ems
+    exp_f <- c()       # fraction of rate explained with current em
+    exp_f_acc <- c()   # fraction of rate explained with current and previous ems
+    C1 <- c()          # complexity of current em (sum of all coeffiecients)
+    C2 <- c()          # complexity of current em (number of non zero coefficients)
+    min_f <- c()       # minimum fraction of reaction explained by individual ems
+    min_f_acc <- c()   # minimum fraction of reaction explained by this+previous ems 
 
-
-    em_new <- ems[c(),]
-    coeff <- c()
-    non_zero <- v != 0
-
-    finished <- !is.matrix(ems) | length(v) == 0
+    v_ <- v
+    non_zero <- v_ != 0
+    finished <- !is.matrix(em) 
 
     al <- function(x) {
-        y <- v/x
+        y <- v_/x
         if(length(which(y>0)) > 0) 
             return(min(y[x>0]))
         else
             return(0)
     }
 
+    al_init <- apply(em, 1, al)
+
     while(!finished) {
-        a <- apply(ems, 1, al)
-        m_id <- order(a, decreasing=T)[1]
+        if(order == "max") {
+            a <- apply(em, 1, al)
+            m_id <- order(a, decreasing=T)[1]
+        } else if(order == "initial") {
+
+        } else {
+
+        }
+
+
 
         #y <- v/ems[m_id,]
         m_rate <- a[m_id]
@@ -792,6 +812,7 @@ em_iterate_rates_max <- function(em, v, order="max", develop=F) {
        finished <- !is.matrix(ems) | length(v) == 0 | m_rate == 0
     }
 
-    # Return new list / matrix of elementary modes  +  coefficients  + 
-    return(list(em_new, coeff, v))  
+    # return data frame with results
+    return(data.frame(em_id=em_id, coeff=coeff, coeff_acc=coeff_acc, exp_f=exp_f, 
+                      exp_f_acc=exp_f_acc, C1=C1, C2=C2, min_f=min_f, min_f_acc=min_f_acc))  
 }
