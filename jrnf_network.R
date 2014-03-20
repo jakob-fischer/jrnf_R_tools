@@ -396,7 +396,7 @@ jrnf_reverse_reactions <- function(net, rev) {
     if(!is.logical(rev))
         rev <- (rev < 0)
 
-    for(i in nrow(net[[2]])) {
+    for(i in 1:nrow(net[[2]])) {
         if(rev[i]) {
             e <- net[[2]]$educts[[i]]
             e_m <- net[[2]]$educts_mul[[i]]
