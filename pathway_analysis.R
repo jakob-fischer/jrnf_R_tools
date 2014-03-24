@@ -404,7 +404,7 @@ pathway_analysis_prototype <- function(net, rates, fexp=0.001, f2=1e-40) {
 #
 #
 
-pathway_analysis_alternative <- function(net, rates, fexp=0.001, f2=1e-40) {
+pathway_analysis_alternative <- function(net, rates, fexp=0.001, f2=1e-40, comp=50) {
     # rates of the discarded pathways
     rates_dropped <- rep(0, length(rates))
     
@@ -496,7 +496,6 @@ pathway_analysis_alternative <- function(net, rates, fexp=0.001, f2=1e-40) {
                 cat(".")
                 for(dest in 1:length(con)) {
                     K_dst <- con_m[dest]       # How does the pathway dest change i 
-                    nr <- z[src,dest]*rate_gen/(K_dst*K_src)                # new rate
                     np <- K_dst*path_M[cr[src],] +                          # new pathway
                           K_src*path_M[con[dest],]  
 
@@ -520,6 +519,7 @@ pathway_analysis_alternative <- function(net, rates, fexp=0.001, f2=1e-40) {
         
                                 if(length(which(y>0)) > 0) {
                                     rt <- min(y[path_M_dec[k,]>0])
+                                    
                                     if(rt < 0)
                                         rt <- 0
                                                                         
@@ -528,7 +528,7 @@ pathway_analysis_alternative <- function(net, rates, fexp=0.001, f2=1e-40) {
                                          return()
                                      }
        
-                                     if(rt > f2) {
+                                     if(rt > f2 & p_sort$complexity[k] < comp) {
                                          path_rates_new[length(path_rates_new)+1] <- rt
                                          path_M_new <- rbind(path_M_new, matrix(path_M_dec[k,], 1, length(path_M_dec[k,])))
                                      } 
@@ -645,52 +645,6 @@ em_develop_rates_max <- function(ems, v) {
 
 
 
-em_develop_rates_min <- function(ems, v) {
-    ems <- ems[,1:length(v)]
-    em_new <- ems[c(),]
-    coeff <- c()
-    non_zero <- v != 0
-
-    finished <- !is.matrix(ems) | length(v) == 0
-
-    al <- function(x) {
-        y <- v/x
-        if(length(which(y>0)) > 0) 
-            return(min(y[x>0]))
-        else
-            return(0)
-    }
-
-    while(!finished) {
-        a <- apply(ems, 1, al)
-        b <- order(a, decreasing=F)
-        m_id <- b[a[b] != 0][1]
-
-        #y <- v/ems[m_id,]
-        m_rate <- a[m_id]
-        #lim_rea <- which(y[ems[m_id,]>0] == m_rate)[1]
-
-        cat("coefficient = ", m_rate, "\n")
-
-        if(!is.na(m_rate) & m_rate != 0) {
-            coeff <- c(coeff, m_rate)
-            v <- v - ems[m_id,]*m_rate
-            v[v<0] <- 0
-            #v[lim_rea] <- 0
-
-            em_new <- rbind(em_new, ems[m_id,])   # add elementary mode to new elementary modes
-            ems <- ems[-m_id,]                    # remove it from old list
-            #ems <- ems[ems[,lim_rea] == 0,]       # also remove all elementary modes that have the limiting (now zero) reaction
-        }
-
-       finished <- !is.matrix(ems) | length(v) == 0 | m_rate == 0 | is.na(m_rate)
-    }
-
-    # Return new list / matrix of elementary modes  +  coefficients  + 
-    return(list(em_new, coeff, v))  
-}
-
-
 
 # This function orders the elementary modes and generates a data frame containing information
 # on how much the reordered elementary modes explain the rate vector 'v'. This is done es well
@@ -700,7 +654,6 @@ em_develop_rates_min <- function(ems, v) {
 # min_R ( max_{1...i} ( f ) )
 #
 # For every elementary mode also it's complexity is put into the data frame. 
-#
 
 em_iterate_rates_max <- function(em, v, order="max") {
     # cut columns of data frame or elements of rate vector 'v'
@@ -719,17 +672,16 @@ em_iterate_rates_max <- function(em, v, order="max") {
     min_f <- c()       # minimum fraction of reaction explained by individual ems
     min_f_acc <- c()   # minimum fraction of reaction explained by this+previous ems 
 
-    exp_v <- rep(0, length(v))   #
+    exp_v <- rep(0, length(v))   # The fraction of reaction i explained by the best of the previous EMs
 
     v_ <- v                       # 'v_' is the rate vector minus parts explained by previous modes
-    non_zero <- v_ != 0           # which rates are non zero in v_
 
     # if elementary modes 'em' is empty or no matrix just return empty data frame
     if(!is.matrix(em) | nrow(em) == 0) 
         return(data.frame(em_id=numeric(), coeff=numeric(), coeff_acc=numeric(), exp_f=numeric(), 
                exp_f_acc=numeric(), C1=numeric(), C2=numeric(), min_f=numeric(), min_f_acc=numeric()))
 
-    # al function gets one elementary mode and returns it's max coefficient (for v_)
+    # al-function gets one elementary mode and returns it's max coefficient (for v_)
     al <- function(x) {
         y <- v_/x
         if(length(which(y>0)) > 0) 
@@ -742,42 +694,31 @@ em_iterate_rates_max <- function(em, v, order="max") {
     # accumulated coeffiecient co_a (expansion) ; else NA should be given and the function
     # will calculate them
     add_element <- function(i, co, co_a) {
-        if(is.na(co)) 
+        if(is.na(co))            # the (maximal) coefficent of this em   
             co <- a_init[i]
 
-        if(is.na(co_a)) 
+        if(is.na(co_a))          # the coefficient of the em considering the previous em's have been "substracted"
             co_a <- al(em[i,])
 
-        em_id <- c(em_id, i)
-        coeff <- c(coeff, co)
-        coeff_a <- c(coeff_a, co_a)
-        C1 <- c(C1, sum(em[i,]))
-        C2 <- c(C2, sum(em[i,] != 0))
+        em_id <<- c(em_id, i)               # build vector of em's ids
+        coeff <<- c(coeff, co)              
+        coeff_acc <<- c(coeff_acc, co_a)
+        C1 <<- c(C1, sum(em[i,]))           # sum of all reaction's coefficients in the em 
+        C2 <<- c(C2, sum(em[i,] != 0))      # number of reactions with non-zero coefficients
 
-        v_ <- v_ - coeff_a*em[i,] 
-        v_[v_<0] <- 0
-        non_zero <- v_ != 0
+        v_ <<- v_ - co_a*em[i,]             # subtracting maximal possible part of this em from v_
+        v_[v_<0] <<- 0                      # v_ has to stay non-negative (may become zero because of numerical problems)
 
-        exp_f <- c(exp_f, sum(coeff*em[i,])/sum(v))
-        exp_f_acc <- c(exp_f_acc, sum(v_)/sum(v))
+        exp_f <<- c(exp_f, sum(co*em[i,])/sum(v))       # (maximum) fraction of activity explained by this reaction 
+        exp_f_acc <<- c(exp_f_acc, 1-sum(v_)/sum(v))    # fraction of activity explained when expanding up to this reaction
 
-        min_f <- c(min_f, )
-        min_f_acc <- c(min_f_acc, min(1-sum(f_)/sum(f)))
+        tmp <- (co*em[i,])/v                            # (maximum) fraction of flow this reaction explains (for every reaction)
+        tmp[v == 0] <- 1                                 
+        exp_v <<- pmax(exp_v, tmp, na.rm=T)             # Fraction the worst reaction is explained by its best em      
+ 
+        min_f <<- c(min_f, min(exp_v[v!=0], na.rm=T))                   # build vector
+        min_f_acc <<- c(min_f_acc, min(((v-v_)/v)[v != 0], na.rm=T))    # build vector; fraction of the worst explained reaction (from the expansion)
     }
-
-        #y <- v/ems[m_id,]
-        m_rate <- a[m_id]
-        #lim_rea <- which(y[ems[m_id,]>0] == m_rate)[1]
-
-        cat("coefficient = ", m_rate, "\n")
-
-        if(m_rate != 0) {
-            #v[lim_rea] <- 0
-
-            #em_new <- rbind(em_new, ems[m_id,])   # add elementary mode to new elementary modes
-            #ems <- ems[-m_id,]                    # remove it from old list
-            #ems <- ems[ems[,lim_rea] == 0,]       # also remove all elementary modes that have the limiting (now zero) reaction
-        }
 
 
     a_init <- apply(em, 1, al)
@@ -790,20 +731,25 @@ em_iterate_rates_max <- function(em, v, order="max") {
             a <- apply(em, 1, al)
             m_id <- order(a, decreasing=T)[1]
             add_element(m_id, NA, a[m_id])
+            cat(".")
         }
 
     # "initial": initially the elementary pathways are ordered with decreasing coefficient
     } else if(order == "initial") {
         a <- apply(em, 1, al)
-        m_id <- order(a, decreasing=T)[1]
+        m_id <- order(a, decreasing=T)
 
-        for(i in a) 
+        for(i in m_id) { 
             add_element(i, a[i], NA);
+            cat(".")
+        }
 
     # -: pathways are ordered as given
     } else {
-        for(i in 1:nrow(em))
+        for(i in 1:nrow(em)) {
             add_element(i, NA, NA)
+            cat(".")
+        }
     }
 
     # return data frame with results
