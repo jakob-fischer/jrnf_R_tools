@@ -727,11 +727,26 @@ em_iterate_rates_max <- function(em, v, order="max") {
     # different modes in how the elementary modes are ordered for developing v / v_    
     # "max": after each step the maximum mode best for the next step is selected
     if(order == "max") {
+        prev <- T          # will be assigned the coefficient of the previous em 
+
         for(i in 1:nrow(em)) {
-            a <- apply(em, 1, al)
-            m_id <- order(a, decreasing=T)[1]
-            add_element(m_id, NA, a[m_id])
-            cat(".")
+            if(prev) {
+                a <- apply(em, 1, al)
+                m_id <- order(a, decreasing=T)
+                add_element(m_id[1], NA, a[m_id[1]])
+                cat(".")
+
+                if(a[m_id[1]] == 0) {
+                    prev <- F
+                    m_id <- m_id[-1]
+                }
+            } else {
+                add_element(m_id[1], NA, a[m_id[1]])
+                cat(".")
+                m_id <- m_id[-1]
+            }
+
+
         }
 
     # "initial": initially the elementary pathways are ordered with decreasing coefficient
