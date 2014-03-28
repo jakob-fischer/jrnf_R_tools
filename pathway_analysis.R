@@ -1,6 +1,57 @@
 library(pracma)   # for gcd function
 
 
+
+
+# 
+#
+# Reactions that have only one educt and no products or only one product and no
+# educts are ignored (they are probably) pseudo-reactions for the output and 
+# not considered when printing the net reaction. 
+
+pa_write_em <- function(net, em) {
+    N <- jrnf_calculate_stoich_mat(net)   
+    x <- (apply(N != 0, 2, sum) == 1)     # remove reactions with just one species involved
+    em[x] <- 0    
+
+    # subfunction for printing reaction i
+    pa_write_rea <- function(i) {
+        t <- N[,i]
+
+        for(i in which(t < 0))
+            cat(-t[i], " ", net[[1]]$name[i], "  ")
+
+        cat("=>  ")
+    
+        for(i in which(t > 0))
+            cat(t[i], " ", net[[1]]$name[i], "  ")
+    }
+
+
+    # list all (remaining) reactions with coefficients 
+    for(i in which(em != 0)) {
+        cat(em[i], "X : ")
+        pa_write_rea(i);      
+        cat("\n")
+    }
+
+    cat("============================================================\n")
+    # now print the effective reaction    
+    x <- N %*% em
+    
+    for(i in which(x < 0))
+        cat(-x[i], " ", net[[1]]$name[i], "  ")
+
+    cat("=>  ")
+    
+    for(i in which(x > 0))
+        cat(x[i], " ", net[[1]]$name[i], "  ")
+
+    cat("\n")    
+}
+
+
+
 # This function calculates the greatest common divisor for all elements in 
 # a vector. For this the gcd function of the package 'pracma' is used.
 
@@ -163,7 +214,7 @@ check_pathway_present <- function(path_M, path_rates, path_M_el) {
 
     rate <- rep(0, nrow(path_M_el))
     rate[present] <- path_rates[id[present]]
-    complexity <- apply(path_M_el, 1, sum)
+    complexity <- apply(path_M_el != 0, 1, sum)
 
     return(data.frame(id=id, present=present, rate=rate, complexity=complexity))
 }
@@ -655,12 +706,16 @@ em_develop_rates_max <- function(ems, v) {
 #
 # For every elementary mode also it's complexity is put into the data frame. 
 
-em_iterate_rates_max <- function(em, v, order="max") {
+em_iterate_rates_max <- function(em, v, order="max", net) {
     # cut columns of data frame or elements of rate vector 'v'
     if(length(v) < ncol(em))
         em <- em[,1:length(v)]
     else
         v <- v[1:ncol(em)]
+
+    N <- jrnf_calculate_stoich_mat(net)      #
+    # inflow / outflow reaction are those with exactly one coefficient in a stoichiometric matrix column 
+    pseudo_r <- apply(N != 0, 2, sum) == 1   
 
     em_id <- c()       # index of the elementary mode in matrix 'em'
     coeff <- c()       # coefficient of em for initial v 
@@ -669,6 +724,7 @@ em_iterate_rates_max <- function(em, v, order="max") {
     exp_f_acc <- c()   # fraction of rate explained with current and previous ems
     C1 <- c()          # complexity of current em (sum of all coeffiecients)
     C2 <- c()          # complexity of current em (number of non zero coefficients)
+    C3 <- c()          # number of pseudoreactions (inflow or outflow)
     min_f <- c()       # minimum fraction of reaction explained by individual ems
     min_f_acc <- c()   # minimum fraction of reaction explained by this+previous ems 
 
@@ -705,6 +761,7 @@ em_iterate_rates_max <- function(em, v, order="max") {
         coeff_acc <<- c(coeff_acc, co_a)
         C1 <<- c(C1, sum(em[i,]))           # sum of all reaction's coefficients in the em 
         C2 <<- c(C2, sum(em[i,] != 0))      # number of reactions with non-zero coefficients
+        C3 <<- c(C3, sum((em[i,] != 0) & pseudo_r))
 
         v_ <<- v_ - co_a*em[i,]             # subtracting maximal possible part of this em from v_
         v_[v_<0] <<- 0                      # v_ has to stay non-negative (may become zero because of numerical problems)
@@ -769,5 +826,5 @@ em_iterate_rates_max <- function(em, v, order="max") {
 
     # return data frame with results
     return(data.frame(em_id=em_id, coeff=coeff, coeff_acc=coeff_acc, exp_f=exp_f, 
-                      exp_f_acc=exp_f_acc, C1=C1, C2=C2, min_f=min_f, min_f_acc=min_f_acc))  
+                      exp_f_acc=exp_f_acc, C1=C1, C2=C2, C3=C3, min_f=min_f, min_f_acc=min_f_acc))  
 }
