@@ -7,6 +7,9 @@
 library(igraph)
 
 
+source("cycles.R")
+
+
 # Loads a jrnf-file and returns a list of two data frames
 # - The first data frame contains all species with 'type' (integer),
 # energy (numeric), 'name' (character) and 'constant' (boolean).
@@ -421,32 +424,6 @@ jrnf_randomize_dir <- function(net) {
     x <- runif(N)*2-1
     return(jrnf_reverse_reactions(net, x))
 }
-
-
-
-get_n_cycles_directed <- function(g, n) {
-    v_count <- rep(0, length(V(g)))
-
-    if(n == 1) {
-        loops <- which(is.loop(g))
-        for(i in loops) { 
-           v <- get.edge(g, E(g)[i])[1]
-           v_count[v] <- v_count[v] + 1 
-        }
-
-        return(list(length(loops), v_count))   
-    }
-
-
-    si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
-    for(i in si) 
-        v_count[i+1] <- v_count[i+1] + 1
-    
-    r <- list(length(si)/n, v_count/n) 
-    return(r)
-}
-
-
 
 
 
