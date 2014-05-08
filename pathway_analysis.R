@@ -1,45 +1,46 @@
+# author: jakob fischer (jakob@automorph.info)
+# date: 11. December 2013
+# description: 
+# testing-tool for algorithm which determines pathways / elementary flux modes
+# of reaction networks considering a flux vector v. All functions of this 
+# file start with prefix "pa_"
+
 library(pracma)   # for gcd function
+source("cycles.R")
 
 
-    pa_write_rea <- function(net, i) {
+# Funktion to write reaction <i> of network <net> to standard ouptut. If 
+# stoichiometric matrix is not given as third parameter it is calculated. 
+# TODO: Calculating the entire matrix just for one column is overkill!
+
+pa_write_rea <- function(net, i, N=c()) {
+    if(!is.matrix(N))
         N <- jrnf_calculate_stoich_mat(net)
-        t <- N[,i]
 
-        for(i in which(t < 0))
-            cat(-t[i], " ", net[[1]]$name[i], "  ")
+    t <- N[,i]
 
-        cat("=>  ")
+    for(i in which(t < 0))
+        cat(-t[i], " ", net[[1]]$name[i], "  ")
+
+    cat("=>  ")
     
-        for(i in which(t > 0))
-            cat(t[i], " ", net[[1]]$name[i], "  ")
-    }
+    for(i in which(t > 0))
+        cat(t[i], " ", net[[1]]$name[i], "  ")
+}
 
 
-
-# 
-#
-# Reactions that have only one educt and no products or only one product and no
-# educts are ignored (they are probably) pseudo-reactions for the output and 
-# not considered when printing the net reaction. 
+# Function writes elementary mode <em> of network <net>. Reactions that have 
+# only one educt and no products or only one product and no educts are ignored 
+# (they are probably) pseudo-reactions for the output and not considered when 
+# printing the net reaction. 
 
 pa_write_em <- function(net, em) {
     N <- jrnf_calculate_stoich_mat(net)   
     x <- (apply(N != 0, 2, sum) == 1)     # remove reactions with just one species involved
     em[x] <- 0    
 
-    # subfunction for printing reaction i
-    pa_write_rea <- function(i) {
-        t <- N[,i]
-
-        for(i in which(t < 0))
-            cat(-t[i], " ", net[[1]]$name[i], "  ")
-
-        cat("=>  ")
-    
-        for(i in which(t > 0))
-            cat(t[i], " ", net[[1]]$name[i], "  ")
-    }
-
+    # subfunction for printing reaction <i> of network <net>
+    pa_write_rea <- function(i) {  pa_write_rea(net, i, N)  }
 
     # list all (remaining) reactions with coefficients 
     for(i in which(em != 0)) {
@@ -49,20 +50,18 @@ pa_write_em <- function(net, em) {
     }
 
     cat("============================================================\n")
-    # now print the effective reaction    
+    # now print the net reaction    
     x <- N %*% em
     
     for(i in which(x < 0))
         cat(-x[i], " ", net[[1]]$name[i], "  ")
 
     cat("=>  ")
-    
     for(i in which(x > 0))
         cat(x[i], " ", net[[1]]$name[i], "  ")
 
     cat("\n")    
 }
-
 
 
 # This function calculates the greatest common divisor for all elements in 
@@ -76,28 +75,6 @@ vec_gcd <- function(x) {
             a <- gcd(a,x[i])             
            
     return(a)
-}
-
-
-
-# Checks matrix for pathway_analysis_prototype function. Every row and every
-# column has to have at least one TRUE element.
-
-check_mat <- function(m) {
-    c <- T
-
-    for(i in 1:nrow(m)) 
-        if(all(!m[i,]))
-            c <- F
-        
-    for(i in 1:ncol(m))
-        if(all(!m[,i]))
-            c <- F
-
-    if(!c) 
-        cat("ERROR: matrix check failed!\n")
-
-    return(!c)
 }
 
 
@@ -132,7 +109,6 @@ reconstruct_rates <- function(path_M, path_rates) {
 
 
 # Helper function for do_subpath_decompostion
-#
 
 is_row_contained <- function(v, path_M) {
     if(!is.matrix(path_M))
@@ -163,11 +139,6 @@ do_subpath_decomposition <- function(N_orig, path_orig) {
     path_M <- matrix(0, length(sel_rea), length(sel_rea))
     for(i in 1:length(sel_rea))
         path_M[i,i] <- 1
-
-
-    #return(list(N, path_M))
-
-
 
     for(i in 1:nrow(N)) {
         # net creator
@@ -234,34 +205,23 @@ check_pathway_present <- function(path_M, path_rates, path_M_el) {
 
 
 
-                
-
 #
-#N_test <- t(matrix(c(1, -1, 0, -1, -1, 0, 0, 0, -1, 0,
-#                    0, 0, 0, 1, 1, 0, -1, 0, 0, 0,
-#                    0, 1, 1, -1, 0, 0, 0, 0, 0, 0,
-#                    0, 0, -1, 1, 0, -1, 0, 0, 0, 0,
-#                    0, 0, 0, 0, 0, 1, 1, -1, 0, 1,
-#                    0, 0, 0, 0, 0, 0, 0, 0, 1, -1), 10))
+#
+#
 
-#N_test2 <- t(matrix(c(1, -1, 0, 0, 0, 0,
-#                      0, 1, -1, 1, -1, 0,
-#                      0, 0, 0, 0, 1, -1, 
-#                      0, 0, 1, -1, 0, 0), 6))
-
-
-
-pathway_analysis_extend <- function(net, rates) {
+pa_extend_net <- function(net, rates) {
     # calculate rates that balance growth / decrease of concentrations
     cdif_r <- jrnf_calculate_concentration_change(net, rates)
 
     # add reactions to balance growth / decrease
     for(i in 1:length(cdif_r)) 
+        # if species' concentration increases one pseudoreaction has to be included to remove it ("X -> ")
         if(cdif_r[i] > 0) {   
 	    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
                               c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
                               activation=as.numeric(c(0)),educts=I(list(i)), educts_mul=I(list(1)),
                               products=I(list(c())), products_mul=I(list(c()))))
+        # if species' concentration decreases one pseudoreaction is included to add it ("-> X ")
         } else { 
 	    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
                               c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
@@ -269,8 +229,8 @@ pathway_analysis_extend <- function(net, rates) {
                               products=I(list(i)), products_mul=I(list(1))))
         }
 
+    # include 
     rates_ext <- c(rates, abs(cdif_r))
-
     return(list(net, rates_ext))
 }
 
@@ -367,8 +327,6 @@ pathway_analysis_prototype <- function(net, rates, fexp=0.001, f2=1e-40) {
                 n[b > fexp | b > 1/(length(b)+1),dest] <- T
             }
 
-            if(check_mat(n))  # Every row and every column has to have at least 1 true element
-                return()    
 
             # Start filling new matrix with pathways that don't net produce or consume i
             #cat("pre rates: ", path_rates, "\n\n")
@@ -540,9 +498,6 @@ pathway_analysis_alternative <- function(net, rates, f2=1e-40, comp=50) {
             #    n[b > fexp | b > 1/(length(b)+1),dest] <- T
             #}
 
-            #if(check_mat(n))  # Check matrix
-            #    return()    
-
             # Start filling new matrix with pathways that don't net produce or consume i
             path_M_new <- path_M[x[i,] == 0,]
             path_rates_new <- path_rates[x[i,] == 0]
@@ -688,9 +643,6 @@ pathway_analysis_alternative2 <- function(net, rates, f2=1e-40, comp=50) {
             #    b <- z[,dest]/sum(z[,dest])
             #    n[b > fexp | b > 1/(length(b)+1),dest] <- T
             #}
-
-            #if(check_mat(n))  # Check matrix
-            #    return()    
 
             # Start filling new matrix with pathways that don't net produce or consume i
             path_M_new <- path_M[x[i,] == 0,]
@@ -838,8 +790,6 @@ pathway_analysis_alternative3 <- function(net, rates, f2=1e-40, C1=6, C2=10) {
             #    n[b > fexp | b > 1/(length(b)+1),dest] <- T
             #}
 
-            #if(check_mat(n))  # Check matrix
-            #    return()    
 
             # Start filling new matrix with pathways that don't net produce or consume i
             path_M_new <- path_M[x[i,] == 0,]
@@ -1001,9 +951,6 @@ pathway_analysis_prototype2 <- function(net, rates, fexp=0.001, f2=1e-10, C1=6, 
 
                 n[b > fexp | b > 1/(length(b)+1),dest] <- T
             }
-
-            if(check_mat(n))  # Every row and every column has to have at least 1 true element
-                return()    
 
             # Start filling new matrix with pathways that don't net produce or consume i
             #cat("pre rates: ", path_rates, "\n\n")
@@ -1201,7 +1148,7 @@ em_develop_rates_max <- function(ems, v) {
 #
 # For every elementary mode also it's complexity is put into the data frame. 
 
-em_iterate_rates_max <- function(em, v, order="max", net) {
+pa_iterate_rates_max <- function(em, v, order="max", net) {
     # cut columns of data frame or elements of rate vector 'v'
     if(length(v) < ncol(em))
         em <- em[,1:length(v)]
