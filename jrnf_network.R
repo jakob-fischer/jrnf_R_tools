@@ -10,6 +10,25 @@ library(igraph)
 source("cycles.R")
 
 
+# Converts an igraph graph to an adjacency matrix...
+jrnf_graph_to_amatrix <- function(g) {
+    N <- length(V(g))
+    M <- length(E(g))
+
+    x <- matrix(0, ncol=N, nrow=N)
+    for(i in 1:M) {
+        a <- get.edge(g, i)[1]
+        b <- get.edge(g, i)[2]
+
+        x[a,b] <- x[a,b] + 1
+    }  
+
+    return(x)
+}
+
+
+
+
 # Loads a jrnf-file and returns a list of two data frames
 # - The first data frame contains all species with 'type' (integer),
 # energy (numeric), 'name' (character) and 'constant' (boolean).
@@ -426,6 +445,49 @@ jrnf_randomize_dir <- function(net) {
 }
 
 
+# Function returns a list of 2-element vectors of reactions that are the 
+# reverse of each other 
+ 
+jrnf_find_reverse_pairs <- function(net) {
+    if(nrow(net[[2]]) < 2)
+        return(list())
+
+    p <- list()
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+
+    for(i in 1:(nrow(net[[2]])-1)) {
+        for(j in (i+1):(nrow(net[[2]]))) {
+            if(all(N_in[,i] == N_out[,j]) & all(N_in[,j] == N_out[,i]))
+                p[[length(p)+1]] <- c(i,j)             
+        }
+    }
+
+    return(p)
+}
+
+
+#
+ 
+jrnf_remove_reverse_pairs <- function(net, rates) {
+    sel <- rep(T, nrow(net[[2]]))        # flag of those reactions which are selected
+
+    rp <- jrnf_find_reverse_pairs(net)   # list of pairs that are reverse of each other
+
+    for(x in rp) {
+        if(rates[x[1]] > rates[x[2]]) {
+            sel[x[2]] <- F
+            rates[x[1]] <- rates[x[1]] - rates[x[2]]
+        } else {
+            sel[x[1]] <- F
+            rates[x[2]] <- rates[x[2]] - rates[x[1]]
+        }
+    }
+
+    return(list(list(net[[1]], net[[2]][sel,]), rates[sel]))
+}
+
+
 
 # This function associates a propertie that is given for reactions to
 # the species for a jrnf-network. This is done by interpolating on
@@ -525,6 +587,35 @@ jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
 
     return(g)    
 }
+
+
+#
+#
+#
+
+jrnf_to_directed_network_d_mul <- function(jrnf_data, direction) {
+    jrnf_species <- jrnf_data[[1]]
+    jrnf_reactions <- jrnf_data[[2]]    
+    g <- graph.empty()
+    g <- add.vertices(g, nrow(jrnf_species), 
+                          name=as.vector(jrnf_species$name))   
+
+    for(i in 1:nrow(jrnf_reactions)) {
+        for(ed in jrnf_reactions$educts[[i]]) {
+            for(prod in jrnf_reactions$products[[i]]) {
+                if(direction[i] > 0)
+                    g <- add.edges(g, c(ed, prod))
+                else
+                    g <- add.edges(g, c(prod, ed))
+            }
+        } 
+    }
+
+    V(g)$label <- V(g)$name
+
+    return(g)    
+}
+
 
 
 #

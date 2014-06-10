@@ -7,6 +7,7 @@
 
 library(pracma)   # for gcd function
 source("cycles.R")
+source("jrnf_network.R")
 
 
 # Funktion to write reaction <i> of network <net> to standard ouptut. If 
@@ -188,12 +189,14 @@ pa_subpath_decomposition <- function(N_orig, path_orig, sel=c()) {
 }
 
 
-
+# The function checks for all pathways in <path_M_el> if they are already in
+# <path_M>.
 
 pa_check_pathway_present <- function(path_M, path_rates, path_M_el) {
     id <- rep(0, nrow(path_M_el))
     present <- rep(F, nrow(path_M_el))
 
+    # First check which new pathways (in <path_M_el>) are actually present
     if(length(path_rates) != 0 & is.matrix(path_M))
         for(i in 1:nrow(path_M_el)) {
             if(nrow(path_M) != 0)
@@ -205,18 +208,20 @@ pa_check_pathway_present <- function(path_M, path_rates, path_M_el) {
                 }
         }
 
+    # transfer rate and calculate complexit (number of reactions that are non-zero)
     rate <- rep(0, nrow(path_M_el))
     rate[present] <- path_rates[id[present]]
     complexity <- apply(path_M_el != 0, 1, sum)
 
+    # return data frame with id of pathway in <path_M>, logical value if it is there at 
+    # all and its rate there as well as complexity
     return(data.frame(id=id, present=present, rate=rate, complexity=complexity))
 }
 
 
-
-# 
-#
-#
+# Given a reaction network and reaction rates this function adds inflow and outflow
+# reactions that would maintain steady state. Function returns a list with new network
+# and new rates.
 
 pa_extend_net <- function(net, rates) {
     # calculate rates that balance growth / decrease of concentrations
@@ -238,15 +243,22 @@ pa_extend_net <- function(net, rates) {
                               products=I(list(i)), products_mul=I(list(1))))
         }
 
-    # include 
+    # include inflow / outflow rates
     rates_ext <- c(rates, abs(cdif_r))
     return(list(net, rates_ext))
 }
 
 
+# TODO find a more intelligent method of deciding which pathways to drop
+# 
+# parameters:
+# net  -  the network that is analysed
+# rates  -  the reaction rates of the network
 
+pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
+    # flag those rates that the reduction condition is applied to
+    flag_red <- rates > f2
 
-pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
     # rates of the discarded pathways
     rates_dropped <- rep(0, length(rates))
     # flag showing which species have been used for branching
@@ -271,19 +283,13 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
     # maybe take generation rate for ordering?  or degree of substrate graph?
     rate_gen <- as.vector(N_in %*% rates)
     g <- jrnf_to_directed_network(net)
+    count <- 1
 
     # All species are taken as branching species (higher production rate first)
-    #for(i in order(degree(g), decreasing=F)) { 
-    for(i in order(rate_gen, decreasing=F)) {
+    #for(i in order(degree(g), decreasing=F)) {
+    for(i in order(rate_gen, decreasing=dir)) {
         cat("branching at species ", net[[1]]$name[i], "\n")
         sp_br_flag[i] <- T
-
-        # calculate maximal relative deviation of reaction rates
-        mm <- max(abs((pa_reconstruct_rates(path_M, path_rates)-rates)/rates), na.rm=T)
-        # which element has this maximal relative deviation?
-        w_mm <- which(mm == abs((pa_reconstruct_rates(path_M, path_rates)-rates)/rates))[1]
-        # print check:  maximal relative deviation;  reaction id; absolute 
-        cat("MCHECK: ",  mm, "  - ", (pa_reconstruct_rates(path_M, path_rates)-rates)[w_mm] , "  - ",  w_mm ,  "\n")
 
         # net creator
         x <- N %*% t(path_M)
@@ -299,12 +305,14 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
 
         z <- cr_f %*% t(con_f)
         n <- z > fexp
-        #cat(sum(z), "\n")
 
         cat("length(cr)=", length(cr), "  length(con)=", length(con), "\n")
 
+        # Species is not part of any pathway (easy as pie)!
         if(length(cr) == 0 & length(con) == 0) {
             cat("species ", i, " not reachable, omitting!\n")
+        # If species is only in pathways as outflow or inflow:
+        # remove pathways and print a warning!
         } else if(length(cr) == 0 | length(con) == 0) {
             cat("Warning, species ", i, " is only partially reachable!\n")
             if(length(cr) != 0)
@@ -315,12 +323,19 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
             cat("Removing pathways that end/start here!\n")
             path_M <- path_M[x[i,] == 0,]
             path_rates <- path_rates[x[i,] == 0]
+
+        # Species is produced and consumed. 
         } else {
+            # Ensure that in each row and each column there is at least one TRUE
+            # (implies that each pathway is at least connected to one other pathway)
             for(src in 1:length(cr)) {
                 a <- z[src,]/sum(z[src,])
                 if(length(which(a > fexp | a > 1/(length(a)+1))) == 0) {
+                    #cat("src=", src, "\n")
+                    #cat("z[src,]=", z[src,], "\n")
+                    #cat("a=", a, "\n")
                     cat("HAH!\n")
-                    return(list(cr, cr_m, cr_f, con, con_m, con_f, path_rates))
+                    #return(list(cr, cr_m, cr_f, con, con_m, con_f, path_rates))
                 }
 
                 n[src, a > fexp | a > 1/(length(a)+1)] <- T
@@ -330,20 +345,22 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
                 b <- z[,dest]/sum(z[,dest])
 
                 if(length(which(b > fexp | b > 1/(length(b)+1))) == 0) {
+                    #cat("z=", z, "\n\n")
+                    #cat("dim(z)=", dim(z), "\n")
+                    #cat("z[,dest]=", z[,dest], "\n")
+                    #cat("dest=", dest,"\n")
+                    #cat("b=", b, "\n")
                     cat("HUH!\n")
-                    return(z)
+                    #return(z)
                 }
 
                 n[b > fexp | b > 1/(length(b)+1),dest] <- T
             }
 
             # Start filling new matrix with pathways that don't net produce or consume i
-            #cat("pre rates: ", path_rates, "\n\n")
-
             path_M_new <- path_M[x[i,] == 0,]
             path_rates_new <- path_rates[x[i,] == 0]
-            #cat("int rates: ", path_rates_new, "\n\n")
-
+ 
             # Add contribution of dropped / deleted pathways to vector rates_dropped
             for(src in 1:length(cr)) {
                 K_src <- cr_m[src]             # How does the pathway src change i
@@ -354,10 +371,18 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
                     np <- K_dst*path_M[cr[src],] +                          # new pathway
                           K_src*path_M[con[dest],]  
 
-                    
+                    # Calculate the minimal contribution of this (coupled) pathway to the total rate
+                    # If it is above <pmin> the two pathway are coupled even if the matrix <n> for it
+                    # is false.
 
+                    x <- abs((np*nr/rates)[np != 0 & flag_red])
+                    if(length(x) == 0)
+                        x <- abs((np*nr/rates)[np != 0 & !flag_red])                        
 
-                    if(n[src,dest]) {                                 # Add combined pathway
+                    mm <- max(x)
+                    #cat("mm=", mm, "\n")
+
+                    if(n[src,dest] | mm > pmin) {                                 # Add combined pathway
                         if((N %*% np)[i] != 0) {
                             cat("ERROR: pathway combination not zero!\n")
                             cat("src=", src, "  dest=", dest, "   cr[src]=", cr[src],   
@@ -403,8 +428,17 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
                                 if(p_sort$present[k]) {
                                     path_rates_new[p_sort$id[k]] <- path_rates_new[p_sort$id[k]] + rt
                                 } else {
+                                     # The pathway has to be added
+                                     x <- abs((path_M_dec[k,]*rt/rates)[path_M_dec[k,] != 0 & flag_red])
+                                     if(length(x) == 0)
+                                         x <- abs((np*nr/rates)[np != 0 & !flag_red])     
+
+                                     mm <- max(x)
+
                                      new_comp <- sum((N %*% path_M_dec[k,]) != 0) 
-                                     if(rt > f2 & new_comp <= C1 & p_sort$complexity[k] < C2) {
+#                                     if(rt > f2 & new_comp <= C1 & p_sort$complexity[k] < C2 | mm > pmin) {
+
+                                     if(mm > pmin) {
                                         path_rates_new[length(path_rates_new)+1] <- rt
                                         path_M_new <- rbind(path_M_new, matrix(path_M_dec[k,], 1, length(path_M_dec[k,])))
                                     } else {
@@ -414,7 +448,7 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
                             } 
                         }
                                      
-                    } else {                   # Drop pathway combination
+                    } else {  # Drop pathway combination
                         rates_dropped <- rates_dropped + nr*np
                     }
                 }
@@ -422,14 +456,24 @@ pa_analysis <- function(net, rates, fexp=0.001, f2=1e-10, C1=20, C2=15) {
 
             # swap / report / ready for next step  
             path_rates <- path_rates_new
-            cat("sum(is.na(path_rates))=", sum(is.na(path_rates)), "\n")
             path_M <- path_M_new
-            cat("Having ", nrow(path_M), " pathways!\n")
-            cat("max dropped: ", max((rates_dropped/rates)[rates != 0]), "\n")
         }
+
+        cat("Having ", nrow(path_M), " pathways! (", count, "/",nrow(N_in),")\n")
+
+        # calculate maximal relative deviation of reaction rates
+        rec_ra <- pa_reconstruct_rates(path_M, path_rates)
+        mm_a <- max(abs(rec_ra-rates)/rates, na.rm=T)
+        mm_b <- max((abs(rec_ra-rates)/rates)[flag_red], na.rm=T)
+        mm_c <- max(abs(rec_ra-rates), na.rm=T)
+        mm_d <- sum(abs(rec_ra-rates))/sum(rates)
+
+        # print check:  maximal relative deviation;  reaction id; absolute        
+        cat("check: ",  mm_a, "  - ", mm_b , "  - ",  mm_c , "  - ", mm_d,  "\n")
+        count <- count + 1
     }
 
-    return(list(path_M, path_rates))
+    return(list(path_M, path_rates, mm_b, mm_d))
 } 
 
 
@@ -476,7 +520,7 @@ pa_rm_multiple_check_elementary <- function(net, ems) {
 #
 # For every elementary mode also it's complexity is put into the data frame. 
 
-pa_iterate_rates_max <- function(em, v, order="max", net) {
+pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
     # cut columns of data frame or elements of rate vector 'v'
     if(length(v) < ncol(em))
         em <- em[,1:length(v)]
@@ -548,12 +592,14 @@ pa_iterate_rates_max <- function(em, v, order="max", net) {
     }
 
 
-    a_init <- apply(em, 1, al)
-
+    if(length(coef) == 0)
+        a_init <- apply(em, 1, al)
+    else
+        a_init <- coef
 
     # different modes in how the elementary modes are ordered for developing v / v_    
     # "max": after each step the maximum mode best for the next step is selected
-    if(order == "max") {
+    if(order == "max_step") {
         prev <- T          # will be assigned the coefficient of the previous em 
 
         for(i in 1:nrow(em)) {
@@ -577,7 +623,7 @@ pa_iterate_rates_max <- function(em, v, order="max", net) {
         }
 
     # "initial": initially the elementary pathways are ordered with decreasing coefficient
-    } else if(order == "initial") {
+    } else if(order == "max_init") {
         a <- apply(em, 1, al)
         m_id <- order(a, decreasing=T)
 
@@ -586,10 +632,10 @@ pa_iterate_rates_max <- function(em, v, order="max", net) {
             cat(".")
         }
 
-    # -: pathways are ordered as given
+    # -: pathways are ordered as given / if coef is given it is used as accumulative coefficients
     } else {
         for(i in 1:nrow(em)) {
-            add_element(i, NA, NA)
+            add_element(i, NA, a_init[i])
             cat(".")
         }
     }
@@ -598,3 +644,24 @@ pa_iterate_rates_max <- function(em, v, order="max", net) {
     return(data.frame(em_id=em_id, coeff=coeff, coeff_acc=coeff_acc, exp_f=exp_f, 
                       exp_f_acc=exp_f_acc, C1=C1, C2=C2, C3=C3, min_f=min_f, min_f_acc=min_f_acc))  
 }
+
+
+
+
+
+# Function derives properties of all elementary modes in a matrix and returns
+# them in a data frame. The function returns them 
+#
+#
+
+pa_em_derive <- function(em_matrix, net, c_max=5) {
+     # generating empty vectors
+
+
+
+
+    # assemble data frame and return it
+    return(data.frame())
+}
+
+
