@@ -590,31 +590,31 @@ jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
 
 
 #
+#  commented out because content is same than jrnf_to_directed_network_d?
 #
+
+#jrnf_to_directed_network_d_mul <- function(jrnf_data, direction) {
+#    jrnf_species <- jrnf_data[[1]]
+#    jrnf_reactions <- jrnf_data[[2]]    
+#    g <- graph.empty()
+#    g <- add.vertices(g, nrow(jrnf_species), 
+#                          name=as.vector(jrnf_species$name))   
 #
-
-jrnf_to_directed_network_d_mul <- function(jrnf_data, direction) {
-    jrnf_species <- jrnf_data[[1]]
-    jrnf_reactions <- jrnf_data[[2]]    
-    g <- graph.empty()
-    g <- add.vertices(g, nrow(jrnf_species), 
-                          name=as.vector(jrnf_species$name))   
-
-    for(i in 1:nrow(jrnf_reactions)) {
-        for(ed in jrnf_reactions$educts[[i]]) {
-            for(prod in jrnf_reactions$products[[i]]) {
-                if(direction[i] > 0)
-                    g <- add.edges(g, c(ed, prod))
-                else
-                    g <- add.edges(g, c(prod, ed))
-            }
-        } 
-    }
-
-    V(g)$label <- V(g)$name
-
-    return(g)    
-}
+#    for(i in 1:nrow(jrnf_reactions)) {
+#        for(ed in jrnf_reactions$educts[[i]]) {
+#            for(prod in jrnf_reactions$products[[i]]) {
+#                if(direction[i] > 0)
+#                    g <- add.edges(g, c(ed, prod))
+#                else
+#                    g <- add.edges(g, c(prod, ed))
+#            }
+#        } 
+#    }
+#
+#    V(g)$label <- V(g)$name
+#
+#    return(g)    
+#}
 
 
 
