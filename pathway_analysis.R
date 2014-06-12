@@ -661,17 +661,36 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
     # Check the sign condition! (and reverse the elementary modes (TODO)
 
 
+    v_sum <- sum(v) 
+    v_ <- rep(0, length(v))                # exansion for ems 1 to <n>
 
+    coeff <- em_rates                      # coefficient of the em
+    exp_f <- rep(0, length(em_rates))      # fraction of all rates explained by current em            
+    exp_f_acc <- rep(0, length(em_rates))  # fractions of all rates explained by ems 1 to <n>
+    err_f_50p <- rep(1, length(em_rates))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
+    err_rmax_50p <- rep(0, length(em_rates)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
+    err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion for each reaction  
 
-    v_ <- rep(0, length(v))
     #
-    for(i in length(em_rates)) {
+    for(i in 1:length(em_rates)) {
+        dv <- em_rates[i]*em_matrix[i,]
+        v_ <- v_ + dv
+        exp_f[i] <- sum(dv)/v_sum      
+        exp_f_acc[i] <- sum(v_)/v_sum
+        # total error 
+        err_abs <- v_ - v
+        err_rel <- abs((v_-v)/v)
+        err_rel[v == 0,] <- 0
 
+        err_f_50p[i] <- length(which(err_rel > 0.5)) / length(err_rel)
+        err_rmax_50p[i] <- max(v[err_rel > 0.5])
 
-
+        err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
     }
 
-
+    return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
+                      err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
+                      err_rates=err_rates))
 }
 
 
