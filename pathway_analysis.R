@@ -673,6 +673,7 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
 
     #
     for(i in 1:length(em_rates)) {
+        cat(".")
         dv <- em_rates[i]*em_matrix[i,]
         v_ <- v_ + dv
         exp_f[i] <- sum(dv)/v_sum      
@@ -680,17 +681,17 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
         # total error 
         err_abs <- v_ - v
         err_rel <- abs((v_-v)/v)
-        err_rel[v == 0,] <- 0
+        err_rel[v == 0] <- 0
 
         err_f_50p[i] <- length(which(err_rel > 0.5)) / length(err_rel)
-        err_rmax_50p[i] <- max(v[err_rel > 0.5])
+        err_rmax_50p[i] <- max(c(v[err_rel > 0.5],0))
 
         err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
     }
 
     return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
                       err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
-                      err_rates=err_rates))
+                      err_rates=I(err_rates)))
 }
 
 
