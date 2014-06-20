@@ -1395,32 +1395,33 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name) {
     name <- ""
 
     # first build name
-    if(sum(comp) == 0) {
+    if(sum(comp) == 0) 
         name <- empty_name
-    } else {
+    else 
         for(i in 1:length(comp))
-            if(comp[i] != 0) {
-                
-                
-            }
-    }
+            if(comp[i] != 0) 
+                name <- paste(name, c_names[i], comp[i], sep="")    
 
 
     # second step - unify name (by appending "_2", "_3", ...
+    if(any(name == ex_names)) {    # name already used
+        i <- 2
+        while(any(paste(name, "_", i, sep="") == ex_names))
+            i <- i+1
 
+        name <- paste(name, "_", i, sep="")
+    }
 
-
-
-    return("bla")   # TODO implement ;)
+    return(name)   # TODO implement ;)
 }
 
 # Checks if a reaction is possible from elementary constituents
 hcae_check_rea_constituents <- function(rea, comp, N) {
     get_c <- function(i) {
-        if(rea(i) == 0)
+        if(rea[i] == 0)
             return(rep(0, ncol(comp)))
         else
-            return(comp[rea[i]])
+            return(comp[rea[i],])
     }
 
     # the components that are hv are set to zero / empty species first
@@ -1444,6 +1445,9 @@ hcae_check_rea_conditions <- function(rea, N) {
     if(hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
         return(F)
 
+    if(rea[1] == rea[3] && rea[2] == rea[4] || rea[1] == rea[4] && rea[2] == rea[3])
+        return(F)
+
     return(T)
 }
 
@@ -1455,13 +1459,13 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
     component_names <- component_names[1:comp_no]
     
     # draw compostition (el. constituents) and energy of species
-    composition <- matrix(rpois(N*comp_no), ncol=comp_no)
+    composition <- matrix(rpois(N*comp_no, 0.8), ncol=comp_no)
     energy <- rnorm(N)   
 
     # find names (derived from constituents)
     name <- c()
     for(i in 1:N)
-        name <- c(name, hcae_create_name(composition, component_names,
+        name <- c(name, hcae_create_name(composition[i,], component_names,
                                          name, empty_name))
  
     # Add species for photons / energy source
@@ -1473,8 +1477,9 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
     s <- (N+2)   
     possible_reas <- rep(1, s^4) 
     has_hv <- rep(F, s^4)
+    rea_no <- rep(0, s^4)
 
-    # TODO: replace this with apply
+    # TODO: speed this up with apply?
     for(i in 1:length(possible_reas)) {
         j <- i-1
         a <- j%%s
@@ -1483,17 +1488,80 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
         d <- ((j-a-b*s-c*s^2)/s^3)%%s 
 
         if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
-           !hcae_check_rea_conditions(c(a,b,c,d), N)
+           !hcae_check_rea_conditions(c(a,b,c,d), N))
             possible_reas[i] <- 0
 
         if(a == N+1 || b == N+1 || c == N+1 || d == N+1)
             has_hv[i] <- T
 
-        cat("having ", sum(possible_reas), " possible reactions out of ", s^4, "!\n")
-        cat(" ", sum(has_hv), " of them are photoreactions.\n") 
+        rea_no[i] <- sum(c(a != 0, b != 0, c != 0, d != 0))
     }
 
+    cat("having ", sum(possible_reas), " possible reactions out of ", s^4, "!\n")
+    cat(" ", sum(has_hv & possible_reas != 0), " of them are photoreactions.\n") 
+    cat(" ", sum(rea_no[possible_reas != 0] == 2), " have 2 reactants, ", sum(rea_no[possible_reas != 0] == 3), 
+        " have 3 reactants and ", sum(rea_no[possible_reas != 0] == 4), " have 4!\n")
 
 
+    # now draw M reactions     # allow to select which fraction should be 1x1 reactions or how many photoreactions should be choosen
+    s_rea <- sample(1:length(possible_reas), M, F, possible_reas/sum(possible_reas))    
+    cat(" -> ", sum(has_hv[s_rea]), " photoreactions drawn!\n")
 
+    # create network object and return it...
+    e <- list()
+    em <- list()
+    p <- list()
+    pm <- list()
+
+    for(i in 1:length(s_rea)) {
+        e_ <- c()
+        em_ <- c()
+        p_ <- c()
+        pm_ <- c()
+
+        j <- s_rea[i]-1
+        a <- j%%s
+        b <- ((j-a)/s)%%s
+        c <- ((j-a-b*s)/s^2)%%s
+        d <- ((j-a-b*s-c*s^2)/s^3)%%s
+
+        if(a != 0) {
+            e_ <- c(e_, a)
+            em_ <- c(em_, 1)
+        }
+
+        if(b != 0) {
+            e_ <- c(e_, b)
+            em_ <- c(em_, 1)
+        }
+
+        if(c != 0) {
+            p_ <- c(p_, c)
+            pm_ <- c(pm_, 1)
+        }
+
+        if(d != 0) {
+            p_ <- c(p_, d)
+            pm_ <- c(pm_, 1)
+        }
+        e[[i]] <- e_
+        em[[i]] <- em_
+        p[[i]] <- p_
+        pm[[i]] <- pm_
+    }
+
+    species <- data.frame(type=as.integer(rep(0, N+1)), name=as.character(name), 
+                          energy=as.numeric(energy),
+                          constant=as.logical(c(rep(F, N), T)),
+                          stringsAsFactors=FALSE)
+
+    reactions <- data.frame(reversible=as.logical(rep(T, M)),
+                            c=as.numeric(rep(0, M)), 
+                            k=as.numeric(rep(0, M)),
+                            k_b=as.numeric(rep(0,M)), 
+                            activation=as.numeric(rplancklike(M)), 
+                            educts=I(e), educts_mul=I(em),
+                            products=I(p), products_mul=I(pm))
+
+    return(list(species, reactions))
 }
