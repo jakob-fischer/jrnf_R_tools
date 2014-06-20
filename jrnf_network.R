@@ -1385,3 +1385,115 @@ get_sentropy_species <- function(names, ent) {
     return(res)
 }
 
+
+
+# Function creates artificial ecosystem with <N> species... 
+#
+
+# Helper to create names consistent with elementary constituents
+hcae_create_name <- function(comp, c_names, ex_names, empty_name) {
+    name <- ""
+
+    # first build name
+    if(sum(comp) == 0) {
+        name <- empty_name
+    } else {
+        for(i in 1:length(comp))
+            if(comp[i] != 0) {
+                
+                
+            }
+    }
+
+
+    # second step - unify name (by appending "_2", "_3", ...
+
+
+
+
+    return("bla")   # TODO implement ;)
+}
+
+# Checks if a reaction is possible from elementary constituents
+hcae_check_rea_constituents <- function(rea, comp, N) {
+    get_c <- function(i) {
+        if(rea(i) == 0)
+            return(rep(0, ncol(comp)))
+        else
+            return(comp[rea[i]])
+    }
+
+    # the components that are hv are set to zero / empty species first
+    for(i in 1:4)
+        if(rea[i] == N+1) 
+            rea[i] <- 0
+
+    return(all(get_c(1)+get_c(2) == get_c(3)+get_c(4)))
+}
+
+# Check further conditions on reactions 
+hcae_check_rea_conditions <- function(rea, N) {
+    hv_ed <- sum((rea[1] == N+1) + (rea[2] == N+1))
+    hv_pro <- sum((rea[3] == N+1) + (rea[4] == N+1))
+    empty_ed  <- sum((rea[1] == 0) + (rea[2] == 0))
+    empty_pro  <- sum((rea[3] == 0) + (rea[4] == 0))
+
+    if(hv_ed+hv_pro > 1)
+        return(F)
+
+    if(hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
+        return(F)
+
+    return(T)
+}
+
+
+jrnf_create_artificial_ecosystem <- function(N, M, comp_no) { 
+    empty_name <- "X"
+    hv_name <- "hv"
+    component_names <- c("C", "N", "O", "H", "P")
+    component_names <- component_names[1:comp_no]
+    
+    # draw compostition (el. constituents) and energy of species
+    composition <- matrix(rpois(N*comp_no), ncol=comp_no)
+    energy <- rnorm(N)   
+
+    # find names (derived from constituents)
+    name <- c()
+    for(i in 1:N)
+        name <- c(name, hcae_create_name(composition, component_names,
+                                         name, empty_name))
+ 
+    # Add species for photons / energy source
+    energy <- c(energy, max(max(energy)+5, 10))
+    name <- c(name, hv_name) 
+ 
+    # Now investigate all possible reactions up to 2x2 and build one 
+    # vector containing information whether the reaction is possible
+    s <- (N+2)   
+    possible_reas <- rep(1, s^4) 
+    has_hv <- rep(F, s^4)
+
+    # TODO: replace this with apply
+    for(i in 1:length(possible_reas)) {
+        j <- i-1
+        a <- j%%s
+        b <- ((j-a)/s)%%s
+        c <- ((j-a-b*s)/s^2)%%s
+        d <- ((j-a-b*s-c*s^2)/s^3)%%s 
+
+        if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
+           !hcae_check_rea_conditions(c(a,b,c,d), N)
+            possible_reas[i] <- 0
+
+        if(a == N+1 || b == N+1 || c == N+1 || d == N+1)
+            has_hv[i] <- T
+
+        cat("having ", sum(possible_reas), " possible reactions out of ", s^4, "!\n")
+        cat(" ", sum(has_hv), " of them are photoreactions.\n") 
+    }
+
+
+
+
+}
