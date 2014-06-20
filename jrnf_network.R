@@ -1495,6 +1495,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
             has_hv[i] <- T
 
         rea_no[i] <- sum(c(a != 0, b != 0, c != 0, d != 0))
+        possible_reas[rea_no == 3] <- 0
     }
 
     cat("having ", sum(possible_reas), " possible reactions out of ", s^4, "!\n")
