@@ -647,56 +647,6 @@ pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
 
 
 
-
-
-# Uses an existing expansion of a network <net>'s steady state flow <v> and 
-# calculates how good it is absolute (using all elementary modes) and cummulative
-# (using elementary modes 1 to <n>). The expansion / elementary modes have to be
-# ordered in advance. If coefficients of em's are negative this means that the 
-# reactions of the network are reversed before starting evaluating the expansion.
-# For this it is checked if there is no sign missmatch for all the pathways which 
-# have <em_rates> > 0.
-
-pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
-    # Check the sign condition! (and reverse the elementary modes (TODO)
-
-
-    v_sum <- sum(v) 
-    v_ <- rep(0, length(v))                # exansion for ems 1 to <n>
-
-    coeff <- em_rates                      # coefficient of the em
-    exp_f <- rep(0, length(em_rates))      # fraction of all rates explained by current em            
-    exp_f_acc <- rep(0, length(em_rates))  # fractions of all rates explained by ems 1 to <n>
-    err_f_50p <- rep(1, length(em_rates))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
-    err_rmax_50p <- rep(0, length(em_rates)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
-    err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion for each reaction  
-
-    #
-    for(i in 1:length(em_rates)) {
-        cat(".")
-        dv <- em_rates[i]*em_matrix[i,]
-        v_ <- v_ + dv
-        exp_f[i] <- sum(dv)/v_sum      
-        exp_f_acc[i] <- sum(v_)/v_sum
-        # total error 
-        err_abs <- v_ - v
-        err_rel <- abs((v_-v)/v)
-        err_rel[v == 0] <- 0
-
-        err_f_50p[i] <- length(which(err_rel > 0.5)) / length(err_rel)
-        err_rmax_50p[i] <- max(c(v[err_rel > 0.5],0))
-
-        err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
-    }
-
-    return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
-                      err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
-                      err_rates=I(err_rates)))
-}
-
-
-
-
 # Function derives properties of all elementary modes in a matrix and returns
 # them in a data frame. The function returns them 
 #
@@ -797,6 +747,58 @@ pa_em_derive <- function(em_matrix, net, c_max=15) {
                       C_2_s=C_s[,2], C_3_s=C_s[,3], Deg=Deg, Deg_int=Deg_int, Deg_max=Deg_max, 
                       Deg_max_int=Deg_max_int, Sp_no=Sp_no, Re=Re, Re_s=Re_s, Ex=Ex, Ex_s=Ex_s,
                       In=In, In_s=In_s, Out=Out, Out_s=Out_s))
+}
+
+
+
+# Uses an existing expansion of a network <net>'s steady state flow <v> and 
+# calculates how good it is absolute (using all elementary modes) and cummulative
+# (using elementary modes 1 to <n>). The expansion / elementary modes have to be
+# ordered in advance. If coefficients of em's are negative this means that the 
+# reactions of the network are reversed before starting evaluating the expansion.
+# For this it is checked if there is no sign missmatch for all the pathways which 
+# have <em_rates> > 0.
+
+pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
+    # First check the sign condition if rates of elementary modes are nonzero all coefficients of 
+    # the respective elementary modes have to have the same sign as the reactions rate (v)
+    
+
+    # If sign conditions are fulfilled reactions, reaction rates and coefficients of 
+    # elementary modes are reversed for negative rate reactions.
+    
+    
+    v_sum <- sum(v) 
+    v_ <- rep(0, length(v))                # exansion for ems 1 to <n>
+
+    coeff <- em_rates                      # coefficient of the em
+    exp_f <- rep(0, length(em_rates))      # fraction of all rates explained by current em            
+    exp_f_acc <- rep(0, length(em_rates))  # fractions of all rates explained by ems 1 to <n>
+    err_f_50p <- rep(1, length(em_rates))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
+    err_rmax_50p <- rep(0, length(em_rates)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
+    err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion for each reaction  
+
+    #
+    for(i in 1:length(em_rates)) {
+        cat(".")
+        dv <- em_rates[i]*em_matrix[i,]
+        v_ <- v_ + dv
+        exp_f[i] <- sum(dv)/v_sum      
+        exp_f_acc[i] <- sum(v_)/v_sum
+        # total error 
+        err_abs <- v_ - v
+        err_rel <- abs((v_-v)/v)
+        err_rel[v == 0] <- 0
+
+        err_f_50p[i] <- length(which(err_rel > 0.5)) / length(err_rel)
+        err_rmax_50p[i] <- max(c(v[err_rel > 0.5],0))
+
+        err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
+    }
+
+    return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
+                      err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
+                      err_rates=I(err_rates)))
 }
 
 
