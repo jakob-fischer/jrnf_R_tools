@@ -1,0 +1,6 @@
+   
+Please note: The functionality to calculate elementary modes (function
+             calculate_elementary_modes in file interface_topana.R) needs
+             metatool (fasttool) to be set up in subdirectory metatool.
+
+
