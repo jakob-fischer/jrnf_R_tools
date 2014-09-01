@@ -1417,6 +1417,7 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name) {
 
 # Checks if a reaction is possible from elementary constituents
 hcae_check_rea_constituents <- function(rea, comp, N) {
+    #cat("hcrc rea=", rea, "  comp=", dim(comp), "  N=", N, "\n")
     get_c <- function(i) {
         if(rea[i] == 0)
             return(rep(0, ncol(comp)))
@@ -1452,7 +1453,170 @@ hcae_check_rea_conditions <- function(rea, N) {
 }
 
 
-jrnf_create_artificial_ecosystem <- function(N, M, comp_no) { 
+
+# Helper function that is given a (weighted) adjacency matrix and a number of modules
+# (has to be divisor of species number) and then tries to maximize the modularity
+# (weight of edges inside the modules) by randomly reordering the species ids.
+
+
+gmr_get_inner_density <- function(M_adj, N_mod) {
+    s <- 0
+    N <- ncol(M_adj)    
+    mod_size <- N/N_mod
+
+    for(i in 1:N_mod) {
+        x <- (i-1)*mod_size+1:mod_size
+        s <- s + sum(M_adj[x,x])/(mod_size**2)
+    }
+
+    return(s/N_mod)
+}
+
+
+jrnf_get_modular_reordering <- function(M_adj, N_mod) {
+    #
+    #
+
+
+
+    N <- ncol(M_adj)                    # number of species
+    o <- 1:N                            # current reordering
+    density <- sum(M_adj)/(N**2)        # density
+
+
+
+    r1 <- sample(N, N**2*10, replace=T) 
+    r2 <- sample(N, N**2*10, replace=T)
+   
+    for(i in 1:(N**2*10)) {
+      o_t <- o
+      o_t[r2[i]] <- o[r1[i]]
+      o_t[r1[i]] <- o[r2[i]]  
+
+      density_t <- gmr_get_inner_density(M_adj[o_t,o_t], N_mod)
+      
+      if(density_t > density) {
+          density <- density_t
+          o <- o_t
+          cat("-> ", density, "\n")
+      }
+    }
+
+    return(o)
+}
+
+
+
+jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, no_reordering=F, hv_f=0.5) { 
+    # TODO check parameters   (N/mod_no has to be a natural number)!
+    sp_mod_id <- floor((1:N-1)/mod_no)    # module of each species
+
+    eval_possible_reas <- function(s, mod=F) { 
+        #cat("call to eval_possible_reas with s=", s, "\n")
+        possible_reas <- rep(1, s^4) 
+        has_hv <- rep(F, s^4)
+        rea_no <- rep(0, s^4)
+
+        # TODO: speed this up with apply?
+        for(i in 1:length(possible_reas)) {
+            j <- i-1
+            a <- j%%s
+            b <- ((j-a)/s)%%s
+            c <- ((j-a-b*s)/s^2)%%s
+            d <- ((j-a-b*s-c*s^2)/s^3)%%s 
+
+            #cat("a=", a, " b=", b, " c=", c, " d=", d, "\n")
+
+
+            if(mod & a != 0 && c != 0 && a != N+1 && c != N+1 && sp_mod_id[a] == sp_mod_id[c])
+                possible_reas[j] <- possible_reas[j]/mod_f
+
+            if(mod & b != 0 && d != 0 && b != N+1 && d != N+1 &&  sp_mod_id[b] == sp_mod_id[d])
+                possible_reas[j] <- possible_reas[j]/mod_f
+
+
+            if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
+               !hcae_check_rea_conditions(c(a,b,c,d), N))
+                possible_reas[i] <- 0
+
+            if(a == N+1 || b == N+1 || c == N+1 || d == N+1)
+                has_hv[i] <- T
+
+ 
+            rea_no[i] <- sum(c(a != 0, b != 0, c != 0, d != 0))
+        }
+
+        possible_reas[rea_no == 3] <- 0
+        possible_reas[has_hv] <- possible_reas[has_hv]*hv_f
+
+        return(list(possible_reas, has_hv, rea_no))
+    }
+
+
+    possible_reas_to_jrnf <- function(s_rea, s) {
+        M_ <- length(s_rea)
+
+        # create network object and return it...
+        e <- list()
+        em <- list()
+        p <- list()
+        pm <- list()
+
+        for(i in 1:length(s_rea)) {
+            e_ <- c()
+            em_ <- c()
+            p_ <- c()
+            pm_ <- c()
+
+            j <- s_rea[i]-1
+            a <- j%%s
+            b <- ((j-a)/s)%%s
+            c <- ((j-a-b*s)/s^2)%%s
+            d <- ((j-a-b*s-c*s^2)/s^3)%%s
+
+            if(a != 0) {
+                e_ <- c(e_, a)
+                em_ <- c(em_, 1)
+            }
+
+            if(b != 0) {
+                e_ <- c(e_, b)
+                em_ <- c(em_, 1)
+            }
+
+            if(c != 0) {
+                p_ <- c(p_, c)
+                pm_ <- c(pm_, 1)
+            }
+
+            if(d != 0) {
+                p_ <- c(p_, d)
+                pm_ <- c(pm_, 1)
+            }
+            e[[i]] <- e_
+            em[[i]] <- em_
+            p[[i]] <- p_
+            pm[[i]] <- pm_
+        }
+
+        species <- data.frame(type=as.integer(rep(0, N+1)), name=as.character(name), 
+                              energy=as.numeric(energy),
+                              constant=as.logical(c(rep(F, N), T)),
+                              stringsAsFactors=FALSE)
+
+        reactions <- data.frame(reversible=as.logical(rep(T, M_)),
+                                c=as.numeric(rep(0, M_)), 
+                                k=as.numeric(rep(0, M_)),
+                                k_b=as.numeric(rep(0,M_)), 
+                                activation=as.numeric(rplancklike(M_)), 
+                                educts=I(e), educts_mul=I(em),
+                                products=I(p), products_mul=I(pm))
+
+        return(list(species, reactions))
+    }
+
+
+
     empty_name <- "X"
     hv_name <- "hv"
     component_names <- c("C", "N", "O", "H", "P")
@@ -1462,6 +1626,12 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
     composition <- matrix(rpois(N*comp_no, 0.8), ncol=comp_no)
     energy <- rnorm(N)   
 
+    while(any(apply(composition, 1, sum) == 0)) {
+        for(i in which(apply(composition, 1, sum) == 0)) {
+            composition[i,] <- rpois(comp_no, 0.8)
+        }
+    }
+
     # find names (derived from constituents)
     name <- c()
     for(i in 1:N)
@@ -1469,102 +1639,64 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no) {
                                          name, empty_name))
  
     # Add species for photons / energy source
-    energy <- c(energy, max(max(energy)+5, 10))
+    energy <- c(energy, max(max(energy)+5, 500))
     name <- c(name, hv_name) 
  
     # Now investigate all possible reactions up to 2x2 and build one 
     # vector containing information whether the reaction is possible
-    s <- (N+2)   
-    possible_reas <- rep(1, s^4) 
-    has_hv <- rep(F, s^4)
-    rea_no <- rep(0, s^4)
+    if(no_reordering)
+        x <- eval_possible_reas(N+2, T)
+    else
+         x <- eval_possible_reas(N+2)
+    possible_reas <- x[[1]]
+    has_hv <- x[[2]]
+    rea_no <- x[[3]]
 
-    # TODO: speed this up with apply?
-    for(i in 1:length(possible_reas)) {
-        j <- i-1
-        a <- j%%s
-        b <- ((j-a)/s)%%s
-        c <- ((j-a-b*s)/s^2)%%s
-        d <- ((j-a-b*s-c*s^2)/s^3)%%s 
+    if(mod_no != 0 && !no_reordering) {
+        cat("DOING MODULARIZATION...\n")
+        cat("having ", sum(possible_reas != 0), " possible reactions out of ", (N+2)^4, "!\n")
+        cat(" ", sum(has_hv & possible_reas != 0), " of them are photoreactions.\n") 
+        cat(" ", sum(rea_no[possible_reas != 0] == 2), " have 2 reactants, ", sum(rea_no[possible_reas != 0] == 3), 
+            " have 3 reactants and ", sum(rea_no[possible_reas != 0] == 4), " have 4!\n")
 
-        if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
-           !hcae_check_rea_conditions(c(a,b,c,d), N))
-            possible_reas[i] <- 0
+        net <- possible_reas_to_jrnf(which(possible_reas != 0), N+2) 
+        g <- jrnf_to_undirected_network(net)
+        mat <- jrnf_graph_to_amatrix(g)
+        mat <- mat[1:N,1:N]      
 
-        if(a == N+1 || b == N+1 || c == N+1 || d == N+1)
-            has_hv[i] <- T
+        o <- jrnf_get_modular_reordering(mat, mod_no)
 
-        rea_no[i] <- sum(c(a != 0, b != 0, c != 0, d != 0))
+        cat("REORDERING o=", o, "\n")  
+        cat("nrow(composition) = ", nrow(composition), "\n")
+        composition <- composition[o,]
+        name <- c(name[o], name[length(name)])   
+
+        # reevaluating
+        x <- eval_possible_reas(N+2, T)
+        possible_reas <- x[[1]]
+        has_hv <- x[[2]]
+        rea_no <- x[[3]]     
     }
 
 
-    possible_reas[rea_no == 3] <- 0
 
-    cat("having ", sum(possible_reas), " possible reactions out of ", s^4, "!\n")
+    cat("having ", sum(possible_reas != 0), " possible reactions out of ", (N+2)^4, "!\n")
     cat(" ", sum(has_hv & possible_reas != 0), " of them are photoreactions.\n") 
     cat(" ", sum(rea_no[possible_reas != 0] == 2), " have 2 reactants, ", sum(rea_no[possible_reas != 0] == 3), 
         " have 3 reactants and ", sum(rea_no[possible_reas != 0] == 4), " have 4!\n")
-
 
     # now draw M reactions     # allow to select which fraction should be 1x1 reactions or how many photoreactions should be choosen
     s_rea <- sample(1:length(possible_reas), M, F, possible_reas/sum(possible_reas))    
     cat(" -> ", sum(has_hv[s_rea]), " photoreactions drawn!\n")
 
-    # create network object and return it...
-    e <- list()
-    em <- list()
-    p <- list()
-    pm <- list()
-
-    for(i in 1:length(s_rea)) {
-        e_ <- c()
-        em_ <- c()
-        p_ <- c()
-        pm_ <- c()
-
-        j <- s_rea[i]-1
-        a <- j%%s
-        b <- ((j-a)/s)%%s
-        c <- ((j-a-b*s)/s^2)%%s
-        d <- ((j-a-b*s-c*s^2)/s^3)%%s
-
-        if(a != 0) {
-            e_ <- c(e_, a)
-            em_ <- c(em_, 1)
-        }
-
-        if(b != 0) {
-            e_ <- c(e_, b)
-            em_ <- c(em_, 1)
-        }
-
-        if(c != 0) {
-            p_ <- c(p_, c)
-            pm_ <- c(pm_, 1)
-        }
-
-        if(d != 0) {
-            p_ <- c(p_, d)
-            pm_ <- c(pm_, 1)
-        }
-        e[[i]] <- e_
-        em[[i]] <- em_
-        p[[i]] <- p_
-        pm[[i]] <- pm_
+    net <- possible_reas_to_jrnf(s_rea, N+2)
+    
+    if(mod_no != 0) {
+        g <- jrnf_to_directed_network(net)
+        mat <- jrnf_graph_to_amatrix(g)[1:N,1:N]
+        f <- gmr_get_inner_density(mat, mod_no)/(sum(mat)/N**2)
+        cat("modularity factor is ", f, "\n")
     }
 
-    species <- data.frame(type=as.integer(rep(0, N+1)), name=as.character(name), 
-                          energy=as.numeric(energy),
-                          constant=as.logical(c(rep(F, N), T)),
-                          stringsAsFactors=FALSE)
-
-    reactions <- data.frame(reversible=as.logical(rep(T, M)),
-                            c=as.numeric(rep(0, M)), 
-                            k=as.numeric(rep(0, M)),
-                            k_b=as.numeric(rep(0,M)), 
-                            activation=as.numeric(rplancklike(M)), 
-                            educts=I(e), educts_mul=I(em),
-                            products=I(p), products_mul=I(pm))
-
-    return(list(species, reactions))
+    return(net)
 }

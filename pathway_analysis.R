@@ -13,6 +13,7 @@ source("jrnf_network.R")
 # Funktion to write reaction <i> of network <net> to standard ouptut. If 
 # stoichiometric matrix is not given as third parameter it is calculated. 
 # TODO: Calculating the entire matrix just for one column is overkill!
+# TODO: Autocatalytic parts of reactions are not plotted correctly!
 
 pa_write_rea <- function(net, i, N=c()) {
     if(!is.matrix(N))
@@ -763,12 +764,36 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
     # First check the sign condition if rates of elementary modes are nonzero all coefficients of 
     # the respective elementary modes have to have the same sign as the reactions rate (v)
     
+    em_matrix_red <- em_matrix[em_rates != 0, ]
+
+    ma <- apply(em_matrix_red, 2, max)
+    mi <- apply(em_matrix_red, 2, min)
+
+    if(!all(-1 != sign(ma)*sign(mi))) {
+        cat("Reaction's signs in elementary modes did not match!\n") 
+        return()
+    }
+
+    if(!all(-1 != sign(ma)*sign(v))) {
+        cat("Reaction's signs in elementary modes did not match with reaction rates'!\n") 
+        return()
+    }
+
 
     # If sign conditions are fulfilled reactions, reaction rates and coefficients of 
     # elementary modes are reversed for negative rate reactions.
+    for(i in 1:ncol(em_matrix)) 
+        if(v[i] < 0) 
+            em_matrix[,i] <- -em_matrix[,i]
     
-    
-    v_sum <- sum(v) 
+    v <- abs(v)
+
+
+    # strictly speaking only non pseudo reactions are part of the network!
+    N <- jrnf_calculate_stoich_mat(net)
+    rea_id_np <- (1 != apply(N != 0, 2, sum))
+
+    v_sum <- sum(v[rea_id_np]) 
     v_ <- rep(0, length(v))                # exansion for ems 1 to <n>
 
     coeff <- em_rates                      # coefficient of the em
@@ -776,15 +801,32 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
     exp_f_acc <- rep(0, length(em_rates))  # fractions of all rates explained by ems 1 to <n>
     err_f_50p <- rep(1, length(em_rates))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
     err_rmax_50p <- rep(0, length(em_rates)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
-    err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion for each reaction  
+    err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion to this point for each reaction 
+
+    # If <em_df> is given the information on the used elementary modes is accumulated with the expansion of the steady state
+    C_sum_acc <- rep(0, length(em_rates))                     # Number of cycles of different length
+    C_s_sum_acc <- rep(0, length(em_rates))                   # Counting cycles by subgraph isomorphism (nodes!)
+    Deg_acc <- rep(0, length(em_rates))                       # mean degree of all associated species
+    Deg_int_acc <- rep(0, length(em_rates))                   # mean degree of all associated species ignoring other reactions
+    Deg_max_acc <- rep(0, length(em_rates))                   # max degree of all associated species
+    Deg_max_int_acc <- rep(0, length(em_rates))               # max degree of all associated species ignoring other reactions
+    Sp_no_acc <- rep(0, length(em_rates))                     # number of species taking part in elementary mode
+    Re_acc <- rep(0, length(em_rates))            # number of reactions taking part in elementary mode
+    Re_s_acc <- rep(0, length(em_rates))          # number of reactions (counting each only once)
+    Ex_acc <- rep(0, length(em_rates))            # Number of exchanges with environment
+    Ex_s_acc <- rep(0, length(em_rates))          # Number of exchanges (counting each species only once)
+    In_acc <- rep(0, length(em_rates))            # Number of input from environment
+    In_s_acc <- rep(0, length(em_rates))          # Number of input (counting each species only once)
+    Out_acc <- rep(0, length(em_rates))           # Number of output to environment
+    Out_s_acc <- rep(0, length(em_rates))         # Number of output to environment (each species only once) 
 
     #
     for(i in 1:length(em_rates)) {
         cat(".")
         dv <- em_rates[i]*em_matrix[i,]
         v_ <- v_ + dv
-        exp_f[i] <- sum(dv)/v_sum      
-        exp_f_acc[i] <- sum(v_)/v_sum
+        exp_f[i] <- sum(dv[rea_id_np])/v_sum      
+        exp_f_acc[i] <- sum(v_[rea_id_np])/v_sum
         # total error 
         err_abs <- v_ - v
         err_rel <- abs((v_-v)/v)
@@ -794,11 +836,67 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
         err_rmax_50p[i] <- max(c(v[err_rel > 0.5],0))
 
         err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
+ 
+        # if em derived data (em_df) is available their accumulated quantities are derived
+        #
+        C_sum_acc[i] <- sum(em_df$C_sum[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        C_s_sum_acc[i] <- sum(em_df$C_s_sum[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Deg_acc[i] <- sum(em_df$Deg[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Deg_int_acc[i] <- sum(em_df$Deg_int[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Deg_max_acc[i] <- sum(em_df$Deg_max[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Deg_max_int_acc[i] <- sum(em_df$Deg_max_int[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Sp_no_acc[i] <- sum(em_df$Sp_no[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Re_acc[i] <- sum(em_df$Re[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Re_s_acc[i] <- sum(em_df$Re_s[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Ex_acc[i] <- sum(em_df$Ex[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Ex_s_acc[i] <- sum(em_df$Ex_s[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        In_acc[i] <- sum(em_df$In[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        In_s_acc[i] <- sum(em_df$In_s[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Out_acc[i] <- sum(em_df$Out[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+        Out_s_acc[i] <- sum(em_df$Out_s[1:i]*exp_f[1:i])/sum(exp_f[1:i])
+
     }
 
-    return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
-                      err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
-                      err_rates=I(err_rates)))
+    if(length(em_df) == 0)
+        return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
+                          err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, 
+                          err_rates=I(err_rates)))
+    else
+        return(data.frame(exp_f=exp_f, exp_f_acc=exp_f_acc,                                                   
+                          err_f_50p=err_f_50p, err_rmax_50p=err_rmax_50p, C_sum_acc=C_sum_acc, C_s_sum_acc=C_s_sum_acc,
+                          Deg_acc=Deg_acc, Deg_int_acc=Deg_int_acc, Deg_max_acc=Deg_max_acc, 
+                          Deg_max_int_acc=Deg_max_int_acc, Sp_no_acc=Sp_no_acc, Re_acc=Re_acc,
+                          Re_s_acc=Re_s_acc, Ex_acc=Ex_acc, Ex_s_acc=Ex_s_acc, In_acc=In_acc,
+                          In_s_acc=In_s_acc, Out_acc=Out_acc, Out_s_acc=Out_s_acc, 
+                          err_rates=I(err_rates)))
 }
 
 
+
+# Try to build an heuristic. The main assumption is that all reactions have same thermodynamic
+# disequilibrium. First all elementary modes without hv-inflow are removed and their thermodynamic
+# efficiency is set to zero. Also those that have only hv-inflow (and no other exchange with boundary)
+# are removed.
+#
+
+pa_calc_hv_efficiency <- function(em_matrix, em_rates, net) {
+    # First identify all exchange (pseudo) reaction
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in
+    hv_id <- which(net[[1]]$name == "hv")
+
+    pseudo_rea <- (1 == apply(N != 0, 2, sum) & 1 >= apply(N_in != 0, 2, sum) & 1 >= apply(N_out != 0, 2, sum))
+    hv_rea <- (N[hv_id,] != 0) & pseudo_rea
+
+    # 
+    hv_count <- em_matrix[,hv_rea]
+    ex_count <- apply(em_matrix[,pseudo_rea], 1, sum) - hv_count
+    np_count <- apply(em_matrix[,!pseudo_rea], 1, sum)
+
+    efficiency <- ex_count/(ex_count+np_count)
+    eff_zero <- which(hv_count != 0 & ex_count == 0 | hv_count == 0 & ex_count != 0)   # efficiency zero ems
+    efficiency[eff_zero] <- 0
+
+    return(efficiency)
+}
