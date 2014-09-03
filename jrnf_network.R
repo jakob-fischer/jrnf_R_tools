@@ -1546,7 +1546,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
             rea_no[i] <- sum(c(a != 0, b != 0, c != 0, d != 0))
         }
 
-        possible_reas[rea_no == 3] <- 0
+        #possible_reas[rea_no == 3] <- 0
         possible_reas[has_hv] <- possible_reas[has_hv]*hv_f
 
         return(list(possible_reas, has_hv, rea_no))
@@ -1639,15 +1639,12 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
                                          name, empty_name))
  
     # Add species for photons / energy source
-    energy <- c(energy, max(max(energy)+5, 500))
+    energy <- c(energy, max(max(energy)+5, 50))
     name <- c(name, hv_name) 
  
     # Now investigate all possible reactions up to 2x2 and build one 
     # vector containing information whether the reaction is possible
-    if(no_reordering)
-        x <- eval_possible_reas(N+2, T)
-    else
-         x <- eval_possible_reas(N+2)
+    x <- eval_possible_reas(N+2, no_reordering)
     possible_reas <- x[[1]]
     has_hv <- x[[2]]
     rea_no <- x[[3]]
