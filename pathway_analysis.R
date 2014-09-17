@@ -322,7 +322,7 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
                 cat("unexplained is: ", sum(path_rates[con]), "\n")
 
             cat("Removing pathways that end/start here!\n")
-            path_M <- path_M[x[i,] == 0,]
+            path_M <- matrix(path_M[x[i,] == 0,], ncol=ncol(path_M))
             path_rates <- path_rates[x[i,] == 0]
 
         # Species is produced and consumed. 
@@ -359,9 +359,9 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
             }
 
             # Start filling new matrix with pathways that don't net produce or consume i
-            path_M_new <- path_M[x[i,] == 0,]
+            path_M_new <- matrix(path_M[x[i,] == 0,], ncol=ncol(path_M))
             path_rates_new <- path_rates[x[i,] == 0]
- 
+                                       
             # Add contribution of dropped / deleted pathways to vector rates_dropped
             for(src in 1:length(cr)) {
                 K_src <- cr_m[src]             # How does the pathway src change i
@@ -463,6 +463,8 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
         cat("Having ", nrow(path_M), " pathways! (", count, "/",nrow(N_in),")\n")
 
         # calculate maximal relative deviation of reaction rates
+
+        cat("dim(path_M)=", dim(path_M), "  length(path_rates)=", length(path_rates), "\n")
         rec_ra <- pa_reconstruct_rates(path_M, path_rates)
         mm_a <- max(abs(rec_ra-rates)/rates, na.rm=T)
         mm_b <- max((abs(rec_ra-rates)/rates)[flag_red], na.rm=T)

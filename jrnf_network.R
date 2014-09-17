@@ -1610,18 +1610,23 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
 
             #cat("a=", a, " b=", b, " c=", c, " d=", d, "\n")
 
-
+            # Increase probability of reactions "in" modular structure
             if(mod & a != 0 && c != 0 && a != N+1 && c != N+1 && sp_mod_id[a] == sp_mod_id[c])
                 possible_reas[j] <- possible_reas[j]/mod_f
 
             if(mod & b != 0 && d != 0 && b != N+1 && d != N+1 &&  sp_mod_id[b] == sp_mod_id[d])
                 possible_reas[j] <- possible_reas[j]/mod_f
 
+            # Decrease probability of autocatalytic self loops
+            if(mod & a != 0 && b != 0 && c != 0 && d != 0 && (a == c || a == d || b == c || b == d))
+                possible_reas[j] <- possible_reas[j]/N
 
+            # Check if reaction works by elementary constituents
             if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
                !hcae_check_rea_conditions(c(a,b,c,d), N))
                 possible_reas[i] <- 0
 
+            # If reaction is valid, calculate transfer
             if(possible_reas[i] != 0)
                 transfer[i] <- hcae_calc_rea_transfer(c(a,b,c,d), composition, N)
 
@@ -1784,15 +1789,19 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
         l_hv_reas <- which(possible_reas != 0 & has_hv)
         if(length(l_hv_reas) > no_hv)
             s_rea_hv <- sample(l_hv_reas, no_hv, F, possible_reas[l_hv_reas]/sum(possible_reas[l_hv_reas]))
-        else
+        else {
             s_rea_hv <- l_hv_reas
+            no_hv <- length(l_hv_reas)   # update no_hv so other types can take more
+        }
 
         l_reas_2 <- which(possible_reas & rea_no == 2 & !has_hv)
         if(length(l_reas_2) > no_2fold)
             s_rea_2 <- sample(l_reas_2, no_2fold, F, possible_reas[l_reas_2]/sum(possible_reas[l_reas_2]))
-        else
+        else {
             s_rea_2 <- l_reas_2      
- 
+            no_2fold <- length(l_reas_2)   # update no_2fold so other types can take more
+        }
+
         l_reas_other <- which(possible_reas & rea_no > 2 & !has_hv)
         if(length(l_reas_other) > M-no_2fold-no_hv)
             s_rea_other <- sample(l_reas_other, M-no_2fold-no_hv, F, possible_reas[l_reas_other]/sum(possible_reas[l_reas_other]))
