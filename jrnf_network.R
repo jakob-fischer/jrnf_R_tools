@@ -10,6 +10,68 @@ library(igraph)
 source("cycles.R")
 
 
+
+# Transform all reactions to extended form where all multiplicities are 1
+jrnf_transform_extended <- function(net) {
+    species <- net[[1]]
+    reactions <- net[[2]]    
+ 
+    for(i in 1:nrow(reactions)) { 
+        educts <- reactions$educts[[i]]
+        products <- reactions$products[[i]]
+
+        for(ed in 1:length(educts)) 
+            if(reactions$educts_mul[[i]][ed] > 1) {
+                for(k in 2:(reactions$educts_mul[[i]][ed])) {
+                    reactions$educts[[i]] <- c(reactions$educts[[i]], reactions$educts[[i]][ed])
+                    reactions$educts_mul[[i]] <- c(reactions$educts_mul[[i]], 1) 
+                }
+                reactions$educts_mul[[i]][ed] <- 1
+            }
+
+       
+        for(prod in 1:length(products)) 
+            if(reactions$products_mul[[i]][prod] > 1) {
+                for(k in 2:(reactions$products_mul[[i]][prod])) {
+                    reactions$products[[i]] <- c(reactions$products[[i]], reactions$products[[i]][prod])
+                    reactions$products_mul[[i]] <- c(reactions$products_mul[[i]], 1) 
+                }
+                reactions$educts_mul[[i]][ed] <- 1
+            }
+
+    }
+
+    return(list(species, reactions))
+}
+
+# Randomize the reaction network by replacing each species id in each
+# reaction with a randomly choosen chemical species (uniformly)
+jrnf_randomize <- function(net) {
+    net <- jrnf_transform_extended(net)
+
+    species <- net[[1]]
+    reactions <- net[[2]]    
+    N <- nrow(species) 
+
+    for(i in 1:nrow(reactions)) { 
+        educts <- reactions$educts[[i]]
+        products <- reactions$products[[i]]
+
+        for(ed in 1:length(educts))
+            reactions$educts[[i]][ed] <- sample(1:N, 1)  
+
+        for(prod in 1:length(products))  
+            reactions$products[[i]][prod] <- sample(1:N, 1)  
+    }
+
+    return(list(species, reactions))
+}
+
+
+
+
+
+
 # Converts an igraph graph to an adjacency matrix...
 jrnf_graph_to_amatrix <- function(g) {
     N <- length(V(g))
@@ -567,17 +629,23 @@ jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
     g <- add.vertices(g, nrow(jrnf_species), 
                           name=as.vector(jrnf_species$name))   
  
-    for(i in 1:nrow(jrnf_reactions)) {
-        for(ed in jrnf_reactions$educts[[i]]) {
-            for(prod in jrnf_reactions$products[[i]]) {
+    for(i in 1:nrow(jrnf_reactions)) { 
+        educts <- jrnf_reactions$educts[[i]]
+        products <- jrnf_reactions$products[[i]]
+        educts_m <- jrnf_reactions$educts_mul[[i]]
+        products_m <- jrnf_reactions$products_mul[[i]]
+
+        for(ed in 1:length(educts)) {
+            for(prod in 1:length(products)) {
                 if(rnd) {
                     b <- runif(1) > 0.5
                     if(b)
-                        g <- add.edges(g, c(ed, prod))
+                        g <- add.edges(g, c(educts[ed], products[prod]))
                     else 
-                        g <- add.edges(g, c(prod, ed))
+                        g <- add.edges(g, c(products[prod], educts[ed]))
                 } else {
-                    g <- add.edges(g, c(ed, prod))
+                    for(u in 1:(educts_m[ed]*products_m[prod]))
+                        g <- add.edges(g, c(educts[ed], products[prod]))
                 }
             }
         } 
