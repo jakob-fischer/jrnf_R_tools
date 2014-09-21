@@ -11,6 +11,81 @@ source("cycles.R")
 
 
 
+ 
+jrnf_read_X1 <- function(filename) {
+    # Open file and verify the right header is there
+    con <- file(filename, 'r');
+    lines <- readLines(con)
+    close(con)
+
+    # remove all lines that are comments (contain '#')
+    is_comment <- function(x)  { return(grepl("#", x))  }
+    x <- unlist(lapply(lines, is_comment))
+    lines <- lines[!x]
+
+
+    no_species <- as.numeric(lines[1])
+    no_reactions <- as.numeric(lines[2+no_species])
+    sp_names <- (lines[2:(1+no_species)])               # necessary for re_a to get the ids
+
+
+    # Declaring apply methods 
+    sp_a <- function(sp_string) {        
+        return(data.frame(type=as.integer(1), name=as.character(sp_string), 
+                          energy=as.numeric(0),
+                          constant=FALSE,
+                          stringsAsFactors=FALSE))
+    }
+
+    re_a <- function(re_string) {
+        educts_str <- strsplit(re_string, "->")[[1]][1]
+        products_str <- strsplit(re_string, "->")[[1]][2]
+        ed <- strsplit(educts_str, " ")[[1]]
+        pro <- strsplit(products_str, " ")[[1]][-1]
+
+        e <- c()
+        em <- c()
+        p <- c()
+        pm <- c()
+
+       for(i in 1:(length(ed)/2)) {
+           id <- which(sp_names == ed[i*2])
+           e <- c(e, id)
+           em <- c(em, as.numeric(ed[i*2-1]))
+       }
+
+       for(i in 1:(length(pro)/2)) {
+           id <- which(sp_names == pro[i*2])
+           p <- c(p, id)
+           pm <- c(pm, as.numeric(pro[i*2-1]))
+        } 
+
+        return(data.frame(reversible=as.logical(FALSE),
+                          c=as.numeric(0), 
+                          k=as.numeric(0),
+                          k_b=as.numeric(0), 
+                          activation=as.numeric(1), 
+                          educts=I(list(e)), educts_mul=I(list(em)),
+                          products=I(list(p)), products_mul=I(list(pm))))
+
+    }
+
+    # Input species data
+    sp_list <- lapply(lines[2:(1+no_species)], sp_a)
+    species <- do.call("rbind", sp_list)
+
+    # Input data on reactions
+    re_list <- lapply(lines[(3+no_species):(2+no_species+no_reactions)], re_a)
+
+    reactions <- do.call("rbind", re_list)
+
+
+    # concatenate it to jrnf-object
+    return(list(species, reactions))
+}
+
+
+
 # Transform all reactions to extended form where all multiplicities are 1
 jrnf_transform_extended <- function(net) {
     species <- net[[1]]
