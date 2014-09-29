@@ -73,6 +73,52 @@ get_n_cycles_directed_B <- function(g, n) {
 }
 
 
+# 
+#
+
+get_n_cycles_directed_C <- function(g, n) {
+    gc()                              # Try using garbace gollector because function tends to segfault (igraph)
+    v_count <- rep(0, length(V(g)))   # vector for counting occurence of edges in cycles (initialized 0)
+
+    # if n==1 just count loops
+    if(n == 1) {
+        loops <- which(is.loop(g))
+        for(i in loops) { 
+           v <- get.edge(g, E(g)[i])[1]
+           v_count[v] <- v_count[v] + 1 
+        }
+
+        return(list(length(loops), v_count))   
+    }
+
+    m <- jrnf_graph_to_amatrix(g)
+    g_s <- simplify(g, remove.multiple=T, remove.loops=T)
+    
+
+    # find subisomorphisms and count occurence of nodes
+    si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
+    acc <- 0
+    for(i in si) { 
+        k <- 1
+
+        for(j in 1:length(i)) 
+            if(j != length(i)) 
+                k <- k * m[i[j]+1, i[j+1]+1]
+            else
+                k <- k * m[i[length(i)]+1, i[1]+1]
+
+        acc <- acc + k
+        v_count[i+1] <- v_count[i+1] + k
+        
+    }
+
+    # first element of list is number of subisomorphisms, second number of vertices occurence
+    # has to be divided by n because there are n equivalent subisomorphisms
+    return(list(acc/n, v_count/n))
+}
+
+
+
 # Standard method for calculating cycle occurences in directed graphs (see above)
 
-get_n_cycles_directed <- get_n_cycles_directed_B
+get_n_cycles_directed <- get_n_cycles_directed_C
