@@ -48,14 +48,26 @@ jrnf_read_X1 <- function(filename) {
         p <- c()
         pm <- c()
 
+       if(length(ed) != 0)
        for(i in 1:(length(ed)/2)) {
            id <- which(sp_names == ed[i*2])[1]
+           if(length(id) != 1)
+               cat("ID = ", id, "\n")
+           if(is.na(id))
+               cat("ID is NA: >", ed[i*2], "<\n")
+           
            e <- c(e, id)
            em <- c(em, as.numeric(ed[i*2-1]))
        }
 
+       if(length(pro) != 0)
        for(i in 1:(length(pro)/2)) {
            id <- which(sp_names == pro[i*2])[1]
+           if(length(id) != 1)
+               cat("ID = ", id, "\n")
+           if(is.na(id))
+               cat("ID is NA: >", pro[i*2], "<\n")
+
            p <- c(p, id)
            pm <- c(pm, as.numeric(pro[i*2-1]))
         } 
@@ -585,6 +597,28 @@ jrnf_randomize_dir <- function(net) {
 }
 
 
+
+
+jrnf_find_multiple_reaction <- function(net) {
+    if(nrow(net[[2]]) < 2)
+        return(list())
+
+    p <- list()
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    x <- rep(F, nrow(net[[1]]))
+
+    for(i in 1:(nrow(net[[2]])-1)) {
+        for(j in (i+1):(nrow(net[[2]]))) {
+            if(all(N_in[,i] == N_in[,j]) & all(N_out[,j] == N_out[,i]))
+                x[i] <- T         
+        }
+    }
+
+    return(x)
+}
+
+
 # Function returns a list of 2-element vectors of reactions that are the 
 # reverse of each other 
  
@@ -595,10 +629,22 @@ jrnf_find_reverse_pairs <- function(net) {
     p <- list()
     N_in <- jrnf_calculate_stoich_mat_in(net)
     N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in
+
+    return(duplicated(N_in) & duplicated(N_out) & duplicated(N))
+}
+
+
+jrnf_find_reverse_pairs_effective <- function(net) {
+    if(nrow(net[[2]]) < 2)
+        return(list())
+
+    p <- list()
+    N <- jrnf_calculate_stoich_mat(net)
 
     for(i in 1:(nrow(net[[2]])-1)) {
         for(j in (i+1):(nrow(net[[2]]))) {
-            if(all(N_in[,i] == N_out[,j]) & all(N_in[,j] == N_out[,i]))
+            if(all(N[,i] == -N[,j]))
                 p[[length(p)+1]] <- c(i,j)             
         }
     }
