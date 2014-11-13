@@ -98,6 +98,32 @@ jrnf_read_X1 <- function(filename) {
 
 
 
+
+
+jrnf_simplify_X <- function(net) {
+    species <- net[[1]]
+    reactions <- net[[2]]    
+ 
+    for(i in 1:nrow(reactions)) { 
+        educts <- reactions$educts[[i]]
+        products <- reactions$products[[i]]
+
+        if(length(educts) > 0)
+        for(ed in 1:length(educts)) 
+            reactions$educts_mul[[i]][ed] <- 1
+            
+
+        if(length(products) > 0)
+        for(prod in 1:length(products)) 
+            reactions$products_mul[[i]][prod] <- 1
+    }
+
+    return(list(species, reactions))
+}
+
+
+
+
 # Transform all reactions to extended form where all multiplicities are 1
 jrnf_transform_extended <- function(net) {
     species <- net[[1]]
@@ -108,24 +134,27 @@ jrnf_transform_extended <- function(net) {
         products <- reactions$products[[i]]
 
         if(length(educts) > 0)
-        for(ed in 1:length(educts)) 
-            if(reactions$educts_mul[[i]][ed] > 1) {
-                for(k in 2:(reactions$educts_mul[[i]][ed])) {
+        for(ed in 1:length(educts)) {
+            if(as.integer(reactions$educts_mul[[i]][ed]) > 1) {
+                for(k in 2:as.integer(reactions$educts_mul[[i]][ed])) {
                     reactions$educts[[i]] <- c(reactions$educts[[i]], reactions$educts[[i]][ed])
                     reactions$educts_mul[[i]] <- c(reactions$educts_mul[[i]], 1) 
-                }
-                reactions$educts_mul[[i]][ed] <- 1
-            }
+                }    
+            } 
+            reactions$educts_mul[[i]][ed] <- 1
+        }            
+
 
         if(length(products) > 0)
-        for(prod in 1:length(products)) 
-            if(reactions$products_mul[[i]][prod] > 1) {
-                for(k in 2:(reactions$products_mul[[i]][prod])) {
+        for(prod in 1:length(products)) {
+            if(as.integer(reactions$products_mul[[i]][prod]) > 1) {
+                for(k in 2:as.integer(reactions$products_mul[[i]][prod])) {
                     reactions$products[[i]] <- c(reactions$products[[i]], reactions$products[[i]][prod])
                     reactions$products_mul[[i]] <- c(reactions$products_mul[[i]], 1) 
                 }
-                reactions$products_mul[[i]][prod] <- 1
             }
+            reactions$products_mul[[i]][prod] <- 1
+        }
 
     }
 
@@ -576,11 +605,26 @@ jrnf_reverse_reactions <- function(net, rev) {
             e_m <- net[[2]]$educts_mul[[i]]
             p <- net[[2]]$products[[i]]
             p_m <- net[[2]]$products_mul[[i]]
+         
+            if(is.null(p)) 
+                net[[2]]$educts[i] <- I(list(NULL))
+            else
+                net[[2]]$educts[[i]] <- I(p)
 
-            net[[2]]$educts[[i]] <- I(p)
-            net[[2]]$educts_mul[[i]] <- I(p_m)
-            net[[2]]$products[[i]] <- I(e)
-            net[[2]]$products_mul[[i]] <- I(e_m)
+            if(is.null(p_m)) 
+                net[[2]]$educts_mul[i] <- I(list(NULL))              
+            else
+                net[[2]]$educts_mul[[i]] <- I(p_m)
+
+            if(is.null(e))
+                net[[2]]$products[[i]] <- I(list(NULL))
+            else
+                net[[2]]$products[[i]] <- I(e)
+
+            if(is.null(e_m))
+                net[[2]]$products_mul[[i]] <- I(list(NULL))                    
+            else
+                net[[2]]$products_mul[[i]] <- I(e_m)
         }
     }
     
@@ -791,7 +835,8 @@ jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
                     else 
                         g <- add.edges(g, c(products[prod], educts[ed]))
                 } else {
-                    X <- educts_m[ed]*products_m[prod]
+                    X <- as.integer(educts_m[ed])*as.integer(products_m[prod])
+                    if(X != 0)
                     for(u in 1:(X))
                         g <- add.edges(g, c(educts[ed], products[prod]))
                 }
