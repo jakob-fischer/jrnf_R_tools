@@ -666,7 +666,7 @@ jrnf_find_multiple_reaction <- function(net) {
 # Function returns a list of 2-element vectors of reactions that are the 
 # reverse of each other 
  
-jrnf_find_reverse_pairs <- function(net) {
+jrnf_find_duplicates <- function(net) {
     if(nrow(net[[2]]) < 2)
         return(list())
 
@@ -679,7 +679,7 @@ jrnf_find_reverse_pairs <- function(net) {
 }
 
 
-jrnf_find_reverse_pairs_effective <- function(net) {
+jrnf_find_reverse_pairs <- function(net) {
     if(nrow(net[[2]]) < 2)
         return(list())
 
