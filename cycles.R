@@ -103,9 +103,9 @@ get_n_cycles_directed_C <- function(g, n) {
 
         for(j in 1:length(i)) 
             if(j != length(i)) 
-                k <- k * m[i[j]+1, i[j+1]+1]
+                k <- k * m[i[j], i[j+1]]
             else
-                k <- k * m[i[length(i)]+1, i[1]+1]
+                k <- k * m[i[length(i)], i[1]]
 
         acc <- acc + k
         v_count[i+1] <- v_count[i+1] + k
