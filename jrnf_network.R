@@ -663,6 +663,20 @@ jrnf_randomize_dir <- function(net) {
 #}
 
 
+
+jrnf_find_duplicate_reactions <- function(net) {
+    if(nrow(net[[2]]) < 2)
+        return(list())
+
+    p <- list()
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in
+
+    return(duplicated(N_in) & duplicated(N_out) & duplicated(N))
+}
+
+
 # Function returns a list of 2-element vectors of reactions that are the 
 # reverse of each other 
  
@@ -675,7 +689,16 @@ jrnf_find_duplicate_reactions <- function(net) {
     N_out <- jrnf_calculate_stoich_mat_out(net)
     N <- N_out - N_in
 
-    return(duplicated(N_in) & duplicated(N_out) & duplicated(N))
+    for(i in 1:(nrow(net[[2]])-1)) {
+        for(j in (i+1):(nrow(net[[2]]))) {
+            if(all(N_in[,i] == N_out[,j]) && all(N_out[,i] == N_in[,j]))
+                p[[length(p)+1]] <- c(i,j)             
+        }
+    }
+
+    return(p)
+
+
 }
 
 
