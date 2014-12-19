@@ -44,20 +44,37 @@ pa_write_em <- function(net, em) {
     # list all (remaining) reactions with coefficients 
     for(i in which(em != 0)) {
         cat(em[i], "X : ")
-        pa_write_rea(net, i, N);      
-        cat("\n")
+        cat(jrnf_reaction_to_string(net, i), "\n") 
     }
 
     cat("============================================================\n")
     # now print the net reaction    
     x <- N %*% em
-    
-    for(i in which(x < 0))
-        cat(-x[i], " ", net[[1]]$name[i], "  ")
+    ed <- which(x < 0)    
 
-    cat("=>  ")
-    for(i in which(x > 0))
-        cat(x[i], " ", net[[1]]$name[i], "  ")
+    for(i in 1:length(ed)) {
+        if(-x[ed[i]] != 1)
+            cat(-x[ed[i]], " ", sep="")
+
+        cat(net[[1]]$name[ed[i]])
+
+        if(i < length(ed))
+            cat(" + ")
+    }
+
+    cat(" => ")
+
+    prod <- which(x > 0)    
+
+    for(i in 1:length(prod)) {
+        if(x[prod[i]] != 1)
+            cat(x[prod[i]], " ", sep="")
+
+        cat(net[[1]]$name[prod[i]])
+
+        if(i < length(prod))
+            cat(" + ")
+    }
 
     cat("\n")    
 }

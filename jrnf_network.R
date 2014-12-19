@@ -11,6 +11,75 @@ source("cycles.R")
 
 
 
+jrnf_read_krome <- function(filename) {
+    # Open file and read all lines
+    con <- file(filename, 'r');
+    lines <- readLines(con)
+    close(con)
+
+    # remove lines starting with "#" or "@"
+    lines <- lines[!grepl("^(#|@)", lines)]
+
+    species_names <- c()
+
+    reactions <- data.frame(reversible=logical(), c=numeric(), 
+                            k=numeric(), k_b=numeric(), 
+                            activation=as.numeric(), 
+                            educts=list(), educts_mul=list(),
+                            products=list(), products_mul=list())
+
+    for(i in 1:length(lines)) {
+        last_line <- strsplit(lines[i], ",")[[1]]
+
+        if(lines[i] == "" || lines[i] == " ") {
+        } else {
+            if(length(last_line) == 8) {
+                e <- last_line[2:4]
+                p <- last_line[5:7]
+            } else if(length(last_line) == 5) {
+                e <- c("hv", last_line[2])
+                p <- last_line[3:4]
+            } 
+
+            for(l in c(e,p))
+                if(l != "" && !(l %in% species_names))
+                    species_names <- c(species_names, l)
+
+            e_id <- c()
+            p_id <- c()
+
+            for(l in e) 
+                if(l != "")
+                    e_id <- c(e_id, which(l == species_names))
+
+            for(l in p) 
+                if(l != "")
+                    p_id <- c(p_id, which(l == species_names))
+
+            reactions <- rbind(reactions,
+                               data.frame(reversible=as.logical(FALSE),
+                                          c=as.numeric(0), 
+                                          k=as.numeric(0),
+                                          k_b=as.numeric(0), 
+                                          activation=as.numeric(1), 
+                                          educts=I(list(e_id)), 
+                                          educts_mul=I(list(rep(1, length(e_id)))),
+                                          products=I(list(p_id)), 
+                                          products_mul=I(list(rep(1, length(p_id))))))
+        }
+    }
+
+    species <- data.frame(type=as.integer(rep(1, length(species_names))), 
+                          name=as.character(species_names), 
+                          energy=as.numeric(rep(0, length(species_names))),
+                          constant=rep(FALSE, length(species_names)),
+                          stringsAsFactors=FALSE)
+
+    #return(species_names)
+    return(list(species, reactions))
+}
+
+
  
 jrnf_read_X1 <- function(filename) {
     # Open file and verify the right header is there
@@ -1287,10 +1356,33 @@ jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
 
 
 
-# TODO comment + test
-#
-jrnf_reaction_to_string <- function(jrnf_network, reaction_id) {
-    return("TODO")
+# Function creates a string representation of the reaction 're_id' from the 
+# network 'net'
+
+jrnf_reaction_to_string <- function(net, re_id) {
+    side_to_string <- function(r, r_m) {
+        a <- ""
+
+        for(i in 1:length(r)) {
+            if(r_m[i] != 1)
+                a <- paste(a, as.numeric(r_m[i]), " ", sep="")
+
+            a <- paste(a, net[[1]]$name[r[i]], sep="")
+
+            if(i < length(r))
+                a <- paste(a, " + ", sep="")
+        }
+
+        return(a)
+    }
+
+    educts <- side_to_string(net[[2]]$educts[re_id][[1]],
+                             net[[2]]$educts_mul[re_id][[1]])
+   
+    products <- side_to_string(net[[2]]$products[re_id][[1]],
+                             net[[2]]$products_mul[re_id][[1]])
+
+    return(paste(educts, " => ", products, sep=""))
 }
 
 
@@ -1309,20 +1401,13 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     jrnf_species <- jrnf_network[[1]]
     jrnf_reactions <- jrnf_network[[2]]    
 
-    #cat("HALLO bc_id=", bc_id, " bc_v=", bc_v, "\n")
-
     # ensure bc_id (if given) is numeric
     if(!is.na(bc_id) && !is.numeric(bc_id)) 
         for(i in 1:length(bc_id)) 
             bc_id[i] <- which(jrnf_species$name == bc_id[i])
 
-    #cat("TAT\n")
-
     df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- abs(rnorm(length(jrnf_species$name), mean=mean(bc_v), sd=sqrt(mean((bc_v- mean(bc_v))^2))))
-
-
-    #cat("BIB\n")
 
     if(!is.na(bc_id) && !is.na(bc_v)) {
         if(length(bc_id) != length(bc_v)) {
