@@ -52,6 +52,7 @@ pa_write_em <- function(net, em) {
     x <- N %*% em
     ed <- which(x < 0)    
 
+    if(length(ed) > 0)
     for(i in 1:length(ed)) {
         if(-x[ed[i]] != 1)
             cat(-x[ed[i]], " ", sep="")
@@ -66,6 +67,7 @@ pa_write_em <- function(net, em) {
 
     prod <- which(x > 0)    
 
+    if(length(prod) > 0)
     for(i in 1:length(prod)) {
         if(x[prod[i]] != 1)
             cat(x[prod[i]], " ", sep="")

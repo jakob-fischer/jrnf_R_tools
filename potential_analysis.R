@@ -186,103 +186,232 @@ check_potentials <- function(net, rates, E) {
 
 
 
-check_ems <- function(em, em_expand, mm_rea) {
-    x <- rep(F, nrow(em))
-
-    for(i in mm_rea) {
-        x <- x | em[,i]
-    }
-
-    cat(length(which(x)), " elementary modes of ", length(x), " have a direction mismatch (f=", length(which(x))/length(x), "\n")
-    cat("The explained fraction is ", sum(em_expand$exp_f[x]), " of totally ",  sum(em_expand$exp_f),"\n")
-
-    return(which(x))
-}
-
-
 # 
 # Methods test potentials for plausibility with reaction directions
 #
 
-calculate_reactions_energetics <- function(net, mu) {
+calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
+    no_reas <- nrow(net[[2]])
+
     N_in <- jrnf_calculate_stoich_mat_in(net)
     N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in
     hv_id <- which(net[[1]]$name == "hv")
     if(length(hv_id) != 1) {
         cat("ERROR: did not find unique hv species!\n")
         return(0)
     }
 
+    # set chemical potential of hv to 0 for convenient calculation of mu_in and mu_out
     mu[hv_id] <- 0
 
-    mu_in <- rep(0, nrow(net[[2]]))
-    mu_out <- rep(0, nrow(net[[2]]))
-    mu_hv <- rep(0, nrow(net[[2]])) 
-    dis <- rep(0, nrow(net[[2]]))
+    mu_in <- mmul(t(N_in), mu)
+    mu_out <- mmul(t(N_out), mu)
+    mu_eff <- mu_out - mu_in
 
-    for(i in 1:nrow(net[[2]])) {
-        ed <- which(N_in[,i] != 0)
-        pro <- which(N_out[,i] != 0)
+    has_hv <- N[hv_id,] != 0
 
-        # simple outflow or inflow reaction
-        if(length(ed) == 0 && length(pro) == 1) {
-            mu_in[i] <- mu[pro]*N_out[pro,i]
-        } else if(length(ed) == 1 && length(pro) == 0) {
-            mu_out[i] <- mu[ed]*N_in[ed,i]
+    dir_match <- (mu_out < mu_in) | (N[hv_id,] < 0)
 
-        # photochemical reaction
-        } else if(hv_id %in% ed) {
-            #ed <- ed[-which(ed == hv_id)]
-            mu_hv[i] <- sum((N_out-N_in)[,i]*mu)   
-        } else if(hv_id %in% pro) {
-            mu_hv[i] <- sum((N_out-N_in)[,i]*mu) 
-            cat("WARNING: reaction ", i, " is producing hv!\n")
-            #return(0)
+    undecided <- which(is.na(dir_match))
+    mismatch <- which(dir_match == FALSE)
 
-        # normal reaction (not driven externally)
-        } else {  
-            dis[i] <- sum((N_in-N_out)[,i]*mu)           
-        }
+    cat("===================================================================================\n")
+    cat("From totally", length(dir_match), "reaction directions", sum(dir_match == TRUE, na.rm=T), "are correct ")
+    cat(length(mismatch), "are incorrect and", length(undecided), "are undecided.\n")
+    if(length(re_rates) != 0)
+        cat("Weighted with reaction's rates mismatch is", sum(re_rates[mismatch])/sum(re_rates), 
+            "and undecided", sum(re_rates[undecided])/sum(re_rates), ".\n")
+    cat("From ", length(which(has_hv)), "reactions with hv there are", length(which(has_hv & mu_eff < 0)),
+        "that are directly dissipating and", length(which(has_hv & is.na(mu_eff))), "with NA\n")
+    cat("There are", length(which(has_hv & N[hv_id,] > 0)), "reactions that produce hv!",
+        length(which(has_hv & N[hv_id,] > 0 & mu_eff < 0)), "of them are dissipating and",
+        length(which(has_hv & N[hv_id,] > 0 & (dir_match == F | is.na(dir_match)))), "of them are mismatching or NA.\n")
+    cat("===================================================================================\n")
 
-        if(mu_hv[i] < 0) {
-            dis[i] <- -mu_hv[i]
-            mu_hv[i] <- 0
-        }     
-
-    }
-
-    return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_hv=mu_hv, dis=dis))
+    return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_eff=mu_eff, dir_match=dir_match, has_hv=has_hv))
 }
 
 
 #
 # Methods test potentials for plausibility with pathways directions
+# (in its final version this function should also check the potentials
+#  - give feedback on the potentials quality) 
+#  
 #
 
-calculate_pathways_energetics <- function(re_en, ems, em_rates) {
-    mu_in <- rep(0, nrow(ems))
-    mu_out <- rep(0, nrow(ems))
-    mu_hv <- rep(0, nrow(ems))
-    dis <- rep(0, nrow(ems))
-    hv_eff <- rep(0,nrow(ems))
+calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) {
+    re_en <- calculate_reactions_energetics(net, mu, re_rates)
+    N <- jrnf_calculate_stoich_mat(net)
 
-    for(i in 1:nrow(ems)) {
-        mu_in[i] <- sum(re_en$mu_in*ems[i,])
-        mu_out[i] <- sum(re_en$mu_out*ems[i,])
-        mu_hv[i] <- sum(re_en$mu_hv*ems[i,])
-        dis[i] <- sum(re_en$dis*ems[i,])
-
-        if(dis[i] < mu_hv[i])
-            hv_eff[i] <- 1-dis[i]/mu_hv[i] 
+    if(ncol(ems) != nrow(re_en)) {
+        cat("calculate_pathway_energetics: ems / re_ens dimension mismatch!\n")
+        return(0)
     }
 
-    mu_exchange <- mu_out-mu_in
-    f_exchange <- abs(mu_exchange*em_rates)/sum(abs(mu_exchange*em_rates))
-    f_hv <- pmax(0,mu_hv*em_rates)/sum(pmax(0,mu_hv*em_rates))
-    f_dis <- (dis*em_rates)/sum(dis*em_rates)
-     
+    hv_id <- which(net[[1]]$name == "hv")
+    if(length(hv_id) != 1) {
+        cat("ERROR: did not find unique hv species!\n")
+        return(0)
+    }
 
-    return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_hv=mu_hv, dis=dis, mu_exchange=mu_exchange, hv_eff=hv_eff, 
-                       f_exchange=f_exchange, f_hv=f_hv, f_dis=f_dis))
+    all_species_present <- rep(F, nrow(ems))           #
+    interacting_species_present <- rep(F, nrow(ems))   #
+    
+    # Thermodynamic data on pathways derived from per reaction data
+    hv_in <- rep(0, nrow(ems))
+    dis <- rep(0, nrow(ems))  
+    match_all_reactions <- rep(F, nrow(ems))
+
+    # Thermodynamic data on pathways derived directly 
+    # (intermediate species with missing / inconsistent potentials cancel out)
+    hv_in_D <- rep(0, nrow(ems))
+    delta_mu_D <- rep(0, nrow(ems))   
+    match_interactions <- rep(F, nrow(ems))
+
+    # Also topological properties of the reaction pathways are calculated
+    # (similar to the function pa_em_derive)    
+    
+    # calculate species bilance in matrix form (every row contains change of
+    # species concentration through pathway)
+    bilance_sp <- t(N %*% t(ems))
+    
+    ems_hv <- ems
+    ems_hv[,!re_en$has_hv] <- 0
+    bilance_sp_hv <- t(N %*% t(ems_hv))
+         
+    # number of species taking part in elementary mode (not counting hv!)
+    Sp_no <- apply(bilance_sp[,-hv_id] != 0, 1, sum)
+    # number of reactions taking part in elementary mode
+    Re <- apply(abs(ems),1, sum)
+    # number of reactions (counting each only once)
+    Re_s <- apply(ems != 0, 1, sum)
+    # Number of input from environment (not counting hv!)
+    In <- apply(bilance_sp[,-hv_id], 1, function(x)  {  x[x>0] <- 0;  return(-sum(x))  })
+    # Number of input (counting each species only once)
+    In_s <- apply(bilance_sp[,-hv_id], 1, function(x)  {  x[x>0] <- 0; x[x<0] <- 1; return(sum(x))  })
+    # Number of output to environment (not counting hv!)
+    Out <- apply(bilance_sp[,-hv_id], 1, function(x)  {  x[x<0] <- 0;  return(sum(x))  })
+    # Number of output to environment (each species only once) 
+    Out_s <- apply(bilance_sp[,-hv_id], 1, function(x)  {  x[x<0] <- 0; x[x>0] <- 1; return(sum(x))  })
+
+    # Number of hv-pseudospecies that are consumed by pathway
+    Hv <- -bilance_sp[,hv_id]
+
+    # set hv in bilance matrices to zero
+    bilance_sp[,hv_id] <- 0
+    bilance_sp_hv[,hv_id] <- 0
+
+    for(i in 1:nrow(ems)) {
+        #cat(".")
+
+        # calculate thermodynamic properties from reaction data
+        hv_in[i] <- sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff > 0 & ems[i,] != 0])
+        dis[i] <- -sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff < 0  & ems[i,] != 0])
+        match_all_reactions[i] <- all(re_en$dir_match[which(ems[i,]!=0)])
+
+        # calculate the thermodynamic properties of the pathways directly    
+        hv_in_D[i] <- max(0, sum((bilance_sp_hv[i,]*mu)[bilance_sp_hv[i,]!=0]))
+        delta_mu_D[i] <- sum((bilance_sp[i,]*mu)[bilance_sp[i,]!=0])
+        all_species_present[i] <- all(is.finite( re_en$mu_eff[ems[i,] != 0] ))         
+
+        # If one of the interacting species (bilance_sp / bilance_sp_hv) are NA
+        # matching direction can not be decided (-> NA)
+        b <- bilance_sp[i,]-bilance_sp_hv[i,]
+        match_interactions[i] <- sum((b*mu)[b != 0]) < 0
+        if(length(which(b != 0)) == 0)   # special case (only dissipating hv)
+            match_interactions[i] <- T
+        interacting_species_present[i] <- all(is.finite(c(mu[bilance_sp[i,] != 0],
+                                                           mu[bilance_sp_hv[i,] != 0]))) 
+    }
+
+    # quantities that can be calculated after hv_in and dis are known
+    delta_mu <- hv_in - dis
+    eff <- pmin(pmax(delta_mu/hv_in,0),1)  
+
+    dis_D <- hv_in_D - delta_mu_D
+    eff_D <- pmin(pmax(delta_mu_D/hv_in_D,0),1)  
+
+    cat("===================================================================================\n")
+    cat("From", nrow(ems), "pathways on a reaction level", length(which(match_all_reactions)),
+        "match on reaction level with", length(which(!match_all_reactions)), "mismatches and", 
+        length(which(is.na(match_all_reactions))), "are NA!\n")
+    cat("On pathway level", length(which(match_interactions)),
+        "match", length(which(!match_interactions)), "mismatches and", 
+        length(which(is.na(match_interactions))), "are NA!\n")
+
+    cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions])/sum(em_rates), 
+        "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
+
+    cat("===================================================================================\n")
+
+    return(data.frame(hv_in, delta_mu, dis, eff, match_all_reactions, all_species_present, hv_in_D,
+                       delta_mu_D, dis_D, eff_D, match_interactions, interacting_species_present,
+                       Sp_no, Re, Re_s, In, In_s, Out, Out_s, Hv))
+}
+
+
+
+# This function creates 
+#
+#  * The data layout of genomes / fitness cases is like this 
+#  * (N is the number of chemical species and M the number of reactions):
+#  * - The first N values (floats) contains the chemical potential of the chemical species.
+#  * - The next M values are the activation energies of the species.
+#  * - The last M values are the effective reaction rates of the reactions.
+#  
+# In this case the reaction directions + the priors of the chemical potentials are taken
+# to calculate the fitness. This means the actual rates, the activation energies and the 
+# temperature of the system are not significant.
+
+create_energy_evolver_initial <- function(net, rates, mu_in, net_file, mutate_f_file, fitness_f_file, sample_file, initial_file, mutate_all=T) {
+
+    hv_id <- which(net[[1]]$name == "hv")
+    if(length(hv_id) != 1) {
+        cat("ERROR: did not find unique hv species!\n")
+        return(0)
+    }
+    
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in
+
+    re_sel <- N_in[hv_id,] == 0  &  N_out[hv_id,] == 0  &  N[hv_id,] == 0
+    net <- list(net[[1]], net[[2]][re_sel,])
+    rates <- rates[re_sel]
+
+    no_sp <- nrow(net[[1]])
+    no_re <- nrow(net[[2]])
+
+    # write reaction network
+    jrnf_write(net_file, net)
+
+    # prepare initial state
+    mu_in_ <- mu_in
+    mu_in_[is.na(mu_in)] <- runif(sum(is.na(mu_in)), mean(mu_in, na.rm=T), sd(mu_in, na.rm=T)) 
+    initial <- c(mu_in_, rep(1, no_re), sign(rates))
+    write.table(initial, file=initial_file, row.names=F, col.names=F)
+
+    # prepare sample state
+    mu_in_ <- mu_in
+    mu_in_[is.na(mu_in)] <- 0 
+    sample <- c(mu_in_, rep(10, no_re), rates)
+    write.table(sample, file=sample_file, row.names=F, col.names=F)
+
+    # prepare the mutate flag ("1" means position is mutated, "0" means it stays unchanged)
+    mutate_f <- c(is.na(mu_in), rep(0,2*no_re))
+
+    if(mutate_all)
+        mutate_f <- c(rep(1,no_sp), rep(0,2*no_re))
+    write.table(mutate_f, file=mutate_f_file, row.names=F, col.names=F)
+
+
+    # the fitness flag indicate which entries are used for evaluating the fitness 
+    # by comparing the sign of the fluxes (="1") and which are used precisely (="2").
+    # Entries not relevant for the fitness are indicated by the value "0".
+
+    fitness_f <- c(rep(2, no_sp), rep(0, no_re), rep(1, no_re))
+    fitness_f[which(is.na(mu_in))] <- 0
+    write.table(fitness_f, file=fitness_f_file, row.names=F, col.names=F)
 }
 
