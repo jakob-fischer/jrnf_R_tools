@@ -281,7 +281,7 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
 
     # rates of the discarded pathways
     rates_dropped <- rep(0, length(rates))
-    # flag showing which species have been used for branching
+    # array showing which species have been used for branching
     sp_br_flag <- rep(F, nrow(net[[1]]))
     
     # Stoichiometric matrix of consumption (N_in), production (N_out) and total (N)

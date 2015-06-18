@@ -340,7 +340,7 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
         "match", length(which(!match_interactions)), "mismatches and", 
         length(which(is.na(match_interactions))), "are NA!\n")
 
-    cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions])/sum(em_rates), 
+    cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions], na.rm=T)/sum(em_rates), 
         "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
 
     cat("===================================================================================\n")
