@@ -14,31 +14,31 @@ g_x <- graph(t(as.matrix(x)))
 # The function calculates the number of cycles of length <n> in the directed 
 # graph <g> and the number of occurences of each edge in this cycles by using
 # the graph subisomorphism method of igraph. Because the subisomorphism is 
-# defined in terms of nodes multiple edges between two nodes don't imply the
+# defined in terms of nodes, multiple edges between two nodes don't imply the
 # cycle being counted multiple times.
 
 get_n_cycles_directed_A <- function(g, n) {
     gc()                              # Try using garbace gollector because function tends to segfault (igraph)
-    v_count <- rep(0, length(V(g)))   # vector for counting occurence of edges in cycles (initialized 0)
+    v_count <- rep(0, length(V(g)))   # vector for counting occurence of nodes in cycles (initialized 0)
 
     # if n==1 just count loops
     if(n == 1) {
-        loops <- which(is.loop(g))
-        for(i in loops) { 
-           v <- get.edge(g, E(g)[i])[1]
-           v_count[v] <- v_count[v] + 1 
+        loops <- which(is.loop(g))        # which edges are loops?
+        for(i in loops) {                 
+           v <- get.edge(g, E(g)[i])[1]   # For each, the first node is the only one
+           v_count[v] <- 1                # Count only once for each node (to be consistent with n>1) 
         }
 
         return(list(length(loops), v_count))   
     }
 
-    # find subisomorphisms and count occurence of nodes
+    # find subisomorphisms and count number of occurence of nodes
     si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
     for(i in si) 
         v_count[i+1] <- v_count[i+1] + 1
     
-    # first element of list is number of subisomorphisms, second number of vertices occurence
-    # has to be divided by n because there are n equivalent subisomorphisms
+    # first element of list is number of subisomorphisms, second is the number of vertices occurence,
+    # both have to be divided by n because there are n equivalent subisomorphisms
     return(list(length(si)/n, v_count/n))
 }
 
@@ -46,6 +46,9 @@ get_n_cycles_directed_A <- function(g, n) {
 # get_n_cycles_directed_B fixes the problem of not counting cycles with multiple
 # edges multiple times by replacing each edge by two edges with one "virtual" 
 # node and using get_n_cycles_directed_A with n=2*n
+#
+# TODO There is a faster implementation below. If it is sufficiently tested this 
+# one can be removed!
 
 get_n_cycles_directed_B <- function(g, n) {
     gc()                         # Try using garbace gollector because function tends to segfault (igraph)
@@ -73,42 +76,46 @@ get_n_cycles_directed_B <- function(g, n) {
 }
 
 
-# 
-#
 
-get_n_cycles_directed_C <- function(g, n) {
+# This is a version of "get_n_cycles_directed_B" that is optimized for speed. For this,
+# instead of introducing additional "in between" nodes to avoid multiple edges all the
+# multiple edges are removed and their effect on the number of cycles is just calculated
+# (multiplied) after the subisomorphism algorithm has been invoked.
+
+get_n_cycles_directed_B_fast <- function(g, n) {
     gc()                              # Try using garbace gollector because function tends to segfault (igraph)
-    v_count <- rep(0, length(V(g)))   # vector for counting occurence of edges in cycles (initialized 0)
+    v_count <- rep(0, length(V(g)))   # vector for counting occurence of nodes in cycles (initialized 0)
 
     # if n==1 just count loops
     if(n == 1) {
-        loops <- which(is.loop(g))
+        loops <- which(is.loop(g))         # for each edge that is a loop
         for(i in loops) { 
-           v <- get.edge(g, E(g)[i])[1]
-           v_count[v] <- v_count[v] + 1 
+           v <- get.edge(g, E(g)[i])[1]    # get the node that it connects to 
+           v_count[v] <- v_count[v] + 1    # count it
         }
 
         return(list(length(loops), v_count))   
     }
 
-    m <- jrnf_graph_to_amatrix(g)
-    g_s <- simplify(g, remove.multiple=T, remove.loops=T)
+    m <- jrnf_graph_to_amatrix(g)                          # calculate graph adjacency matrix
+    g_s <- simplify(g, remove.multiple=T, remove.loops=T)  # remove multiple edges and loops
     
 
     # find subisomorphisms and count occurence of nodes
     si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
-    acc <- 0
-    for(i in si) { 
-        k <- 1
+    acc <- 0   # value to accumulate total number or loops
 
-        for(j in 1:length(i)) 
-            if(j != length(i)) 
+    for(i in si) { 
+        k <- 1  # number of variants to traverse the multiple edges for this subisomorphism / cycle
+
+        for(j in 1:length(i))    # just multiply all the values of the adjacency matrix in the cycle 
+            if(j != length(i))            
                 k <- k * m[i[j], i[j+1]]
             else
-                k <- k * m[i[length(i)], i[1]]
+                k <- k * m[i[length(i)], i[1]]    # edge between first and last node
 
-        acc <- acc + k
-        v_count[i+1] <- v_count[i+1] + k
+        acc <- acc + k                      # accumulate total number of cycles     
+        v_count[i+1] <- v_count[i+1] + k    # accumulate number of cycles individual nodes are part of
         
     }
 
@@ -120,5 +127,4 @@ get_n_cycles_directed_C <- function(g, n) {
 
 
 # Standard method for calculating cycle occurences in directed graphs (see above)
-
-get_n_cycles_directed <- get_n_cycles_directed_C
+get_n_cycles_directed <- get_n_cycles_directed_B_fast
