@@ -6,8 +6,7 @@
 
 library(igraph)
 
-
-source("tools.R")
+source("tools.R")    # general helper functions
 source("cycles.R")
 
 
@@ -385,8 +384,7 @@ jrnf_read <- function(filename) {
 
 
 
-# backward compatibility
-
+# references for backward compatibility
 load_jrnf <- jrnf_read
 
 
