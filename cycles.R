@@ -43,6 +43,49 @@ get_n_cycles_directed_A <- function(g, n) {
 }
 
 
+# A variant of the function that calculates the cycles of the simplified graph
+# (identical edges are only counted once) that also returns a matrix containing
+# all the nodes contained in each cycle.
+
+get_cycles_directed <- function(g, n) {
+    gc()                              # Try using garbace gollector because function tends to segfault (igraph)
+    v_count <- rep(0, length(V(g)))   # vector for counting occurence of nodes in cycles (initialized 0)
+
+    # if n==1 just count loops
+    if(n == 1) {
+        loops <- which(is.loop(g))        # which edges are loops?
+        for(i in loops) {                
+           v <- get.edge(g, E(g)[i])[1]   # For each, the first node is the only one
+           v_count[v] <- 1                # Count only once for each node (to be consistent with n>1) 
+        }
+
+        return(list(length(loops), v_count))   
+    }
+
+    # find subisomorphisms and count number of occurence of nodes
+    si <- graph.get.subisomorphisms.vf2(g, graph.ring(n, directed=T))
+
+    N_cycles <- length(si)/n    # calculate number of cycles and build matrix
+    cycles <- matrix(0, ncol=length(V(g)), nrow=N_cycles)  #  
+
+    # Go through all subisomorphisms with first element being the lowest one
+    # (to avoid permutations) 
+    c <- 1  # indice for matrix row
+
+    for(i in si) {
+        if(i[1] == min(i)) {
+            v_count[i+1] <- v_count[i+1] + 1
+            cycles[c,i] <- 1
+            c <- c + 1            
+        }
+    }
+
+    # first element of list is number of subisomorphisms, second is the number of vertices occurence,
+    # both have to be divided by n because there are n equivalent subisomorphisms
+    return(list(length(si)/n, v_count, cycles))
+}
+
+
 # get_n_cycles_directed_B fixes the problem of not counting cycles with multiple
 # edges multiple times by replacing each edge by two edges with one "virtual" 
 # node and using get_n_cycles_directed_A with n=2*n
