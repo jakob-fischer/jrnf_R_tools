@@ -5,17 +5,7 @@
 # available through the language
 
 
-# function "acc" calculates the cummulative sum of numeric vectors
-
-acc <- function(x) {
-    a <- 0
-    res <- rep(0, length(x))
-
-    for(i in 1:length(x)) {
-       a <- a + x[i]
-       res[i] <- a
-    }
-
-    return(res)
-}
+# 'acc' was a self implemented version with the functionality of cumsum before
+# TODO If all code using "acc" has been changed to "cumsum", remove
+acc <- cumsum
 
