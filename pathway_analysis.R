@@ -8,6 +8,7 @@
 library(pracma)   # for gcd function
 source("cycles.R")
 source("jrnf_network.R")
+source("composition_analysis.R")
 
 
 # Funktion to write reaction <i> of network <net> to standard ouptut. If 
@@ -891,6 +892,58 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
                           In_s_acc=In_s_acc, Out_acc=Out_acc, Out_s_acc=Out_s_acc, 
                           err_rates=I(err_rates)))
 }
+
+
+
+#
+# Build matrices that contain the information (for each pathway) which species
+# are 
+#
+#
+
+pa_build_species_incidence <- function(em_matrix, net_N) {
+    # calculate stoichiometric matrix (if necessary)
+    N <- jrnf_calculate_stoich_mat(net_N)
+
+    # change of species by each elementary mode is one column in matrix x1
+    x1 <- t(N%*%t(em_matrix)) 
+    # the matrix x2 contains the cummulative absolute change (if one unit of
+    # a chemical species is created by one reaction and removed by another 
+    x2 <- t(abs(N)%*%t(em_matrix))
+
+    # return in a list
+    # first: relative exchange with environment (with sign)
+    # second: absolute change of all reactions added (non-negative)
+    # third: absolute change that is not explained by exchange with environment
+    return(list(x1,x2,(x2-abs(x1))))
+}
+
+ 
+pa_build_elementary_components_incidence <- function(em_matrix, net_N, comp_mat=c(), si=c()) {
+    if(is.matrix(net_N) && is.null(comp_mat)) {
+        cat("Error in pa_build_elementary_components_incidence_1:")
+        cat("Have to have either network object or composition matrix!")
+        return(FALSE)
+    }
+
+    N <- jrnf_calculate_stoich_mat(net_N)
+
+    # if no composition matrix is given ("comp_mat") it is calculated from
+    if(is.null(comp_mat))
+        comp_mat <- build_composition_matrix(net_N)
+
+    # if species incidence is not given it is calculated 
+    if(is.null(si))
+        si <- pa_build_species_incidence(em_matrix, N);  
+
+    # 
+    #
+    x1 <- t(t(comp_mat)%*%t(abs(si[[1]])))
+    x2 <- t(t(comp_mat)%*%t(si[[2]]))
+
+    return(list(x1,x2,(x2-x1)))    
+}
+
 
 
 

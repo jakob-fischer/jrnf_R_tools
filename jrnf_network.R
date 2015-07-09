@@ -7,6 +7,7 @@
 library(igraph)
 
 
+source("tools.R")
 source("cycles.R")
 
 
@@ -555,9 +556,16 @@ jrnf_calculate_stoich_mat_out <- function(net) {
 
 # Calculates the stoichiometric matrix for a jrnf-network
 # (matrix contains information on net change of species with reactions)
+# The method has the additional semantic of, if given a matrix instead of a network 
+# object, just returning it. This allows other functions which take network objects 
+# or stoichiometric matrices as parameters using this function without having to 
+# check if the object is a matrix themselfes.
 
-jrnf_calculate_stoich_mat <- function(net) {
-    return(jrnf_calculate_stoich_mat_out(net)-jrnf_calculate_stoich_mat_in(net))
+jrnf_calculate_stoich_mat <- function(net_N) {
+    if(is.matrix(net_N))
+        return(net_N)
+
+    return(jrnf_calculate_stoich_mat_out(net_N)-jrnf_calculate_stoich_mat_in(net_N))
 }
 
 
