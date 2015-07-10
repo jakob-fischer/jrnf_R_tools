@@ -25,3 +25,23 @@ subisomorphism_rm_permutation <- function(si) {
 } 
 
 
+# Function that samples species energies from normal distribution and 
+# activation energies from a distribution of the form p(E) = 6/(pi^2*(exp(1/x)-1))
+
+rplancklike <- function(N) {
+    r <- c()    
+
+    for(i in 1:N) {
+        x <- runif(min=0, max=100,n=1)
+        y <- (6/pi^2)/(x^3*(exp(1/x)-1))
+
+        while(y < runif(min=0, max=1, n=1)) {
+            x <- runif(min=0, max=100,n=1)
+            y <- (6/pi^2)/(x^3*(exp(1/x)-1))
+        }
+        
+        r <- c(r, x)
+    }
+
+    return(r)
+}
