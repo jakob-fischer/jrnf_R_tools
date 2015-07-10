@@ -45,3 +45,27 @@ rplancklike <- function(N) {
 
     return(r)
 }
+
+
+# After drawing a histogram with the rainbow(20) palette 
+# this function returns a vector associating the same colors
+# used in the histogramms to the values given.
+#
+# 'values' vector of values
+# 'hi' object returned from the hist-call
+
+get_color_by_hist <- function(hi, values) {
+    d <- character()
+
+    for(i in values) {
+        if(is.na(i)) {
+                d <- c(d, "#FFFFFFFF")
+	    } else {
+                lisa <- max(which(i > hi$breaks))
+                d <- c(d, rainbow(20)[lisa])
+	    }
+    }
+
+    return(d)
+}
+
