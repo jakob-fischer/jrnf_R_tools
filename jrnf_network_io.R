@@ -5,6 +5,7 @@
 # to the file system (in different file formats).
 
 
+
 # Loads a jrnf-file and returns a list of two data frames
 # - The first data frame contains all species with 'type' (integer),
 # energy (numeric), 'name' (character) and 'constant' (boolean).
@@ -110,7 +111,6 @@ jrnf_read <- function(filename) {
 
 
 
-
 # Writes reaction network data frames to file
 
 jrnf_write <- function(filename, data) {
@@ -178,6 +178,10 @@ jrnf_write <- function(filename, data) {
 }
 
 
+
+#
+#
+#
 
 jrnf_read_krome <- function(filename) {
     # Open file and read all lines
@@ -336,6 +340,7 @@ jrnf_read_X1 <- function(filename) {
 
 
 # write the topologic part of the network structure to rea-format
+
 jrnf_write_to_rea <- function(filename, data) {
     # open file and write header
     con <- file(filename, 'w');

@@ -36,11 +36,12 @@ get_n_cycles_directed_A <- function(g, n, list_cycles=F) {
         # Listing cycles is simple here, just find the vertices that have nonzero
         # loops (v_count != 0) and add one row for each of them in cycles matrix.
         if(list_cycles) {
-            cycles <- matrix(0, ncol=length(V(g)), nrow=length(loops))  
-            
             u_loops_s <- which(v_count != 0)
-            for(i in 1:length(u_loops_s))
-                cycles[i,u_loops_s[i]] <- 1
+            cycles <- matrix(0, ncol=length(V(g)), nrow=length(u_loops_s))  
+            
+            if(length(u_loops_s) != 0)
+                for(i in 1:length(u_loops_s))
+                    cycles[i,u_loops_s[i]] <- 1
 
             res[[3]] <- cycles
         }
@@ -60,8 +61,9 @@ get_n_cycles_directed_A <- function(g, n, list_cycles=F) {
         if(list_cycles) {
             cycles <- matrix(0, ncol=length(V(g)), nrow=length(si))  
             
-            for(i in 1:length(si))
-                cycles[ i,si[[i]] ] <- 1
+            if(length(si) != 0)
+                for(i in 1:length(si))
+                    cycles[ i,si[[i]] ] <- 1
 
             res[[3]] <- cycles
         }
@@ -128,14 +130,18 @@ get_n_cycles_directed_B_fast <- function(g, n, list_cycles=F) {
         res <- list(sum(v_count), v_count)
         
         if(list_cycles) {
-            cycles <- matrix(0, ncol=length(V(g)), nrow=length(sum(v_count != 0)))  
+            cycles <- matrix(0, ncol=length(V(g)), nrow=sum(v_count != 0))  
             cycles_m <- rep(0, nrow(cycles))
             
             u_loops_s <- which(v_count != 0)
-            for(i in 1:length(u_loops_s))
-                cycles[i,u_loops_s[i]] <- v_count[u_loops_s[i]]
+            if(length(u_loops_s) != 0)
+                for(i in 1:length(u_loops_s)) {
+                    cycles[i,u_loops_s[i]] <- 1
+                    cycles_m[i] <- v_count[u_loops_s[i]]
+                }
 
             res[[3]] <- cycles
+            res[[4]] <- cycles_m
         }
     } else {
         m <- jrnf_graph_to_amatrix(g)                          # calculate graph adjacency matrix
@@ -165,8 +171,9 @@ get_n_cycles_directed_B_fast <- function(g, n, list_cycles=F) {
         if(list_cycles) {
             cycles <- matrix(0, ncol=length(V(g)), nrow=length(cycles_m)) 
 
-            for(i in 1:length(si))
-                cycles[ i,si[[i]] ] <- 1
+            if(length(si) != 0)
+                for(i in 1:length(si))
+                    cycles[ i,si[[i]] ] <- 1
 
             res[[3]] <- cycles  
             res[[4]] <- cycles_m
