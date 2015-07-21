@@ -946,6 +946,104 @@ pa_build_elementary_components_incidence <- function(em_matrix, net_N, comp_mat=
 
 
 
+pa_cycle_incidence_sp <- function(em_matrix, net, c_max=5) {
+    # generating empty vectors
+    incidence_cycles_sp <- list()
+    for(i in 1:c_max)
+        incidence_cycles_sp[[i]] <- matrix(0, ncol=nrow(net[[1]]), nrow=nrow(em_matrix))
+
+
+    # iterating all pathways
+    for(i in 1:nrow(em_matrix)) {
+        cat(".")
+
+        rev <- c()                   # is the reaction reverted in the specific elementary mode
+        em_abs <- abs(em_matrix[i,]) 
+        sel <- c()                   # which reactions are in the elementary mode (id's of ones with 
+                                     # higher coefficients are put there multiple times)
+
+        for(j in which(em_abs != 0)) {
+            for(k in 1:em_abs[j]) {
+                sel <- c(sel, j)
+                rev <- c(rev, em_matrix[i,j] < 0)
+            }           
+        }
+            
+        # build temporary networks
+        net_tmp <- list(net[[1]], net[[2]][sel,])
+        N_tmp <- jrnf_calculate_stoich_mat(net_tmp)  
+        N_tmp_in <- jrnf_calculate_stoich_mat_in(net_tmp)  
+        N_tmp_out <- jrnf_calculate_stoich_mat_out(net_tmp)  
+
+        # find cycles
+        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
+        for(k in 1:c_max) {
+            x <- get_n_cycles_directed_B_fast(g_tmp,k,F)
+            incidence_cycles_sp[[k]][i,] <- x[[2]] 
+        }
+    }    
+
+    # assemble data frame and return it
+    return(incidence_cycles_sp)
+}
+
+
+pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
+    # generating empty vectors
+    incidence_cycles_el <- list()
+    for(i in 1:c_max)
+        incidence_cycles_el[[i]] <- matrix(0, ncol=length(get_element_names()), nrow=nrow(em_matrix))
+
+    cm <- build_composition_matrix(net)
+
+    # iterating all pathways
+    for(i in 1:nrow(em_matrix)) {
+        cat(".")
+
+        rev <- c()                   # is the reaction reverted in the specific elementary mode
+        em_abs <- abs(em_matrix[i,]) 
+        sel <- c()                   # which reactions are in the elementary mode (id's of ones with 
+                                     # higher coefficients are put there multiple times)
+
+        for(j in which(em_abs != 0)) {
+            for(k in 1:em_abs[j]) {
+                sel <- c(sel, j)
+                rev <- c(rev, em_matrix[i,j] < 0)
+            }           
+        }
+            
+        # build temporary networks
+        net_tmp <- list(net[[1]], net[[2]][sel,])
+        N_tmp <- jrnf_calculate_stoich_mat(net_tmp)  
+        N_tmp_in <- jrnf_calculate_stoich_mat_in(net_tmp)  
+        N_tmp_out <- jrnf_calculate_stoich_mat_out(net_tmp)  
+
+        # find cycles
+        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
+        for(k in 1:c_max) {
+            x <- get_n_cycles_directed_B_fast(g_tmp,k,T)
+            cycles <- x[[3]]
+    
+            if(nrow(cycles) != 0)
+                for(j in 1:nrow(cycles)) {
+                    u <- which(cycles[j,] != 0)
+                    if(length(u) != 0) {
+                        t <- as.numeric(apply(matrix(cm[u,] != 0,nrow=k), 2, all))
+                        incidence_cycles_el[[k]][i,] <- incidence_cycles_el[[k]][i,] + t
+                    }
+                 }
+
+             
+        }
+    }    
+
+    # assemble data frame and return it
+    return(incidence_cycles_el)
+}
+
+
+
+
 
 # Try to build an heuristic. The main assumption is that all reactions have same thermodynamic
 # disequilibrium. First all elementary modes without hv-inflow are removed and their thermodynamic
