@@ -302,13 +302,15 @@ pa_extend_net <- function(net, rates) {
 # net  -  the network that is analysed
 # rates  -  the reaction rates of the network
 
-pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
-    # flag those rates that the reduction condition is applied to
-    flag_red <- rates > f2
+pa_analysis <- function(net, rates, fexp=0.1, f_min=0, pmin=0.01, dir=F) {
+    # Flag those rates that the reduction condition is applied to, even if this is
+    # actually all reactions (f_min == 0) this makes still sense as some rates could
+    # be zero and you want to exclude them.
+    flag_red <- rates > f_min
 
-    # rates of the discarded pathways
+    # Accounting for the reaction rates of the discarded pathways
     rates_dropped <- rep(0, length(rates))
-    # array showing which species have been used for branching
+    # Array containing flags showing which species have been used for branching
     sp_br_flag <- rep(F, nrow(net[[1]]))
     
     # Stoichiometric matrix of consumption (N_in), production (N_out) and total (N)
@@ -316,8 +318,9 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
     N_out <- jrnf_calculate_stoich_mat_out(net)
     N <- N_out - N_in
 
-    # rates of pathways + matrix for pathways (one row = one pathway) 
-    # Initially every reaction equals one pathway with the reaction's rate being the rate of the pathway
+    # Rates of pathways + matrix for pathways (one row = one pathway) 
+    # Initially every reaction equals one pathway with the pathways initial rate 
+    # being the rate of the reaction.
     path_rates <- rates
     path_M <- matrix(0, nrow(net[[2]]), nrow(net[[2]]))
     for(i in 1:nrow(net[[2]]))
@@ -328,13 +331,11 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
     path_M <- path_M[rates != 0,]
 
     # maybe take generation rate for ordering?  or degree of substrate graph?
-    rate_gen <- as.vector(N_in %*% rates)
-    g <- jrnf_to_directed_network(net)
+    turnover <- as.vector(N_in %*% rates)
     count <- 1
 
     # All species are taken as branching species (higher production rate first)
-    #for(i in order(degree(g), decreasing=F)) {
-    for(i in order(rate_gen, decreasing=dir)) {
+    for(i in order(turnover, decreasing=F)) {
         cat("branching at species ", net[[1]]$name[i], "\n")
         sp_br_flag[i] <- T
 
@@ -342,13 +343,13 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
         x <- N %*% t(path_M)
         cr <- which(x[i,] > 0)
         cr_m <- x[i,cr]
-        rate_gen <- sum(cr_m*path_rates[cr])
-        cr_f <- (cr_m*path_rates[cr])/rate_gen
+        turnover <- sum(cr_m*path_rates[cr])
+        cr_f <- (cr_m*path_rates[cr])/turnover 
        
         # net consumer
         con <- which(x[i,] < 0)
         con_m <- -x[i,con]
-        con_f <- con_m*path_rates[con]/rate_gen
+        con_f <- con_m*path_rates[con]/turnover
 
         z <- cr_f %*% t(con_f)
         n <- z > fexp
@@ -377,13 +378,8 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
             # (implies that each pathway is at least connected to one other pathway)
             for(src in 1:length(cr)) {
                 a <- z[src,]/sum(z[src,])
-                if(length(which(a > fexp | a > 1/(length(a)+1))) == 0) {
-                    #cat("src=", src, "\n")
-                    #cat("z[src,]=", z[src,], "\n")
-                    #cat("a=", a, "\n")
-                    cat("HAH!\n")
-                    #return(list(cr, cr_m, cr_f, con, con_m, con_f, path_rates))
-                }
+                if(length(which(a > fexp | a > 1/(length(a)+1))) == 0) 
+                    cat("ERROR: assortion violated (A)!\n")                 
 
                 n[src, a > fexp | a > 1/(length(a)+1)] <- T
             }
@@ -391,15 +387,8 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
             for(dest in 1:length(con)) {
                 b <- z[,dest]/sum(z[,dest])
 
-                if(length(which(b > fexp | b > 1/(length(b)+1))) == 0) {
-                    #cat("z=", z, "\n\n")
-                    #cat("dim(z)=", dim(z), "\n")
-                    #cat("z[,dest]=", z[,dest], "\n")
-                    #cat("dest=", dest,"\n")
-                    #cat("b=", b, "\n")
-                    cat("HUH!\n")
-                    #return(z)
-                }
+                if(length(which(b > fexp | b > 1/(length(b)+1))) == 0) 
+                    cat("ERROR: assortion violated (A)!\n")
 
                 n[b > fexp | b > 1/(length(b)+1),dest] <- T
             }
@@ -414,7 +403,7 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
                 cat(".")
                 for(dest in 1:length(con)) {
                     K_dst <- con_m[dest]       # How does the pathway dest change i 
-                    nr <- z[src,dest]*rate_gen/(K_dst*K_src)                    # new rate
+                    nr <- z[src,dest]*turnover/(K_dst*K_src)                    # new rate
                     np <- K_dst*path_M[cr[src],] +                          # new pathway
                           K_src*path_M[con[dest],]  
 
@@ -427,27 +416,16 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
                         x <- abs((np*nr/rates)[np != 0 & !flag_red])                        
 
                     mm <- max(x)
-                    #cat("mm=", mm, "\n")
 
                     if(n[src,dest] | mm > pmin) {                                 # Add combined pathway
-                        if((N %*% np)[i] != 0) {
-                            cat("ERROR: pathway combination not zero!\n")
-                            cat("src=", src, "  dest=", dest, "   cr[src]=", cr[src],   
-                                "  con[dest]=", con[dest], "\n")
-                            cat("K_src=", K_src, "\n")
-                            cat("K_dst=", K_dst, "\n")
-                            cat("np=", np, "\n\n")
-                            return(N %*% np)
-                        }
+                        if((N %*% np)[i] != 0) 
+                            cat("ERROR: assortion violated (C)!\n")
 
                         # First calculate pathway decomposition
                         path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
-                        #path_M_dec <- matrix(np, ncol=length(np))
 
-                        if(nrow(path_M_dec) == 0) {
-                            cat("ERROR after subpath decomposition (empty)!")
-                            return();
-                        }
+                        if(nrow(path_M_dec) == 0) 
+                            cat("ERROR: assortion violated (D)!\n")
  
                         # 
                         p_sort <- pa_check_pathway_present(path_M_new, path_rates_new, path_M_dec)
@@ -467,10 +445,8 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
 
                                 s <- s - path_M_dec[k,]*rt
 
-                                if(is.na(rt)) { 
-                                    cat("NA rate found!\n")
-                                    return(list(path_M_dec[k,], s))
-                                }
+                                if(is.na(rt))  
+                                    cat("ERROR: assortion violated (E)!\n")
        
                                 if(p_sort$present[k]) {
                                     path_rates_new[p_sort$id[k]] <- path_rates_new[p_sort$id[k]] + rt
@@ -501,7 +477,7 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
                 }
             }
 
-            # swap / report / ready for next step  
+            # swap (ready for next step ) 
             path_rates <- path_rates_new
             path_M <- path_M_new
         }
@@ -510,15 +486,13 @@ pa_analysis <- function(net, rates, fexp=0.1, f2=1e-20, pmin=0.01, dir=F) {
 
         # calculate maximal relative deviation of reaction rates
 
-        cat("dim(path_M)=", dim(path_M), "  length(path_rates)=", length(path_rates), "\n")
         rec_ra <- pa_reconstruct_rates(path_M, path_rates)
         mm_a <- max(abs(rec_ra-rates)/rates, na.rm=T)
-        mm_b <- max((abs(rec_ra-rates)/rates)[flag_red], na.rm=T)
         mm_c <- max(abs(rec_ra-rates), na.rm=T)
         mm_d <- sum(abs(rec_ra-rates))/sum(rates)
 
         # print check:  maximal relative deviation;  reaction id; absolute        
-        cat("check: ",  mm_a, "  - ", mm_b , "  - ",  mm_c , "  - ", mm_d,  "\n")
+        cat("check: ",  mm_a, "  - ",  mm_c , "  - ", mm_d,  "\n")
         count <- count + 1
     }
 
@@ -1100,4 +1074,29 @@ pa_calc_hv_efficiency <- function(em_matrix, em_rates, net) {
 }
 
 
+# 
+pa_calc_species_cycling <- function(em_matrix, em_rates, net, ci_sp_l) {
+    accum <- rep(0, nrow(net[[1]]))
+    net <- (jrnf_calculate_stoich_mat(net))
+    net_a <- abs(jrnf_calculate_stoich_mat(net))
 
+    # first calculate one matrix containing information whether the species are part 
+    # of a cycle in all the path
+    c_f <- ci_sp_l[[2]] != 0
+    ci_sp_l <- ci_sp_l[-(1:2)]
+
+    for(x in ci_sp_l) {
+        c_f <- c_f | x != 0
+    }
+
+    # now iterate all the pathways
+    for(i in 1:nrow(em_matrix)) {
+        a <- as.vector(net %*% em_matrix[i,])
+        b <- as.vector(net_a %*% em_matrix[i,])
+        sel <- b != 0 & a == 0 & c_f[i,]
+ 
+        accum <- accum + 0.5*b*sel*em_rates[i]
+    }
+
+    return(accum)
+}

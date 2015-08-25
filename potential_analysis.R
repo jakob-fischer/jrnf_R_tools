@@ -116,18 +116,31 @@ calculate_density_profile <- function(profile) {
 # Integrates the matrix of chemical potentials and returns them as a vector.
 # User can specify whether the specific density of the species is used for weighting ('sp') 
 # or if the density of all species is used.
-integrate_mu <- function(mu_m, profile, atparam, sp=FALSE) {
+integrate_mu <- function(mu_m, profile, atparam, sp=FALSE, Tr=FALSE) {
     acc <- c()
 
-    if(sp) {
-        # Use species concentration profile for weighting
-        for(i in 2:ncol(mu_m))
-            acc <- c(acc, msum(mu_m[,i]*profile[,i])/sum(profile[,i]))
+    if(Tr) {
+        if(sp) {
+            # Use species concentration profile for weighting
+            for(i in 2:ncol(mu_m))
+                acc <- c(acc, msum(mu_m[,i]*profile[,i]/atparam$T)/sum(profile[,i]))
+        } else {
+            # Use density / all species concentration profile for weighting
+            for(i in 2:ncol(mu_m))
+                acc <- c(acc, msum(mu_m[,i]*atparam$density/atparam$T)/sum(atparam$density))
+        }  
+
     } else {
-        # Use density / all species concentration profile for weighting
-        for(i in 2:ncol(mu_m))
-            acc <- c(acc, msum(mu_m[,i]*atparam$density)/sum(atparam$density))
-    }    
+        if(sp) {
+            # Use species concentration profile for weighting
+            for(i in 2:ncol(mu_m))
+                acc <- c(acc, msum(mu_m[,i]*profile[,i])/sum(profile[,i]))
+        } else {
+            # Use density / all species concentration profile for weighting
+            for(i in 2:ncol(mu_m))
+                acc <- c(acc, msum(mu_m[,i]*atparam$density)/sum(atparam$density))
+        }    
+    }
 
     return(acc)
 }
