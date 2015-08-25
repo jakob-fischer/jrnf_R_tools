@@ -302,11 +302,11 @@ pa_extend_net <- function(net, rates) {
 # net  -  the network that is analysed
 # rates  -  the reaction rates of the network
 
-pa_analysis <- function(net, rates, fexp=0.1, f_min=0, pmin=0.01, dir=F) {
+pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, dir=F) {
     # Flag those rates that the reduction condition is applied to, even if this is
-    # actually all reactions (f_min == 0) this makes still sense as some rates could
+    # actually all reactions this makes still sense as some rates could
     # be zero and you want to exclude them.
-    flag_red <- rates > f_min
+    flag_red <- rates > 0
 
     # Accounting for the reaction rates of the discarded pathways
     rates_dropped <- rep(0, length(rates))
