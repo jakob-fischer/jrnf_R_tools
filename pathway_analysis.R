@@ -496,7 +496,7 @@ pa_analysis <- function(net, rates, fexp=0.1, f_min=0, pmin=0.01, dir=F) {
         count <- count + 1
     }
 
-    return(list(path_M, path_rates, mm_b, mm_d))
+    return(list(path_M, path_rates, mm_a, mm_d))
 } 
 
 
