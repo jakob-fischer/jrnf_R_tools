@@ -421,8 +421,15 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, dir=F) {
                         if((N %*% np)[i] != 0) 
                             cat("ERROR: assortion violated (C)!\n")
 
-                        # First calculate pathway decomposition
-                        path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
+                        # TEST if speedup if check if in list BEFORE doing subpath decomposition (TODO CHECK / REMOVE (NOTE))
+                        # before kasting 220 with 
+                        # system.time(x <- pa_analysis(net_kasting_220_rr_ext, v_kasting_220_rr_ext, 0.1, 1e-5))
+                        # took 21406.46 seconds and resulted in 16247 pathways
+                        if(any(apply(path_M_new == np, 1, all)))
+                            path_M_dec <- matrix(np, nrow=1)
+                        else
+                            # First calculate pathway decomposition
+                            path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
 
                         if(nrow(path_M_dec) == 0) 
                             cat("ERROR: assortion violated (D)!\n")
@@ -513,6 +520,7 @@ pa_rm_multiple_check_elementary <- function(net, ems) {
 
     for(i in 1:nrow(ems)) {
         cat(".")
+
         path_M_dec <- pa_subpath_decomposition(N, ems[i,])
 
         # Show warning if decomposition into elementary modes gives more than em back.
