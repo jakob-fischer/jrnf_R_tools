@@ -302,7 +302,7 @@ pa_extend_net <- function(net, rates) {
 # net  -  the network that is analysed
 # rates  -  the reaction rates of the network
 
-pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, dir=F) {
+pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01) {
     # Flag those rates that the reduction condition is applied to, even if this is
     # actually all reactions this makes still sense as some rates could
     # be zero and you want to exclude them.
@@ -425,11 +425,11 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, dir=F) {
                         # before kasting 220 with 
                         # system.time(x <- pa_analysis(net_kasting_220_rr_ext, v_kasting_220_rr_ext, 0.1, 1e-5))
                         # took 21406.46 seconds and resulted in 16247 pathways
-                        #if(any(apply(path_M_new == np, 1, all)))
+                        if(any(apply(path_M_new == np, 1, all)))
                             path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
-                        #else
+                        else
                             # First calculate pathway decomposition
-                        #    path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
+                            path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
 
                         if(nrow(path_M_dec) == 0) 
                             cat("ERROR: assortion violated (D)!\n")
