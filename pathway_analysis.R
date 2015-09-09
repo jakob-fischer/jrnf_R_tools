@@ -425,7 +425,8 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
                         # before kasting 220 with 
                         # system.time(x <- pa_analysis(net_kasting_220_rr_ext, v_kasting_220_rr_ext, 0.1, 1e-5))
                         # took 21406.46 seconds and resulted in 16247 pathways
-                        if(any(apply(path_M_new == np, 1, all)) || !do_decomposition)
+                        #if(any(apply(path_M_new == np, 1, all)) || !do_decomposition)
+                         if(!do_decomposition)
                             path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
                         else
                             # First calculate pathway decomposition
