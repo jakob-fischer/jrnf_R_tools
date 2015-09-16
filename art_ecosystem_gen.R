@@ -1,8 +1,14 @@
+
+
+source("jrnf_network.R")
+
 # Function creates artificial ecosystem with <N> species... 
 #
 
+
+
 # Helper to create names consistent with elementary constituents
-hcae_create_name <- function(comp, c_names, ex_names, empty_name) {
+hcae_create_name <- function(comp, c_names, ex_names, empty_name="X") {
     name <- ""
 
     # first build name
@@ -43,6 +49,51 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 
     return(all(get_c(1)+get_c(2) == get_c(3)+get_c(4)))
 }
+
+
+# TODO DOCUMENTATION
+
+hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000) {
+    composition <- matrix(0, nrow=N, ncol=comp_no)
+    energy <- rnorm(N)       
+    component_names <- c("C", "N", "O", "H", "P")
+    component_names <- component_names[1:comp_no]
+    if(is.null(max_dup))
+        max_dup = N
+        
+    draw <- function(i) {
+        if(comp_no == 1)
+            composition[i,] <<- rpois(comp_no, 0.5)+1
+        else
+            composition[i,] <<- rpois(comp_no, 0.5)+sample(c(0,1), comp_no, T, c(comp_no-1,1))
+
+        if(sum(composition[i,]) == 0)
+            draw(i)
+    }
+
+    get_dup <- function() {
+        return(which(duplicated(composition)))
+    }
+
+    for(i in 1:N)
+        draw(i)
+
+    x <- get_dup()
+    while(length(x) > max_dup) {
+        for(i in x[-(1:max_dup)])
+            draw(i)
+        x <- get_dup()
+    }
+
+    # now calculate names
+    name <- c()
+    for(i in 1:N)
+        name <- c(name, hcae_create_name(composition[i,], component_names,
+                                         name, empty_name))   
+ 
+    return(list(composition=composition, name=name, energy=energy))
+}
+
 
 # If reaction is valid (by composition) returns max mass transfer
 hcae_calc_rea_transfer <- function(rea, comp, N) {
@@ -198,21 +249,25 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 # TODO Function needs much cleanup #
 #      Especially the way the elementary composition is drawn needs to be made easier (parameter of distribution!)
 
-jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, no_reordering=F, no_hv=2, f_2fold=1/3) { 
-    no_2fold = as.integer( M*f_2fold )
+jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod_no=0, mod_f=1, 
+                                             no_reordering=F, enforce_transfer=T) { 
 
     # TODO check parameters   (N/mod_no has to be a natural number)!
     sp_mod_id <- floor((1:N-1)/mod_no)    # module of each species
 
     eval_possible_reas <- function(s, mod=F) { 
         #cat("call to eval_possible_reas with s=", s, "\n")
-        possible_reas <- rep(1, s^4) 
+        p <- rep(1, s^4) 
         has_hv <- rep(F, s^4)
         rea_no <- rep(0, s^4)
         transfer <- rep(0, s^4)
+        elementary_valid <- rep(T, s^4)
+        mod_structure <- rep(F, s^4)
+        double_species <- rep(F, s^4)
+        self_loop <- rep(F, s^4)
 
         # TODO: speed this up with apply?
-        for(i in 1:length(possible_reas)) {
+        for(i in 1:length(p)) {
             j <- i-1
             a <- j%%s
             b <- ((j-a)/s)%%s
@@ -222,36 +277,57 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
             #cat("a=", a, " b=", b, " c=", c, " d=", d, "\n")
 
             # Increase probability of reactions "in" modular structure
-            if(mod & a != 0 && c != 0 && a != N+1 && c != N+1 && sp_mod_id[a] == sp_mod_id[c])
-                possible_reas[j] <- possible_reas[j]/mod_f
-
-            if(mod & b != 0 && d != 0 && b != N+1 && d != N+1 &&  sp_mod_id[b] == sp_mod_id[d])
-                possible_reas[j] <- possible_reas[j]/mod_f
+            if(mod & a != 0 && c != 0 && a != N+1 && c != N+1 && sp_mod_id[a] == sp_mod_id[c] ||
+               mod & b != 0 && d != 0 && b != N+1 && d != N+1 &&  sp_mod_id[b] == sp_mod_id[d])
+                mod_structure[i] <- T
 
             # Decrease probability of autocatalytic self loops
-            if(mod & a != 0 && b != 0 && c != 0 && d != 0 && (a == c || a == d || b == c || b == d))
-                possible_reas[j] <- possible_reas[j]/N
-
+            if(mod & a != 0 && b != 0 && c != 0 && d != 0 && 
+               (a == c || a == d || b == c || b == d))
+                self_loop[i] <- T
+                
             # Check if reaction works by elementary constituents
             if(!hcae_check_rea_constituents(c(a,b,c,d), composition, N) ||
                !hcae_check_rea_conditions(c(a,b,c,d), N))
-                possible_reas[i] <- 0
+                elementary_valid[i] <- F
+                
 
             # If reaction is valid, calculate transfer
-            if(possible_reas[i] != 0)
+            if(elementary_valid[i] != 0)
                 transfer[i] <- hcae_calc_rea_transfer(c(a,b,c,d), composition, N)
 
             if(a == N+1 || b == N+1 || c == N+1 || d == N+1)
                 has_hv[i] <- T
 
+            if(a == b || c == d)
+                double_species[i] <- T
+
             # CAREFUL: reactants occuring on both sides are not counted (have to be subtracted)
-            rea_no[i] <- sum(c(a != 0 , b != 0, c != 0, d != 0)) - 2*sum(c(a == c & a != 0, a == d & a != 0, b == c & b != 0, b == d & b != 0))
+            rea_no[i] <- sum(c(a != 0 , b != 0, c != 0, d != 0)) - 
+                         2*sum(c(a == c & a != 0, a == d & a != 0, b == c & b != 0, b == d & b != 0))
+
+            if(mod_structure[i])
+                p[i] <- p[i]/mod_f
+
+            if(self_loop[i])
+                p[i] <- p[i]/N
+
+            if(double_species[i])
+                p[i] <- p[i]/N
+
+            if(!elementary_valid[i])
+                p[i] <- 0
+
+            if(enforce_transfer && !has_hv[i] && transfer[i] == 0 && rea_no[i] != 2)
+                p[i] <- 0
         }
 
-        possible_reas[rea_no == 0] <- 0
-        possible_reas[rea_no == 1] <- 0
+        p[rea_no == 0] <- 0
+        p[rea_no == 1] <- 0
 
-        return(list(possible_reas, has_hv, rea_no, transfer))
+        return(list(p=p, has_hv=has_hv, rea_no=rea_no, el_transfer=transfer, 
+                    el_valid=elementary_valid, mod_structure=mod_structure,
+                    double_species=double_species, self_loop=self_loop))
     }
 
 
@@ -317,37 +393,19 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
         return(list(species, reactions))
     }
 
-
-
-    empty_name <- "X"
     hv_name <- "hv"
-    component_names <- c("C", "N", "O", "H", "P")
-    component_names <- component_names[1:comp_no]
     
     # draw compostition (el. constituents) and energy of species
-    composition <- matrix(rpois(N*comp_no, 0.8), ncol=comp_no)
-
     cat("Drawing elementary composition")
-    while(sum(duplicated(composition)) > 2) {
-        cat(".")
-        composition <- matrix(rpois(N*comp_no, 1.2), ncol=comp_no)
-    }
-    cat("\n")
+    if(comp_no == 1)
+        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N*0.8))
+    else
+        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N/4))
 
-    energy <- rnorm(N)   
+    composition <- x$composition
+    energy <- x$energy
+    name <- x$name
 
-    while(any(apply(composition, 1, sum) == 0)) {
-        for(i in which(apply(composition, 1, sum) == 0)) {
-            composition[i,] <- rpois(comp_no, 0.8)
-        }
-    }
-
-    # find names (derived from constituents)
-    name <- c()
-    for(i in 1:N)
-        name <- c(name, hcae_create_name(composition[i,], component_names,
-                                         name, empty_name))
- 
     # Add species for photons / energy source
     energy <- c(energy, max(max(energy)+5, 50))
     name <- c(name, hv_name) 
@@ -376,7 +434,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
 
         cat("REORDERING o=", o, "\n")  
         cat("nrow(composition) = ", nrow(composition), "\n")
-        composition <- composition[o,]
+        composition <- matrix(composition[o,], nrow=length(o))
         name <- c(name[o], name[length(name)])   
 
         # reevaluating
@@ -437,6 +495,11 @@ jrnf_create_artificial_ecosystem <- function(N, M, comp_no, mod_no=0, mod_f=1, n
         f <- gmr_get_inner_density(mat, mod_no)/(sum(mat)/N**2)
         cat("modularity factor is ", f, "\n")
     }
+
+    # If no hv reactions are created on purpose, hv is removed from the
+    # species list 
+    if(no_hv == 0) 
+        net <- list(net[[1]][1:N,], net[[2]])
 
     return(net)
 }

@@ -477,8 +477,7 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
                                     }
                                 }
                             } 
-                        }
-                                     
+                        }          
                     } else {  # Drop pathway combination
                         rates_dropped <- rates_dropped + nr*np
                     }
@@ -516,7 +515,7 @@ pa_rm_multiple_check_elementary <- function(net, ems) {
     ems <- ems[,1:nrow(net[[2]])]
 
     # new matrix / ems that are checked are put here
-    em_new <- ems[c(),]
+    em_new <- ems[c# (),]
     N <- jrnf_calculate_stoich_mat(net)     # stoichiometric matrix
 
     for(i in 1:nrow(ems)) {
@@ -535,6 +534,75 @@ pa_rm_multiple_check_elementary <- function(net, ems) {
             cpp <- pa_check_pathway_present(em_new, rep(1, nrow(em_new)), matrix(path_M_dec[j,],1))
             if(!any(cpp$present))  # adding
                 em_new <- rbind(em_new, path_M_dec[j,])
+        }
+    }
+    cat("\n\n")
+
+    return(em_new)
+}
+
+
+# TODO 
+# Function decomposes all pathways to be elementary and distributes the rates 
+# accordingly. For this the same method as in pa_analysis is used 
+# (first decompose the pathway, order all elementary pathways with increasing 
+#  complexity and decreasing current coefficients, and then develop the 
+#  (non-elementary) pathway with the elementary pathways.)
+# 
+# Maybe this function can late even be called as a subfunction through pa_analysis. 
+# (For this the possibility to specify which pathways to check should be given, 
+#  also a flag to exclude species from the subpath composition would be necessary.)
+
+pa_make_elementary <- function(net, ems, coef) {
+    # cut these reactions of elementary modes that are not in reaction network
+    ems <- ems[,1:nrow(net[[2]])]
+
+    # new matrix / ems that have been checked are put here
+    ems_new <- ems[c(),]
+    coef_new <- c()
+    N <- jrnf_calculate_stoich_mat(net)     # stoichiometric matrix
+
+    # The information on which of the original pathways are elementary is written in this vector:
+    is_el <- rep(F, nrow(ems))
+
+    for(i in 1:nrow(ems)) {
+        cat(".")
+
+        subpath_dec <- pa_subpath_decomposition(N, ems[i,])
+
+        if(nrow(subpath_dec) == 0) 
+           cat("ERROR: assortion violated (G)!\n")
+ 
+        p_sort <- pa_check_pathway_present(ems_new, coef_new, subpath_dec)
+        o <- order(p_sort$complexity, -p_sort$rate)  # low complexity is more important than high rate
+        p_sort <- p_sort[o,]
+        subpath_dec <- matrix(subpath_dec[o,], ncol=ncol(subpath_dec))
+
+        s <- ems[i,]*coefficients[i]
+
+        if(nrow(p_sort) == 1) {
+            is_el[i] = T
+
+
+        } 
+                        
+        for(k in 1:nrow(p_sort)) {
+            y <- s/path_M_dec[k,]
+        
+            if(length(which(y>0)) > 0) {
+                rt <- max(min(y[path_M_dec[k,]>0]), 0)
+                s <- s - path_M_dec[k,]*rt
+
+                if(is.na(rt))  
+                    cat("ERROR: assortion violated (E)!\n")
+       
+                if(p_sort$present[k]) {
+                    path_rates_new[p_sort$id[k]] <- path_rates_new[p_sort$id[k]] + rt
+                } else {
+                    path_rates_new[length(path_rates_new)+1] <- rt
+                    path_M_new <- rbind(path_M_new, matrix(path_M_dec[k,], 1, length(path_M_dec[k,])))
+                }
+            } 
         }
     }
     cat("\n\n")
