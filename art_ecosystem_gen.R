@@ -254,8 +254,9 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
 
     # TODO check parameters   (N/mod_no has to be a natural number)!
     sp_mod_id <- floor((1:N-1)/mod_no)    # module of each species
+    mod= mod_no!=0
 
-    eval_possible_reas <- function(s, mod=F) { 
+    eval_possible_reas <- function(s) { 
         #cat("call to eval_possible_reas with s=", s, "\n")
         p <- rep(1, s^4) 
         has_hv <- rep(F, s^4)
@@ -412,7 +413,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
  
     # Now investigate all possible reactions up to 2x2 and build one 
     # vector containing information whether the reaction is possible
-    x <- eval_possible_reas(N+2, no_reordering)
+    x <- eval_possible_reas(N+2)
     possible_reas <- x[[1]]
     has_hv <- x[[2]]
     rea_no <- x[[3]]
@@ -438,7 +439,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
         name <- c(name[o], name[length(name)])   
 
         # reevaluating
-        x <- eval_possible_reas(N+2, T)
+        x <- eval_possible_reas(N+2)
         possible_reas <- x[[1]]
         has_hv <- x[[2]]
         rea_no <- x[[3]]   
