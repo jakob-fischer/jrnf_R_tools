@@ -515,7 +515,7 @@ pa_rm_multiple_check_elementary <- function(net, ems) {
     ems <- ems[,1:nrow(net[[2]])]
 
     # new matrix / ems that are checked are put here
-    em_new <- ems[c# (),]
+    em_new <- ems[c(),]
     N <- jrnf_calculate_stoich_mat(net)     # stoichiometric matrix
 
     for(i in 1:nrow(ems)) {
