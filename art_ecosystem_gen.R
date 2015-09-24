@@ -53,7 +53,7 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 
 # TODO DOCUMENTATION
 
-hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000) {
+hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000, x=0.3) {
     composition <- matrix(0, nrow=N, ncol=comp_no)
     energy <- rnorm(N)       
     component_names <- c("C", "N", "O", "H", "P")
@@ -62,10 +62,12 @@ hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000) {
         max_dup = N
         
     draw <- function(i) {
+        lambda <- (-1/comp_no)*log(x)
+
         if(comp_no == 1)
-            composition[i,] <<- rpois(comp_no, 0.5)+1
+            composition[i,] <<- rpois(comp_no, lambda)+1
         else
-            composition[i,] <<- rpois(comp_no, 0.5)+sample(c(0,1), comp_no, T, c(comp_no-1,1))
+            composition[i,] <<- rpois(comp_no, lambda)+sample(c(0,1), comp_no, T, c(comp_no-1,1))
 
         if(sum(composition[i,]) == 0)
             draw(i)
@@ -399,7 +401,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
     # draw compostition (el. constituents) and energy of species
     cat("Drawing elementary composition")
     if(comp_no == 1)
-        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N*0.8))
+        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N))
     else
         x <- hcae_draw_elem_composition(N, comp_no, as.integer(N/4))
 
