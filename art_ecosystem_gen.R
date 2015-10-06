@@ -254,8 +254,9 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
                                              no_reordering=F, enforce_transfer=T) { 
 
     # TODO check parameters   (N/mod_no has to be a natural number)!
-    sp_mod_id <- floor((1:N-1)/mod_no)    # module of each species
-    mod= mod_no!=0
+    # module of each species / first entry is (NO SPECIES and last hv)
+    sp_mod_id <- c(mod_no+1, floor((1:N-1)/(N/mod_no)), mod_no+2)    
+    mod= mod_no!=0 && mod_no != 1
 
     eval_possible_reas <- function(s) { 
         #cat("call to eval_possible_reas with s=", s, "\n")
@@ -279,12 +280,16 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
             #cat("a=", a, " b=", b, " c=", c, " d=", d, "\n")
 
             # Increase probability of reactions "in" modular structure
-            if(mod & a != 0 && c != 0 && a != N+1 && c != N+1 && sp_mod_id[a] == sp_mod_id[c] ||
-               mod & b != 0 && d != 0 && b != N+1 && d != N+1 &&  sp_mod_id[b] == sp_mod_id[d])
+            if(mod && a == 0 && sp_mod_id[b+1] == sp_mod_id[d+1] ||    # it is no 2x2 reactio (a== 0)
+               mod && a == 0 && sp_mod_id[b+1] == sp_mod_id[c+1] ||      
+               mod && sp_mod_id[a+1] == sp_mod_id[b+1] && sp_mod_id[b+1] == sp_mod_id[c+1] ||
+               mod && sp_mod_id[a+1] == sp_mod_id[b +1] && sp_mod_id[b+1] == sp_mod_id[d+1] || 
+               mod && sp_mod_id[a+1] == sp_mod_id[c +1] && sp_mod_id[c+1] == sp_mod_id[d+1] || 
+               mod && sp_mod_id[b+1] == sp_mod_id[c +1] && sp_mod_id[c+1] == sp_mod_id[d+1])
                 mod_structure[i] <- T
 
             # Decrease probability of autocatalytic self loops
-            if(mod & a != 0 && b != 0 && c != 0 && d != 0 && 
+            if(a != 0 && b != 0 && c != 0 && d != 0 && 
                (a == c || a == d || b == c || b == d))
                 self_loop[i] <- T
                 
@@ -308,7 +313,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
             rea_no[i] <- sum(c(a != 0 , b != 0, c != 0, d != 0)) - 
                          2*sum(c(a == c & a != 0, a == d & a != 0, b == c & b != 0, b == d & b != 0))
 
-            if(mod_structure[i])
+            if(mod_structure[i] && !self_loop[i])
                 p[i] <- p[i]/mod_f
 
             if(self_loop[i])
