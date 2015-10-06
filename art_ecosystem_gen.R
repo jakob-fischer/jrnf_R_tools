@@ -317,10 +317,10 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
                 p[i] <- p[i]/mod_f
 
             if(self_loop[i])
-                p[i] <- p[i]/N
+                p[i] <- p[i]/(3*N)
 
             if(double_species[i])
-                p[i] <- p[i]/N
+                p[i] <- p[i]/(3*N)
 
             if(!elementary_valid[i])
                 p[i] <- 0
