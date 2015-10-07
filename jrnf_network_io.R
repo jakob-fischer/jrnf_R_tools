@@ -64,12 +64,14 @@ jrnf_read <- function(filename) {
         pm <- as.numeric((rep(0, p_number)))
 
         # Fill educts ... 
+        if(e_number != 0)
         for(j in 1:e_number) {
             e[j] <- as.numeric(last_line[7+j*2-1])+1
             em[j] <- as.numeric(last_line[7+j*2]) 
 	}
 
-        # ...and product vectors
+        # ...and product vectors 
+        if(p_number != 0)
         for(j in 1:p_number) {
             p[j] <- as.numeric(last_line[7+e_number*2+j*2-1])+1
             pm[j] <- as.numeric(last_line[7+e_number*2+j*2]) 
