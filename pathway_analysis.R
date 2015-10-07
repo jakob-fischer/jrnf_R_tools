@@ -426,11 +426,32 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
                         # system.time(x <- pa_analysis(net_kasting_220_rr_ext, v_kasting_220_rr_ext, 0.1, 1e-5))
                         # took 21406.46 seconds and resulted in 16247 pathways
                         #if(any(apply(path_M_new == np, 1, all)) || !do_decomposition)
-                         if(!do_decomposition)
-                            path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
-                        else
+                        {
                             # First calculate pathway decomposition
                             path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
+                            
+                            if(nrow(path_M_dec) > 1) {
+                                cat("PATHWAY NOT ELEMENTARY!\n")
+                                cat("==================================\n")
+                                pa_write_em(net, np)
+                                cat("==================================\n")
+                                 
+                                for(r in 1:nrow(path_M_dec)) {
+                                    cat("subpath ", r, "\n")
+                                    cat("==================================\n")
+                                    pa_write_em(net, path_M_dec[r,])
+                                    cat("==================================\n")
+                                }
+                            }
+
+                            # OVERWRITE (copied from above so diagnostics is printed
+                            #            even if
+                            if(!do_decomposition)
+                                path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
+
+                        }
+
+                        
 
                         if(nrow(path_M_dec) == 0) 
                             cat("ERROR: assortion violated (D)!\n")
