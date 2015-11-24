@@ -869,18 +869,19 @@ jrnf_reaction_to_string <- function(net, re_id) {
     side_to_string <- function(r, r_m) {
         a <- ""
 
-        for(i in 1:length(r)) {
-            if(r_m[i] != 1)
-                a <- paste(a, as.numeric(r_m[i]), " ", sep="")
+        if(!is.null(r))
+            for(i in 1:length(r)) {
+                if(r_m[i] != 1)
+                    a <- paste(a, as.numeric(r_m[i]), " ", sep="")
 
-            a <- paste(a, net[[1]]$name[r[i]], sep="")
+                a <- paste(a, net[[1]]$name[r[i]], sep="")
 
-            if(i < length(r))
-                a <- paste(a, " + ", sep="")
-        }
+                if(i < length(r))
+                    a <- paste(a, " + ", sep="")
+            }
 
-        return(a)
-    }
+         return(a)
+      }
 
     educts <- side_to_string(net[[2]]$educts[re_id][[1]],
                              net[[2]]$educts_mul[re_id][[1]])
