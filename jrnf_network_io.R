@@ -341,6 +341,16 @@ jrnf_read_X1 <- function(filename) {
 
 
 
+jrnf_write_to_text <- function(filename, data) {
+    con <- file(filename, 'w');
+    if(nrow(data[[2]]) > 0) 
+        for(i in 1:nrow(data[[2]]))
+            writeLines(jrnf_reaction_to_string(data, i), con=con)
+    close(con)
+}
+
+
+
 # write the topologic part of the network structure to rea-format
 
 jrnf_write_to_rea <- function(filename, data) {

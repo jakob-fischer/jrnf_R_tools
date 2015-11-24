@@ -37,10 +37,11 @@ pa_write_rea <- function(net, i, N=c()) {
 # (they are probably) pseudo-reactions for the output and not considered when 
 # printing the net reaction. 
 
-pa_write_em <- function(net, em) {
+pa_write_em <- function(net, em, discard_s=T) {
     N <- jrnf_calculate_stoich_mat(net)   
     x <- (apply(N != 0, 2, sum) == 1)     # remove reactions with just one species involved
-    em[x] <- 0    
+    if(discard_s)
+        em[x] <- 0    
 
     # list all (remaining) reactions with coefficients 
     for(i in which(em != 0)) {
@@ -354,7 +355,7 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
         z <- cr_f %*% t(con_f)
         n <- z > fexp
 
-        cat("length(cr)=", length(cr), "  length(con)=", length(con), "\n")
+        #cat("length(cr)=", length(cr), "  length(con)=", length(con), "\n")
 
         # Species is not part of any pathway (easy as pie)!
         if(length(cr) == 0 & length(con) == 0) {
@@ -428,26 +429,28 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
                         #if(any(apply(path_M_new == np, 1, all)) || !do_decomposition)
                         {
                             # First calculate pathway decomposition
-                            path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
+                            if(!do_decomposition)
+                                path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
+                            else
+                                path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
                             
-                            if(nrow(path_M_dec) > 1) {
-                                cat("PATHWAY NOT ELEMENTARY!\n")
-                                cat("==================================\n")
-                                pa_write_em(net, np)
-                                cat("==================================\n")
-                                 
-                                for(r in 1:nrow(path_M_dec)) {
-                                    cat("subpath ", r, "\n")
-                                    cat("==================================\n")
-                                    pa_write_em(net, path_M_dec[r,])
-                                    cat("==================================\n")
-                                }
-                            }
+                            #if(nrow(path_M_dec) > 2) {
+                            #    cat("PATHWAY NOT ELEMENTARY or TWO!\n")
+                            #    cat("==================================\n")
+                            #    pa_write_em(net, np, F)
+                            #    cat("==================================\n")
+                            #     
+                            #    for(r in 1:nrow(path_M_dec)) {
+                            #        cat("subpath ", r, "\n")
+                            #        cat("==================================\n")
+                            #        pa_write_em(net, path_M_dec[r,], F)
+                            #        cat("==================================\n")
+                            #    }
+                            #}
 
                             # OVERWRITE (copied from above so diagnostics is printed
                             #            even if
-                            if(!do_decomposition)
-                                path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
+
 
                         }
 
