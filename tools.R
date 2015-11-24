@@ -69,3 +69,31 @@ get_color_by_hist <- function(hi, values) {
     return(d)
 }
 
+
+# This function calculates the greatest common divisor for all elements in 
+# a vector. For this the gcd function of the package 'pracma' is used.
+
+vec_gcd <- function(x) {
+    a <- x[1]
+    x <- x[-1]
+    x <- x[x != 0]
+
+    if(length(x) > 1) 
+        for(i in 2:length(x))
+            a <- gcd(a,x[i])             
+           
+    return(a)
+}
+
+
+# Helper-function that scales all rows in a matrix by different scalar values
+# given by a vector.
+
+scale_mat_rows <- function(mat, vec) {
+    if(nrow(mat) != length(vec)) {
+        cat("ERROR: scale_mat_rows: dimension mismatch!\n")
+        return(mat)
+    }    
+
+    return(mat * matrix(rep(vec, ncol(mat)), ncol=ncol(mat)))
+}
