@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 3rd December 2015
 # description: 
 
 sourced_potential_analysis <- T

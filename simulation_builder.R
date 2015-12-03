@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 2nd December 2015
 # description: 
 # Script for generating files and directory structure of artificial chemistry
 # simulations with thermodynamic constraints. (simulation builder = "sb_")

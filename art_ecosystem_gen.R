@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 3rd December 2015
 # description: 
 
 sourced_art_ecosystem_gen <- T

@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 7. May 2014
 # description: 
 # Functions to count the occurences of cycles in directed graphs.
 

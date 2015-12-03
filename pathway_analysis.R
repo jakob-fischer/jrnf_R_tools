@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 11. December 2013
 # description: 
 # testing-tool for algorithm which determines pathways / elementary flux modes
 # of reaction networks considering a flux vector v. All functions of this 

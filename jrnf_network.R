@@ -1,5 +1,4 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 23. January 2013
 # description: 
 # R-tools for handling jrnf-network data and using parts of igraph
 # for network analysis and visualisation
