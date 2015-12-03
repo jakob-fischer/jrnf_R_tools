@@ -4,11 +4,18 @@
 # R-tools for handling jrnf-network data and using parts of igraph
 # for network analysis and visualisation
 
+sourced_jrnf_network <- T
+
 library(igraph)
 
-source("tools.R")    # general helper functions
-source("cycles.R")
-source("jrnf_network_io.R")
+if(!exists("sourced_tools"))
+    source("tools.R")    # general helper functions
+
+if(!exists("sourced_cycles"))
+    source("cycles.R")
+
+if(!exists("sourced_jrnf_network_io"))
+    source("jrnf_network_io.R")
 
 
 #

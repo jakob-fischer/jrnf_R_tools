@@ -1,5 +1,14 @@
-source("jrnf_network.R")
-source("pathway_analysis.R")
+# author: jakob fischer (jakob@automorph.info)
+# date: 3rd December 2015
+# description: 
+
+sourced_potential_analysis <- T
+
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
+
+if(!exists("sourced_pathway_analysis"))
+    source("pathway_analysis.R")
 
 # Thermodynamic constants
 k_B <- 1.381E-23  # Boltzmann constant (J / K)

@@ -6,7 +6,10 @@
 # be submitted to the "biosys" batch system and solve a big ensemble of reaction
 # equation at once.
 
-source("jrnf_network.R")
+sourced_netodeint_control <- T
+
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
 
 # Executed in the directory ..
 #

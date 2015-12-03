@@ -1,4 +1,11 @@
-source("~/development/jrnf_R_tools/jrnf_network.R", chdir=T)
+# author: jakob fischer (jakob@automorph.info)
+# date: 3rd December 2015
+# description: 
+
+sourced_composition_analysis <- T
+
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
 
 elementary_composition_db <- read.csv("elementary_composition_db.csv", stringsAsFactors=FALSE)
 

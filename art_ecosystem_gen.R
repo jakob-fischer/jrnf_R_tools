@@ -1,6 +1,11 @@
+# author: jakob fischer (jakob@automorph.info)
+# date: 3rd December 2015
+# description: 
 
+sourced_art_ecosystem_gen <- T
 
-source("jrnf_network.R")
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
 
 # Function creates artificial ecosystem with <N> species... 
 #

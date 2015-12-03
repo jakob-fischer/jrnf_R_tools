@@ -5,11 +5,21 @@
 # of reaction networks considering a flux vector v. All functions of this 
 # file start with prefix "pa_"
 
+sourced_pathway_analysis <- T
+
 library(pracma)   # for gcd function
-source("tools.R") 
-source("cycles.R")
-source("jrnf_network.R")
-source("composition_analysis.R")
+
+if(!exits("sourced_tools"))
+    source("tools.R") 
+
+if(!exists("sourced_cycles"))
+    source("cycles.R")
+
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
+
+if(!exists("sourced_composition_analysis"))
+    source("composition_analysis.R")
 
 
 

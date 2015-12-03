@@ -1,7 +1,9 @@
 # author: jakob fischer (jakob@automorph.info)
 # date: 7. May 2014
 # description: 
-# Functions to count the occurences of cycles in directed graphs.  
+# Functions to count the occurences of cycles in directed graphs.
+
+sourced_cycles <- T
 
 library(igraph)
 

@@ -8,3 +8,6 @@
 # functions to plot (and partially evaluate) the results is in "simulation_builder_plot.R".
 
 sourced_simulation_builder <- T
+
+if(!exists("sourced_simulation_builder_plot"))
+    source("simulation_builder_plot.R")

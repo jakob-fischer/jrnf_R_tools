@@ -4,12 +4,20 @@
 # little helper functions that implement general functions that are not sufficiently
 # available through the language
 
+sourced_tools <- T
 
 # 'acc' was a self implemented version with the functionality of cumsum before
 # TODO If all code using "acc" has been changed to "cumsum", remove
 
 acc <- cumsum
 
+
+# Removes all flags that indicate that files have been sourced into the current
+# session by removing variables starting with "sourced_"
+clear_sourced_flags <- function() {
+    for(i in ls()[grepl("sourced_", ls())])
+        rm(i)
+}
 
 # This function removes all the duplicates / permutations if one checks for 
 # subisomorphisms with a directed ring with the igraph method 

@@ -7,3 +7,6 @@
 # The core functionality is in "simulation_builder.R".
 
 sourced_simulation_builder_plot <- T
+
+if(!exists("sourced_simulation_builder"))
+    source("simulation_builder.R")
