@@ -5,6 +5,8 @@
 
 sourced_tools <- T
 
+library(pracma)   # for gcd function
+
 # 'acc' was a self implemented version with the functionality of cumsum before
 # TODO If all code using "acc" has been changed to "cumsum", remove
 

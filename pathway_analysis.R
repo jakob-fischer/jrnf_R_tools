@@ -6,8 +6,6 @@
 
 sourced_pathway_analysis <- T
 
-library(pracma)   # for gcd function
-
 if(!exits("sourced_tools"))
     source("tools.R") 
 
