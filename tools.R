@@ -15,6 +15,7 @@ acc <- cumsum
 
 # Removes all flags that indicate that files have been sourced into the current
 # session by removing variables starting with "sourced_"
+
 clear_sourced_flags <- function() {
     for(i in ls()[grepl("sourced_", ls())])
         rm(i)
