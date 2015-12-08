@@ -19,28 +19,6 @@ if(!exists("sourced_composition_analysis"))
     source("composition_analysis.R")
 
 
-
-# Funktion to write reaction <i> of network <net> to standard ouptut. If 
-# stoichiometric matrix is not given as third parameter it is calculated. 
-# TODO: Calculating the entire matrix just for one column is overkill!
-# TODO: Autocatalytic parts of reactions are not plotted correctly!
-
-pa_write_rea <- function(net, i, N=c()) {
-    if(!is.matrix(N))
-        N <- jrnf_calculate_stoich_mat(net)
-
-    t <- N[,i]
-
-    for(i in which(t < 0))
-        cat(-t[i], " ", net[[1]]$name[i], "  ")
-
-    cat("=>  ")
-    
-    for(i in which(t > 0))
-        cat(t[i], " ", net[[1]]$name[i], "  ")
-}
-
-
 # Function writes elementary mode <em> of network <net>. Reactions that have 
 # only one educt and no products or only one product and no educts are ignored 
 # (they are probably) pseudo-reactions for the output and not considered when 
