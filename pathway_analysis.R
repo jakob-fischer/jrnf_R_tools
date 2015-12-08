@@ -80,6 +80,9 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
     if(nrow(em) == 0)
         return()
 
+    N <- min(N, nrow(em))
+        
+
     em <- em[1:N,]
     exp_f <- exp_f[1:N]
     rates <- rates[1:N]
