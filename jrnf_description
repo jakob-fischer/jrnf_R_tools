@@ -1,0 +1,61 @@
+    Description of the Reaction Network File Format (JRNF)
+    ======================================================
+    (date: 1st September 2014   author: Jakob Fischer   mail:jakob@automorph.info) 
+
+The jrnf-file format describes a reaction network consisting out of a set of chemical
+species, reaction between those species and (thermo)dynamic parameters. The format 
+uses plain linux text file format. Individual entries are integer numbers, floating
+point numbers or character strings. They are separated by whitespaces. 
+
+
+The first line of a file should contain the string "jrnf0003" to identify the file
+format and version:
+  1: "jrnf0003"
+
+
+The second line contains two integers. The first is the number of chemical species N, 
+the second is the number of reactions in the reaction network M.
+  2: <N> <M>
+
+
+The following N lines each have 4 (whitespace separated) values. Each line represents 
+one chemical species and has the following form:
+  3 - 2+<N>: <type> <name> <energy> <constant>
+
+
+The entries each consists of one number or string:
+  <type> - Unsigned integer giving the type of the species. Standard is 0, but users
+           may use / define additional types. A not recognized type should just be
+           ignored by programms (treated as type 0).
+  <name> - String that gives the name of the species. May contain alphanumeric 
+           characters and underscore. Name should be unique in the network.
+  <energy> - Double value containing the formation enthalpy of the species.
+  <constant> - Unsigned integer. Value is 1 if the species is constant and 0 else.
+               
+
+After the species M lines describe the M reactions. Each line has at least 7 entries. 
+2+<N> - 2+<N><M>: <reversible> <c> <k_f> <k_b> <E_a> <educt_number> <product_number> 
+                  (<educt_id> <educt_mul>)* (<product_id> <product_mul>)*
+
+The entries in the first bracket shoulc occur exactly <educt_number> times, the entries
+in the second brackets <product_number> times. Each individual entrie is either a 
+floating point or an unsigned integer number:
+  <reversible> - Unsigned integer. The value is '1' if reaction is simulated 
+                 reversible. Else the value has to be '0'.
+  <c> - Floating point (positive). Reaction constant for stochastic simulations. 
+        Not used at the moment.
+  <k_f> - Double (positive). Forward reaction rate.
+  <k_b> - Double (positive). Backward reaction rate.
+  <E_a> - Double (positive). Activation energy. 
+  <educt_number> - Unsigned integer. Number of educts in the reaction equation
+  <product_number> - Unsigned integer. Number of products in the reaction equation.
+  <educt_id> - Unsigned integer. Id of the species occuring on educt side of this
+               reaction equation. Species are 1-indexed. 
+  <educt_mul> - Unsigned integer. Number of occurences of respective species on the
+                educt side of this reaction equation.
+  <product_id> - Unsigned integer. Id of the species occuring on product side of this
+                 reaction equation. Species are 1-indexed. 
+  <product_mul> - Unsigned integer. Number of occurences of respective species on the
+                  product side of this reaction equation.
+
+   -------------------------------------------------------
