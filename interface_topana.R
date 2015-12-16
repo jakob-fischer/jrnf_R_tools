@@ -1,14 +1,24 @@
 # author: jakob fischer (jakob@automorph.info)
-# date: 27. February 2013
 # description: 
-# R-tools for handling export of jrnf-networks to 
-# calculate elementary modes with metatool and handle
-# import of results.
+# R-tools for handling export of jrnf-networks to calculate elementary modes with 
+# metatool and handle import of results. Most of this is redundant as the 
+# "pathway_analysis" codeset contains a simple implementation of the elementary
+# modes algorithm and the code below is not able to interact with the newer (matlab)
+# version of metatool. 
+# This is still here out of legacy reasons, but please consider it as DEPRECATED.
+# TODO: cleanup, unify identifier names, remove if possible?
+#       Input- and output-functions might be moved to jrnf_network_io.R
+
+sourced_interface_topana <- T
 
 
+# helper for 'write_jrnf_to_metatool' (used by 'wjtm_m_reaction_to_string'):
 # Transforms a vector of products or educts id and a vector
 # of asocciated multiplicities to an string that can be read
-# from metatool
+# from metatool. 
+# 'co' - vector of id's
+# 'co_mul' - vector of multiplicites (same size!)
+# 'species' - species data frame (species$name contains species names)
 
 wjtm_m_rpart_to_string <- function(co, co_mul, species) {
     bla <- ""
@@ -27,8 +37,9 @@ wjtm_m_rpart_to_string <- function(co, co_mul, species) {
 }
 
 
-# Transforms a reaction row out of the jrnf reaction data-frame 
-# to a string readable by metatool
+# helper for 'write_jrnf_to_metatool':
+# Transforms a reaction row out of the jrnf 'reaction' data-frame to a string 
+# readable by metatool. The second argument is the species data-frame 'species'.
 
 wjtm_m_reaction_to_string <- function(reaction, species) {
     bla <- ""
@@ -51,49 +62,9 @@ wjtm_m_reaction_to_string <- function(reaction, species) {
 }
 
 
-
-wjte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
-    bla <- ""
-
-    if(length(co))
-        for(i in 1:length(co)) {
-            for(j in 1:co_mul[i]) {
-                if(sgn)
-                    bla <- paste(bla, " 1 ", as.character(species$name[co[i]]), " ", sep="")
-                else
-                    bla <- paste(bla, " -1 ", as.character(species$name[co[i]]), " ", sep="")
-            }  
-        }
-
-    return(bla)
-
-}
-
-
-
-wjte_e_reaction_to_string <- function(reaction, species) {
-    bla <- ""
-
-    bla <- paste(bla,
-                 wjte_e_rpart_to_string(reaction$educts[[1]],
-                                        reaction$educts_mul[[1]],
-                                        FALSE,
-                                        species), 
-                 sep="")
-
-    bla <- paste(bla,
-                 wjte_e_rpart_to_string(reaction$products[[1]],
-                                        reaction$products_mul[[1]],
-                                        TRUE,
-                                        species), 
-                 sep="")
-
-    return(bla)
-
-}
-
-
-# Writes a jrnf-network given by network to 
+# Writes a jrnf-network given by 'network' to file named 'filename'. The vectors
+# 'input' and 'output' contain the id's of those species that metatool will consider
+# to be input / output. 
 
 write_jrnf_to_metatool <- function(network, filename, input, output) {
     sp <- network[[1]]
@@ -140,6 +111,58 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
 }
 
 
+# helper for 'write_jrnf_to_expa' (used by 'wjtm_m_reaction_to_string'):
+# Transforms a number of species 'co' including their multiplier 'co_mul' 
+# into a string compatible with expa-format. 
+#
+
+wjte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
+    bla <- ""
+
+    if(length(co))
+        for(i in 1:length(co)) {
+            for(j in 1:co_mul[i]) {
+                if(sgn)
+                    bla <- paste(bla, " 1 ", as.character(species$name[co[i]]), " ", sep="")
+                else
+                    bla <- paste(bla, " -1 ", as.character(species$name[co[i]]), " ", sep="")
+            }  
+        }
+
+    return(bla)
+
+}
+
+
+# helper for 'write_jrnf_to_expa':
+# Transforms one row of reaction data frame in the reaction string compatible with 
+# expa-file format.
+
+wjte_e_reaction_to_string <- function(reaction, species) {
+    bla <- ""
+
+    bla <- paste(bla,
+                 wjte_e_rpart_to_string(reaction$educts[[1]],
+                                        reaction$educts_mul[[1]],
+                                        FALSE,
+                                        species), 
+                 sep="")
+
+    bla <- paste(bla,
+                 wjte_e_rpart_to_string(reaction$products[[1]],
+                                        reaction$products_mul[[1]],
+                                        TRUE,
+                                        species), 
+                 sep="")
+
+    return(bla)
+
+}
+
+
+# Writes the stoichiometry / topology of an jrnf reaction network to expa
+# format. For a definition of expa format, please look here:
+# http://www.ce4csb.org/applications/jexpa/expa.html
 
 write_jrnf_to_expa <- function(network, filename, input, output) {
     sp <- network[[1]]
@@ -154,66 +177,26 @@ write_jrnf_to_expa <- function(network, filename, input, output) {
 
     nxt <- nrow(re)+1
 
-
+    # write all the input / output reactions
     for(i in input) {
          writeLines(paste("R", as.character(nxt), " I  1 ", sp$name[i], sep=""), con=con)
          nxt <- nxt+1
     }
 
     for(i in output) {
-         writeLines(paste("R", as.character(nxt), " I  -1 ", sp$name[i], "   = ", sep=""), con=con)
+         writeLines(paste("R", as.character(nxt), " I  -1 ", sp$name[i], sep=""), con=con)
          nxt <- nxt+1
     }
 
-
+    # no external fluxes here
     writeLines("(External fluxes)\n", con=con)
     close(con)
 }
 
-
-
-
-
-
-
-write_jrnf_to_stomat <- function(network, filename, input, output) {
-    sp <- network[[1]]
-    re <- network[[2]]
-
-    con <- file(filename, 'w');
-
-    N <- matrix(0, nrow(sp), nrow(re)+length(input)+length(output))
-
-    for(i in 1:nrow(re)) {
-        for(j in 1:length(re$educts[[i]])) 
-            N[re$educts[[i]][j],i] <- -(re$educts_mul[[i]][j])
-
-
-        for(j in 1:length(re$products[[i]])) 
-            N[re$products[[i]][j],i] <- (re$products_mul[[i]][j])
-    }
-
-    for(i in 1:length(input)) 
-        N[input[i],nrow(re)+i] <- 1
-
-    for(i in 1:length(output)) 
-        N[output[i], nrow(re)+length(input)+i] <- -1
-
-    close(con)
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+# Function reads the output from metatool from file 'filename' and looks for
+# the part in the ouput that contains the elementary modes and then extracts
+# them as a matrix.
 
 read_elementary_modes <- function(filename) {
     con <- file(filename, "r")
@@ -249,7 +232,10 @@ read_elementary_modes <- function(filename) {
 }
 
 
-
+# Function invokes metatool to calculate all elementary modes. Parameters are the 
+# network 'network' in jrnf-format, and names of species that are input, output or
+# both (external species).
+# TODO: Simplify name-to-id transformation with one function that centralizes error handling!
 
 calculate_elementary_modes <- function(network, in_names=c(), out_names=c(), ext_names=c()) {
     in_vector <- logical(length=nrow(network[[1]]))
@@ -284,64 +270,16 @@ calculate_elementary_modes <- function(network, in_names=c(), out_names=c(), ext
     }
 
 
+    # write network in metatool format to temporary file 'tmp.dat'
     write_jrnf_to_metatool(network, "tmp.dat", which(in_vector), which(out_vector))
 
+    # invoke metatool
     system("./metatool/fasttool tmp.dat tmp_out.dat")
 
+    # read back results and return them
     em <- read_elementary_modes("tmp_out.dat")
-
     return(em)
 }
 
 
 
-calculate_elementary_modes_coefficients <- function(ems, v, mx=F) {
-    ems <- ems[,1:length(v)]
-    coeff <- rep(0,nrow(ems))
-
-    for(i in 1:nrow(ems)) {
-        y <- v/ems[i,]
-        if(length(which(y>0)) > 0) {
-            x <- min(y[ems[i,]>0])
-            coeff[i] <- x
-            #cat("i=", i, "   x=", x, "\n")
-            #if(any((v - ems[i,]*x < 0)))
-            #    return(v)
-            
-            if(!mx)
-                v <- v - ems[i,]*x
-            if(min(v) < 0) {
-                cat("i=",i, "\n")
-                cat("v=", v, "\n")
-            }
-        } else {
-            coeff[i] <- 0
-        }
-    }
-
-    cat(v, "\n")
-    return(coeff)  
-}
-
-calculate_flow_elementary_modes <- function(ems, coeffs) {
-    ems <- ems[,1:(ncol(ems))]
-    v <- rep(0,ncol(ems))
-
-    for(i in 1:nrow(ems)) {
-        v <- v + ems[i,]*coeffs[i]
-    }
-
-    return(v)
-}
-
-
-
-
-print_em <- function(em_matrix, jrnf_network, em_id=1) {
-    j <- as.vector(em_matrix[em_id,])
-    
-    for(i in 1:length(j)) {
-        if(j[i] != 0)
-            cat(j[i], "times: ", wjtm_m_reaction_to_string(jrnf_network[[2]][i,],jrnf_network[[1]]), "\n")
-    }
-}
