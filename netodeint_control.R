@@ -4,159 +4,20 @@
 # tool. The functions in this file allow to generate scripts which then can 
 # be submitted to the "biosys" batch system and solve a big ensemble of reaction
 # equation at once.
+#
+# Parts of this this file / modules functionality are shared with "simulation_builder.R" 
+# and "simulation_builder_....R", this could be unified in future. Nevertheless the
+# functionality should be maintained as it was used for generate data for the publication
+# Thermodynamics of Random Reaction Networks; Fischer, Kleidon, Dittrich; 2015
+# TODO some documentation + cleanup
 
 sourced_netodeint_control <- T
 
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
-# Executed in the directory ..
-#
-# TODO comment and implement
-
-netodeint_collect_results <- function() {
-    save_wd <- getwd()   # just to be save
-    df <- data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
-                     flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=I(list()),
-                     re_df=I(list()), last_time=numeric(), last_msd=numeric())
-
-    bdir_v <- list.dirs(recursive=FALSE)
-
-    for(bp in bdir_v) {
-        l <- strsplit(bp, "b")[[1]][2]
-        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
-        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
-        setwd(bp)
-        net <- jrnf_read("net.jrnf")
-
-        vdir_v <- list.dirs(recursive=FALSE)
-        for(vp in vdir_v) {
-            l <- strsplit(vp, "v")[[1]][2]
-            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
-            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
-            setwd(vp)
-
-            edir_v <- list.dirs(recursive=FALSE)
-            for(ep in edir_v) {
-                i <- as.numeric(strsplit(ep,"/")[[1]][2])
-                setwd(ep)
-                
-                cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
-                run <- read.csv("run.con")
-
-                last_time_ <- run[nrow(run),1]
-                last_msd_  <- run[nrow(run),2]
-                last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
-                
-                last_flow <- calculate_flow(net, last_con$con)
-
-                flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
-                flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
-
-                #cat("flowb1 = ", flowb1, "\n")
-                #cat("flowb2 = ", flowb2, "\n")
-
-                df <- rbind(df,
-                              data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
-                              flow1=as.numeric(flowb1), flow2=as.numeric(flowb2), ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
-                              sp_df=I(list(last_con)), re_df=I(list(last_flow)), last_time=last_time_, last_msd=last_msd_))
-
-                setwd("..")
-            }
- 
-            setwd("..")
-        }
-
-        setwd("..")
-    }
-
-    setwd(save_wd)
-    results <- df
-    save(results, file="results.Rdata")
-}
-
-
-#
-# Above command has to be already executed we are only reloading those samples that are not finished
-#
-
-netodeint_recollect_results <- function() {
-    save_wd <- getwd()   # just to be save
-    load("results.Rdata")
-
-    df <-     data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
-                         flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=I(list()),
-                         re_df=I(list()), last_time=numeric(), last_msd=numeric())
-
-
-    nfinished <- which(results$last_time < 40000 & (results$last_msd > 1e-20 | results$last_msd < 1e-55)) 
-    if(length(nfinished) == 0) {
-        cat("already finished all the runs!\n")
-        return()
-    } else {
-        cat(nfinished, "  - are not yet done!\n")
-    }
-
-    bdir_v <- list.dirs(recursive=FALSE)
-
-    for(bp in bdir_v) {
-        l <- strsplit(bp, "b")[[1]][2]
-        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
-        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
-        setwd(bp)
-        net <- jrnf_read("net.jrnf")
-
-        vdir_v <- list.dirs(recursive=FALSE)
-        for(vp in vdir_v) {
-            l <- strsplit(vp, "v")[[1]][2]
-            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
-            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
-            setwd(vp)
-
-            edir_v <- list.dirs(recursive=FALSE)
-            for(ep in edir_v) {
-                if(!((nrow(df)+1) %in% nfinished)) {
-                    df <- rbind(df, results[nrow(df)+1,])
-                    cat(".")
-                } else {
-                    i <- as.numeric(strsplit(ep,"/")[[1]][2])
-                    setwd(ep)
-                
-                    cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
-                    run <- read.csv("run.con")
-
-                    last_time_ <- run[nrow(run),1]
-                    last_msd_  <- run[nrow(run),2]
-                    last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
-                
-                    last_flow <- calculate_flow(net, last_con$con)
-
-                    flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
-                    flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
-
-                    #cat("flowb1 = ", flowb1, "\n")
-                    #cat("flowb2 = ", flowb2, "\n")
-
-                    df <- rbind(df,
-                                data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
-                                    flow1=as.numeric(flowb1), flow2=as.numeric(flowb2), ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
-                                    sp_df=I(list(last_con)), re_df=I(list(last_flow)), last_time=last_time_, last_msd=last_msd_))
-
-                    setwd("..")
-                }
-            }
- 
-            setwd("..")
-        }
-
-        setwd("..")
-    }
-
-    setwd(save_wd)
-    results <- df
-    save(results, file="results.Rdata")
-}
-
+if(!exists("sourced_jrnf_network_io"))
+    source("jrnf_network_io.R")
 
 
 # The file first analyses the netfile with jrnf_create_pnn_file. The results
@@ -170,46 +31,6 @@ netodeint_recollect_results <- function() {
 # script named "submit_all.sh" is generated.
 #
 
-
-calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
-    bids_l <- list()
-
-    tmp <- .Random.seed
-    if(!is.null(b_seed)) {
-        .Random.seed <<- b_seed
-    }
-
-    if(sampling == "all") {
-        for(i in 1:nrow(pfile)) 
-            if(pfile$from[i] < pfile$to[i])
-                bids_l[[length(bids_l)+1]] <- c(pfile$from[i], pfile$to[i])  
-    } else if (sampling == "spath") {
-        for(i in sort(unique(pfile$shortest_path))) {   
-            if(is.finite(i) && i != 0) {
-                l <- which(pfile$shortest_path == i & pfile$from < pfile$to)
-
-                if(length(l) > sampling_par) 
-                    x <- sample(l, sampling_par)
-                else 
-                    x <- l
-
-                for(y in x)    
-                    bids_l[[length(bids_l)+1]] <- c(pfile$from[y], pfile$to[y])  
-            }
-        }
-    } else {
-        cat("No valid sampling specified!\n")
-        return() 
-    }
-
-
-    .Random.seed <<- tmp
-
-    return(bids_l)
-}
-
-
-#
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=c(), sampling_sym=TRUE,
@@ -378,6 +199,195 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     setwd(path_old)
 }
 
+
+
+# Executed in the directory ..
+#
+# TODO comment and implement
+
+netodeint_collect_results <- function() {
+    save_wd <- getwd()   # just to be save
+    df <- data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
+                     flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=I(list()),
+                     re_df=I(list()), last_time=numeric(), last_msd=numeric())
+
+    bdir_v <- list.dirs(recursive=FALSE)
+
+    for(bp in bdir_v) {
+        l <- strsplit(bp, "b")[[1]][2]
+        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
+        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
+        setwd(bp)
+        net <- jrnf_read("net.jrnf")
+
+        vdir_v <- list.dirs(recursive=FALSE)
+        for(vp in vdir_v) {
+            l <- strsplit(vp, "v")[[1]][2]
+            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
+            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
+            setwd(vp)
+
+            edir_v <- list.dirs(recursive=FALSE)
+            for(ep in edir_v) {
+                i <- as.numeric(strsplit(ep,"/")[[1]][2])
+                setwd(ep)
+                
+                cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
+                run <- read.csv("run.con")
+
+                last_time_ <- run[nrow(run),1]
+                last_msd_  <- run[nrow(run),2]
+                last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
+                
+                last_flow <- calculate_flow(net, last_con$con)
+
+                flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
+                flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
+
+                #cat("flowb1 = ", flowb1, "\n")
+                #cat("flowb2 = ", flowb2, "\n")
+
+                df <- rbind(df,
+                              data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
+                              flow1=as.numeric(flowb1), flow2=as.numeric(flowb2), ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
+                              sp_df=I(list(last_con)), re_df=I(list(last_flow)), last_time=last_time_, last_msd=last_msd_))
+
+                setwd("..")
+            }
+ 
+            setwd("..")
+        }
+
+        setwd("..")
+    }
+
+    setwd(save_wd)
+    results <- df
+    save(results, file="results.Rdata")
+}
+
+
+#
+# Above command has to be already executed we are only reloading those samples that are not finished
+#
+
+netodeint_recollect_results <- function() {
+    save_wd <- getwd()   # just to be save
+    load("results.Rdata")
+
+    df <-     data.frame(b1=numeric(), b2=numeric(), v1=numeric(), v2=numeric(),
+                         flow1=numeric(), flow2=numeric(), ep_max=numeric(), sp_df=I(list()),
+                         re_df=I(list()), last_time=numeric(), last_msd=numeric())
+
+
+    nfinished <- which(results$last_time < 40000 & (results$last_msd > 1e-20 | results$last_msd < 1e-55)) 
+    if(length(nfinished) == 0) {
+        cat("already finished all the runs!\n")
+        return()
+    } else {
+        cat(nfinished, "  - are not yet done!\n")
+    }
+
+    bdir_v <- list.dirs(recursive=FALSE)
+
+    for(bp in bdir_v) {
+        l <- strsplit(bp, "b")[[1]][2]
+        b1 <- as.numeric(strsplit(l, "_")[[1]][1])
+        b2 <- as.numeric(strsplit(l, "_")[[1]][2])
+        setwd(bp)
+        net <- jrnf_read("net.jrnf")
+
+        vdir_v <- list.dirs(recursive=FALSE)
+        for(vp in vdir_v) {
+            l <- strsplit(vp, "v")[[1]][2]
+            v1 <- as.numeric(strsplit(l, "_")[[1]][1])
+            v2 <- as.numeric(strsplit(l, "_")[[1]][2])
+            setwd(vp)
+
+            edir_v <- list.dirs(recursive=FALSE)
+            for(ep in edir_v) {
+                if(!((nrow(df)+1) %in% nfinished)) {
+                    df <- rbind(df, results[nrow(df)+1,])
+                    cat(".")
+                } else {
+                    i <- as.numeric(strsplit(ep,"/")[[1]][2])
+                    setwd(ep)
+                
+                    cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
+                    run <- read.csv("run.con")
+
+                    last_time_ <- run[nrow(run),1]
+                    last_msd_  <- run[nrow(run),2]
+                    last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
+                
+                    last_flow <- calculate_flow(net, last_con$con)
+
+                    flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
+                    flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
+
+                    #cat("flowb1 = ", flowb1, "\n")
+                    #cat("flowb2 = ", flowb2, "\n")
+
+                    df <- rbind(df,
+                                data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
+                                    flow1=as.numeric(flowb1), flow2=as.numeric(flowb2), ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
+                                    sp_df=I(list(last_con)), re_df=I(list(last_flow)), last_time=last_time_, last_msd=last_msd_))
+
+                    setwd("..")
+                }
+            }
+ 
+            setwd("..")
+        }
+
+        setwd("..")
+    }
+
+    setwd(save_wd)
+    results <- df
+    save(results, file="results.Rdata")
+}
+
+
+
+
+
+calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
+    bids_l <- list()
+
+    tmp <- .Random.seed
+    if(!is.null(b_seed)) {
+        .Random.seed <<- b_seed
+    }
+
+    if(sampling == "all") {
+        for(i in 1:nrow(pfile)) 
+            if(pfile$from[i] < pfile$to[i])
+                bids_l[[length(bids_l)+1]] <- c(pfile$from[i], pfile$to[i])  
+    } else if (sampling == "spath") {
+        for(i in sort(unique(pfile$shortest_path))) {   
+            if(is.finite(i) && i != 0) {
+                l <- which(pfile$shortest_path == i & pfile$from < pfile$to)
+
+                if(length(l) > sampling_par) 
+                    x <- sample(l, sampling_par)
+                else 
+                    x <- l
+
+                for(y in x)    
+                    bids_l[[length(bids_l)+1]] <- c(pfile$from[y], pfile$to[y])  
+            }
+        }
+    } else {
+        cat("No valid sampling specified!\n")
+        return() 
+    }
+
+
+    .Random.seed <<- tmp
+
+    return(bids_l)
+}
 
 
 create_pfile_bignet <- function(calc_sp_mul = TRUE) {
