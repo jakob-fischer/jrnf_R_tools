@@ -5,6 +5,9 @@
 # This file contains the core functionality to build and evaluate wide ranging
 # simulations - entire directories with multiple changing parameters. The 
 # functions to plot (and partially evaluate) the results is in "simulation_builder_plot.R".
+#
+# Parts of this this file / modules functionality are shared with "netodeint_control.R", this
+# could be unified in future.
 
 sourced_simulation_builder <- T
 
