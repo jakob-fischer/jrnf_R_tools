@@ -1,7 +1,16 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
 # R-tools for handling jrnf-network data and using parts of igraph
-# for network analysis and visualisation
+# for network analysis and visualisation.
+#
+# Internally reaction networks are stored in the following format:
+# A list of two data frames
+# - The first data frame contains all species with 'type' (integer),
+# energy (numeric), 'name' (character) and 'constant' (boolean).
+# - The second data frame contains all reactions with information whether
+# it is 'reversible' (boolean), the reaction constants 'c', 'k', 'k_b', 
+# 'activation' energy (numeric), lists on 'products' and 'educts' and 
+# their multiplicity in the reaction ('educts_mul' and 'products_mul')
 
 sourced_jrnf_network <- T
 
@@ -17,34 +26,8 @@ if(!exists("sourced_jrnf_network_io"))
     source("jrnf_network_io.R")
 
 
-#
-#
-
-jrnf_simplify_multiplicity <- function(net) {
-    species <- net[[1]]
-    reactions <- net[[2]]    
- 
-    for(i in 1:nrow(reactions)) { 
-        educts <- reactions$educts[[i]]
-        products <- reactions$products[[i]]
-
-        if(length(educts) > 0)
-        for(ed in 1:length(educts)) 
-            reactions$educts_mul[[i]][ed] <- 1
-            
-
-        if(length(products) > 0)
-        for(prod in 1:length(products)) 
-            reactions$products_mul[[i]][prod] <- 1
-    }
-
-    return(list(species, reactions))
-}
-
-
-
-
 # Transform all reactions to extended form where all multiplicities are 1
+
 jrnf_transform_extended <- function(net) {
     species <- net[[1]]
     reactions <- net[[2]]    
@@ -81,9 +64,62 @@ jrnf_transform_extended <- function(net) {
     return(list(species, reactions))
 }
 
+
+#
+#
+
+jrnf_transform_collapse <- function(net) {
+    
+    return(net)
+}
+
+
+# The function simplifies the representation of the reactions in the way that
+# all second order terms (multiple occurence of same educt or product) are 
+# simplified to first order. For example, the equation: "A + 3 B -> 3 A + C" is
+# simplified to "A + B -> A + C".
+# 
+# This only considers the jrnf-list representation. If a reaction is saved in the
+# form 1*X + 1*X -> 1*Y it is not simplified! For this use 
+# "jrnf_simplify_multiplicity" (below).
+
+jrnf_simplify_multiplicity_rep <- function(net) {
+    species <- net[[1]]
+    reactions <- net[[2]]    
+ 
+    for(i in 1:nrow(reactions)) { 
+        educts <- reactions$educts[[i]]
+        products <- reactions$products[[i]]
+
+        if(length(educts) > 0)
+        for(ed in 1:length(educts)) 
+            reactions$educts_mul[[i]][ed] <- 1
+            
+
+        if(length(products) > 0)
+        for(prod in 1:length(products)) 
+            reactions$products_mul[[i]][prod] <- 1
+    }
+
+    return(list(species, reactions))
+}
+
+
+# The function simplifies reactions in the way that all second order terms 
+# (multiple occurence of same educt or product) are simplified to first order. 
+# For example, the equation: "A + 3 B -> 3 A + C" is simplified to 
+# "A + B -> A + C".
+
+jrnf_simplify_multiplicity <- function(net) {
+    net <- jrnf_transform_collapse(net)
+    return(jrnf_simplify_multiplicity_rep(net))
+}
+
+
+
 # Randomize the reaction network by replacing each species id in each
 # reaction with a randomly choosen chemical species (uniformly)
-jrnf_randomize <- function(net) {
+jrnf_randomize_species <- function(net) {
     net <- jrnf_transform_extended(net)
 
     species <- net[[1]]
@@ -118,8 +154,8 @@ jrnf_graph_to_amatrix <- function(g) {
 
     x <- matrix(0, ncol=N, nrow=N)
     for(i in 1:M) {
-        a <- get.edge(g, i)[1]
-        b <- get.edge(g, i)[2]
+        a <- ends(g, i)[1,1]
+        b <- ends(g, i)[1,2]
 
         x[a,b] <- x[a,b] + 1
     }  
@@ -867,12 +903,10 @@ jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
 }
 
 
+#
+#
 
-# Function creates a string representation of the reaction 're_id' from the 
-# network 'net'
-
-jrnf_reaction_to_string <- function(net, re_id) {
-    side_to_string <- function(r, r_m) {
+jrnf_side_to_string <- function(r, r_m, net) {
         a <- ""
 
         if(!is.null(r))
@@ -884,16 +918,38 @@ jrnf_reaction_to_string <- function(net, re_id) {
 
                 if(i < length(r))
                     a <- paste(a, " + ", sep="")
-            }
+        }
 
-         return(a)
-      }
+    return(a)
+}
 
-    educts <- side_to_string(net[[2]]$educts[re_id][[1]],
-                             net[[2]]$educts_mul[re_id][[1]])
-   
-    products <- side_to_string(net[[2]]$products[re_id][[1]],
-                             net[[2]]$products_mul[re_id][[1]])
+
+#
+#
+
+jrnf_educts_to_string <- function(net, re_id) {
+    return(jrnf_side_to_string(net[[2]]$educts[re_id][[1]],
+                               net[[2]]$educts_mul[re_id][[1]],
+                               net))
+}
+
+
+#
+#
+
+jrnf_products_to_string <- function(net, re_id) {
+    return(jrnf_side_to_string(net[[2]]$products[re_id][[1]],
+                               net[[2]]$products_mul[re_id][[1]],
+                               net))
+}
+
+
+# Function creates a string representation of the reaction 're_id' from the 
+# network 'net'
+
+jrnf_reaction_to_string <- function(net, re_id) {
+    educts <- jrnf_educts_to_string(net, re_id)
+    products <- jrnf_products_to_string(net, re_id)
 
     return(paste(educts, " => ", products, sep=""))
 }
@@ -1176,7 +1232,6 @@ jrnf_sample_energies <- function(jrnf_network, kB_T=1, v=1, zero=FALSE) {
 
 # Legacy references / can be removed if no longer needed
 jrnf_simplify_X <- jrnf_simplify_multiplicity
+jrnf_randomize <- jrnf_randomize_species
 calculate_flow <- jrnf_calculate_flow
-load_jrnf <- jrnf_read
-write_jrnf <- jrnf_write
 
