@@ -3,7 +3,7 @@
 
 sourced_pathway_analysis_eval <- T
 
-if(!exits("sourced_tools"))
+if(!exists("sourced_tools"))
     source("tools.R") 
 
 if(!exists("sourced_cycles"))
@@ -13,6 +13,109 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
+#
+#
+# style==1 - standard style
+
+
+pa_h_add_count_column <- function(x) {
+    if(!is.data.frame(x))
+        return(data.frame(EMPTY=paste("(", as.character(1:x), ")", sep="")))
+    else 
+        return(cbind(x,
+                     data.frame(EMPTY=paste("(", as.character(1:nrow(x)), ")", sep=""))))
+}
+
+
+pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
+    con <- file(filename, "w")
+
+    # Standard argument for add_info (==1) is interpreted as having to replace it
+    # by a data frame that adds a number for each reaction as single string
+    if(is.numeric(add_info))
+        add_info <- pa_h_add_count_column(nrow(net[[2]]))
+
+    # fill up spaces (adds spaces to string to make the table code look smoother
+    fus <- function(x, s=15) {
+        if(nchar(x) >= s)
+            return(x)
+        else 
+            return(paste(c(x, rep(" ", s-nchar(x))), collapse=""))
+    }
+
+    # insert function writes string to file...
+    i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
+
+    # 
+    get_layout_head <- function() {  
+        b <- "r c r"
+
+        if(is.data.frame(add_info))
+            b <- paste(c(b, rep(" c", ncol(add_info)), " "), collapse="")
+            
+        return(b)  
+    }
+
+    #
+    draw_header <- function()  {
+        if(is.data.frame(add_info) && 
+           (ncol(add_info) != 1 || names(add_info)[[1]] != "EMPTY")) {
+            x <- " & & "
+            for(k in 1:ncol(add_info)) {
+                n <- names(add_info)[[k]]
+                if(n == "EMPTY") 
+                    n <- ""
+                x <- paste(x, "& ", n, " ", sep="")
+            }
+
+            x <- paste(x, "\\\\", sep="")
+
+            i("\\hline")
+        }
+    }
+
+    #
+    draw_reaction <- function(j) {
+        x <- paste(fus(jrnf_educts_to_string(net, j)), " & \\rightarrow & ",
+                   fus(jrnf_products_to_string(net, j)), " ", sep="")
+        
+        if(is.data.frame(add_info)) {
+            for(k in 1:ncol(add_info)) {
+                n <- names(add_info)[[k]]
+                if(n == "EMPTY") 
+                    n <- ""
+                x <- paste(x, "& ", fus(as.character(add_info[j,k])), " ", sep="")
+            }
+        }
+        i(paste(x, "\\\\", sep=""))
+    }
+
+    i("% created by pa_network_to_ltable!")
+    i("% please don't forget to include \\usepackage{multirow}.")
+    i("\\begin{table}[h]")
+    i("%\\caption[table title]{long table caption}")
+    i("\\begin{tabular}{ ", get_layout_head(), " }")
+    i("\\hline")
+    draw_header()
+    for(k in 1:nrow(net[[2]])) 
+        draw_reaction(k)
+    i("\\hline")
+    i("\\end{tabular}")
+    i("\\end{table}")
+    close(con)
+}
+
+
+#
+#
+# style==1 - standard style
+
+pa_pathways_to_ltable <- function(filename, net, add_info=c(), marked=c(), sep=c(), style=1) {
+    con <- file(filename, "w")
+    writeLines("bla",con)
+
+    close(con)
+}
 
 
 # The function checks in a matrix of elementary modes if they really are elementary
