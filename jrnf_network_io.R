@@ -420,6 +420,167 @@ jrnf_read_rea <- function(filename) {
 }
 
 
+# Loading database for transforming chemical species names into latex representations 
+# (to make more beautiful tables of reaction networks)
+species_latex_names <- read.csv("species_latex_names_db.csv", stringsAsFactors=F)
+
+
+# Function transforms species name into a more beautiful representation for
+# rendering in latex. For specific (special names) the database in 
+# species_latex_names_db.csv is used. For all other names the species are
+# transformed according to the following pattern:
+#
+# "1O2B" -> "_1 \mathrm{O}_2 \mathrm{B}"
+
+jrnf_species_name_to_latex_rep <- function(sp_n) {
+    x <- which(sp_n == species_latex_names$input)
+    if(length(x) == 1)
+        return(species_latex_names$output[x])
+
+    h <- NA
+    # looking for "_<number>"
+    if(grepl("_", sp_n)) {
+        h <- strsplit(sp_n, "_", fixed=TRUE)[[1]][2]
+        sp_n <- strsplit(sp_n, "_", fixed=TRUE)[[1]][1]
+    }
+
+    # looking for numeric at the start
+    y <- regexp(sp_n, "[0-9]+")
+    if(!is.null(y$start) && y$start[1] == 1) {
+        sp_n <- substring(sp_n, first=y$end[1]+1)
+        h <- y$match[1]
+    }
+  
+    y1 <- regexp(sp_n, "[[:alpha:]]+")$match
+    y1 <- paste("\\mathrm{", y1, "}", sep="")
+    y2 <- regexp(sp_n, "[[:digit:]]+")$match
+    y2 <- paste("_", y2, " ", sep="")
+
+    if(length(y2) != length(y1))
+        y2 <- c(y2, "")
+    y <- c(rbind(y1,y2))
+ 
+    if(!is.na(h))
+        y <- c("_", h, " ", y)
+
+    return(paste(y, collapse=""))
+}
+
+
+# Function adds one column to dataframe with name "EMPTY" and the content of 
+# strings counting from (1) ...  This additional information is used by the
+# functions below to add the number / id of reactions or pathways to the 
+# generated latex table.
+#
+# Parameter (<x>) is normally a data frame, but if one only wants to use the
+# index as additional information the numbers of rows of the new data frame
+# can be given.
+
+pa_h_add_count_column <- function(x) {
+    if(!is.data.frame(x))
+        return(data.frame(EMPTY=paste("(", as.character(1:x), ")", sep="")))
+    else 
+        return(cbind(x,
+                     data.frame(EMPTY=as.character(paste("(", as.character(1:nrow(x)), ")", sep="")))))
+}
+
+
+# Function Transforms a reaction network into a latex table that then is written 
+# to file. 
+#
+# net      - network that is transformed to table 
+# filename - latex table is written to this file
+# style=1  - standard style (others not available yet)
+# add_info - 1 (numeric) : means that counting is added as additional information
+#          - c()         : nothing is added
+#          -             : Data frame which has the same number of rows as the 
+#                          network has reactions
+# marked   - boolean array or vector of id's (numeric) that marks special reactions
+#            (not implemented yet but they will be probably hilighted grey - depending
+#             on style)
+# sep      - vector of id's of reactions after which a separation is drawn ("\hline")
+#            (not implemented yet)
+
+pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
+    con <- file(filename, "w")
+
+    # Standard argument for add_info (==1) is interpreted as having to replace it
+    # by a data frame that adds a number for each reaction as single string.
+    if(is.numeric(add_info))
+        add_info <- pa_h_add_count_column(nrow(net[[2]]))
+
+    # fill up spaces (adds spaces to string to make the table code look smoother
+    fus <- function(x, s=15) {
+        if(nchar(x) >= s)
+            return(x)
+        else 
+            return(paste(c(x, rep(" ", s-nchar(x))), collapse=""))
+    }
+
+    # insert function writes string to file...
+    i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
+
+    # 
+    get_layout_head <- function() {  
+        b <- "r c r"
+
+        if(is.data.frame(add_info))
+            b <- paste(c(b, rep(" c", ncol(add_info)), " "), collapse="")
+            
+        return(b)  
+    }
+
+    #
+    draw_header <- function()  {
+        if(is.data.frame(add_info) && 
+           (ncol(add_info) != 1 || names(add_info)[[1]] != "EMPTY")) {
+            x <- " & & "
+            for(k in 1:ncol(add_info)) {
+                n <- names(add_info)[[k]]
+                if(n == "EMPTY") 
+                    n <- ""
+                x <- paste(x, "& ", n, " ", sep="")
+            }
+
+            x <- paste(x, "\\\\", sep="")
+
+            i("\\hline")
+        }
+    }
+
+    #
+    draw_reaction <- function(j) {
+        x <- paste(fus(jrnf_educts_to_string(net, j)), " & \\rightarrow & ",
+                   fus(jrnf_products_to_string(net, j)), " ", sep="")
+        
+        if(is.data.frame(add_info)) {
+            for(k in 1:ncol(add_info)) {
+                n <- names(add_info)[[k]]
+                if(n == "EMPTY") 
+                    n <- ""
+                x <- paste(x, "& ", fus(as.character(add_info[j,k])), " ", sep="")
+            }
+        }
+        i(paste(x, "\\\\", sep=""))
+    }
+
+    i("% created by pa_network_to_ltable!")
+    i("% please don't forget to include \\usepackage{multirow}.")
+    i("\\begin{table}[h]")
+    i("%\\caption[table title]{long table caption}")
+    i("\\begin{tabular}{ ", get_layout_head(), " }")
+    i("\\hline")
+    draw_header()
+    for(k in 1:nrow(net[[2]])) 
+        draw_reaction(k)
+    i("\\hline")
+    i("\\end{tabular}")
+    i("\\end{table}")
+    close(con)
+}
+
+
+
 # Legacy references / can be removed if no longer needed
 load_jrnf <- jrnf_read
 write_jrnf <- jrnf_write

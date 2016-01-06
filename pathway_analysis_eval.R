@@ -17,21 +17,11 @@ if(!exists("sourced_jrnf_network"))
 #
 # style==1 - standard style
 
-
-pa_h_add_count_column <- function(x) {
-    if(!is.data.frame(x))
-        return(data.frame(EMPTY=paste("(", as.character(1:x), ")", sep="")))
-    else 
-        return(cbind(x,
-                     data.frame(EMPTY=paste("(", as.character(1:nrow(x)), ")", sep=""))))
-}
-
-
-pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
+pa_pathways_to_ltable <- function(filename, net, add_info=c(), marked=c(), sep=c(), style=1) {
     con <- file(filename, "w")
 
     # Standard argument for add_info (==1) is interpreted as having to replace it
-    # by a data frame that adds a number for each reaction as single string
+    # by a data frame that adds a number for each reaction as single string. If 
     if(is.numeric(add_info))
         add_info <- pa_h_add_count_column(nrow(net[[2]]))
 
@@ -43,7 +33,7 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
             return(paste(c(x, rep(" ", s-nchar(x))), collapse=""))
     }
 
-    # insert function writes string to file...
+# insert function writes string to file...
     i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
 
     # 
@@ -75,7 +65,7 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
     }
 
     #
-    draw_reaction <- function(j) {
+    draw_em <- function(j) {
         x <- paste(fus(jrnf_educts_to_string(net, j)), " & \\rightarrow & ",
                    fus(jrnf_products_to_string(net, j)), " ", sep="")
         
@@ -90,27 +80,7 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
         i(paste(x, "\\\\", sep=""))
     }
 
-    i("% created by pa_network_to_ltable!")
-    i("% please don't forget to include \\usepackage{multirow}.")
-    i("\\begin{table}[h]")
-    i("%\\caption[table title]{long table caption}")
-    i("\\begin{tabular}{ ", get_layout_head(), " }")
-    i("\\hline")
-    draw_header()
-    for(k in 1:nrow(net[[2]])) 
-        draw_reaction(k)
-    i("\\hline")
-    i("\\end{tabular}")
-    i("\\end{table}")
-    close(con)
-}
 
-
-#
-#
-# style==1 - standard style
-
-pa_pathways_to_ltable <- function(filename, net, add_info=c(), marked=c(), sep=c(), style=1) {
     con <- file(filename, "w")
     writeLines("bla",con)
 
