@@ -383,8 +383,6 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
 
 
 pa_backlog_apply <- function(bl, x) {
-    #print(bl)
-
     # if there is no backlog yet there is nothing to apply
     if(is.null(bl))
         return(x)
@@ -560,8 +558,6 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T) {
                         do.call("rbind", lapply(1:(length(sel_produce)*length(sel_consume)), f)) )
         else
             M_ <- cbind(matrix(M[sel_keep,], ncol=ncol(M)), matrix(rates[sel_keep], ncol=1))
-
-        #print(M_)
 
         rates_ <- as.vector(M_[,ncol(M_)])
         M_ <- matrix(M_[,-ncol(M_)], nrow=nrow(M_))
