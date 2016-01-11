@@ -28,7 +28,7 @@ if(!exists("sourced_jrnf_network"))
 
 pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
     con <- file(filename, "w")
-    N <- 0
+    N <- jrnf_calculate_stoich_mat(net)
 
     # Standard argument for add_info (==1) is interpreted as having to replace it
     # by a data frame that adds a number for each pathway as single string. 
@@ -77,8 +77,9 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
     # builds (return as string) the specific reaction with specific multiplicity
     # (if multiplicity is negative it means direction is reversed)
     build_rea <- function(rea, mul) {
-        educts_s <- jrnf_educts_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,")
-        products_s <- jrnf_products_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,") 
+        educts_s <- jrnf_educts_to_string(net, rea, jrnf_species_name_to_latex_rep, "\\,+\\,")
+        products_s <- jrnf_products_to_string(net, rea, jrnf_species_name_to_latex_rep, "\\,+\\,") 
+        x <- ""
 
         if(mul > 1)
             x <- paste(as.character(mul), "X & $", fus(educts_s), "$ & $\\rightarrow $ &  $",
@@ -92,18 +93,19 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
         else if (mul == -1) 
             x <- paste("  & $", fus(products_s), "$ & $\\rightarrow $ &  $",
                        fus(educts_s), " $ ", sep="")        
-
-        i(paste(x, "\\\\", sep=""))
+        return(x)
     }
 
     # builds (return as string) the additional columns / information for pathway
-    # 'i'. If first is numberic, the data (multirow) is written, else empty columns. 
-    build_info <- function(i, first=F) {
+    # 'l'. If first is numberic, the data (multirow) is written, else empty columns. 
+    build_info <- function(l, first=F) {
+        x <- ""
+
         if(is.data.frame(add_info)) {
             for(k in 1:ncol(add_info)) {
                 if(is.numeric(first))
                     x <- paste(x, "& ", fus(paste("\\multirow{", as.character(first) ,
-                                                  "}{*}{", as.character(add_info[j,k]),
+                                                  "}{*}{", as.character(add_info[l,k]),
                                                   "}", sep="")), 
                                " ", sep="")
                 else
@@ -119,13 +121,13 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
         # first list all the reactions in pathway
         x <- which(pw[j,] != 0)
         first <- length(x)+1
-        accum_s <- rep(0, nrow(N))
+        accum_s <- N %*% pw[j,]
 
         for(k in x) {
             i(paste(build_rea(k, pw[j,k]), build_info(j, first), "\\\\", sep=""))
             first <- F
-            accum_s[k] <- accum_s[k] + pw[j,k]
         }
+
         # now draw effective reaction
         lhs <- jrnf_side_to_string(which(accum_s < 0),
                                    abs(accum_s[accum_s < 0]),
@@ -136,7 +138,7 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
                                    net, jrnf_species_name_to_latex_rep, "\\,+\\,")
         
         i("\\cline{1-4}")
-        i(paste("net: & $", lhs, "$ & $\\rightarrow $ &  $", rhs, build_info(j, first), "\\\\", sep="")) 
+        i(paste("net: & $", lhs, " $ & $\\rightarrow $ &  $", rhs, " $ ", build_info(j, first), "\\\\", sep="")) 
         i("\\hline")
     }
 
@@ -152,7 +154,6 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
     draw_header()
     for(k in 1:nrow(pw)) 
         draw_pw(k)
-    i("\\hline")
     i("\\end{tabular}")
     i("\\end{table}")
     close(con)
