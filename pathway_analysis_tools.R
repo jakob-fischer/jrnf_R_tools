@@ -5,7 +5,7 @@
 
 sourced_pathway_analysis_tools <- T
 
-if(!exits("sourced_tools"))
+if(!exists("sourced_tools"))
     source("tools.R") 
 
 if(!exists("sourced_cycles"))
