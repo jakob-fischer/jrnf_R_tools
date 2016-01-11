@@ -456,6 +456,8 @@ jrnf_species_name_to_latex_rep <- function(sp_n) {
     y2 <- regexp(sp_n, "[[:digit:]]+")$match
     if(!is.null(y2))
         y2_ <- paste("_", y2, " ", sep="")
+    else 
+        y2_ <- y2
 
     if(length(y2_) != length(y1))
         y2_ <- c(y2_, "")
