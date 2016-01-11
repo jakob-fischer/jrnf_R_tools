@@ -566,6 +566,7 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
     i("% created by pa_network_to_ltable!")
     i("\\begin{table}[h]")
     i("%\\caption[table title]{long table caption}")
+    i("%\\label{tab:mytabletable}")
     i("\\begin{tabular}{ ", get_layout_head(), " }")
     i("\\hline")
     draw_header()
