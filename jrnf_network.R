@@ -907,17 +907,17 @@ jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
 #
 
 jrnf_side_to_string <- function(r, r_m, net, f=function(x) {  x  }, sum_c=" + ") {
-        a <- ""
+    a <- ""
 
-        if(!is.null(r))
-            for(i in 1:length(r)) {
-                if(r_m[i] != 1)
-                    a <- paste(a, as.numeric(r_m[i]), " ", sep="")
+    if(!is.null(r) && length(r) != 0)
+        for(i in 1:length(r)) {
+            if(r_m[i] != 1)
+                a <- paste(a, as.numeric(r_m[i]), " ", sep="")
 
-                a <- paste(a, f(net[[1]]$name[r[i]]), sep="")
+            a <- paste(a, f(net[[1]]$name[r[i]]), sep="")
 
-                if(i < length(r))
-                    a <- paste(a, sum_c, sep="")
+            if(i < length(r))
+                a <- paste(a, sum_c, sep="")
         }
 
     return(a)
