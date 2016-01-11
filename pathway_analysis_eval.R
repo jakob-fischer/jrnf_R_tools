@@ -13,44 +13,55 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
+# Function Transforms a number of pathways in a reaction network into a latex table 
+# that then is written to file. 
 #
-#
-# style==1 - standard style
+# net      - network that is transformed to table 
+# pw       - matrix describing the pathways (1 pathway = 1 row)           
+#          - 
+# filename - latex table is written to this file
+# style=1  - standard style (others not available yet)
+# add_info - 1 (numeric) : means that counting is added as additional information
+#          - c()         : nothing is added
+#          -             : Data frame which has the same number of rows as pathway
+#                        : matrix has rows
 
-pa_pathways_to_ltable <- function(filename, net, add_info=c(), marked=c(), sep=c(), style=1) {
+pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
     con <- file(filename, "w")
+    N <- 0
 
     # Standard argument for add_info (==1) is interpreted as having to replace it
-    # by a data frame that adds a number for each reaction as single string. If 
+    # by a data frame that adds a number for each pathway as single string. 
     if(is.numeric(add_info))
-        add_info <- pa_h_add_count_column(nrow(net[[2]]))
+        add_info <- pa_h_add_count_column(nrow(pw))
 
-    # fill up spaces (adds spaces to string to make the table code look smoother
-    fus <- function(x, s=15) {
+    # fill up spaces (adds spaces to string to make the table code look smoother)
+    fus <- function(x, s=25) {
         if(nchar(x) >= s)
             return(x)
         else 
             return(paste(c(x, rep(" ", s-nchar(x))), collapse=""))
     }
 
-# insert function writes string to file...
+    # insert function writes string to file...
     i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
 
-    # 
+    # Returns string for the main layout of table 
+    # <multiplicity> & <educts> & => & products ...
     get_layout_head <- function() {  
-        b <- "r c r"
+        b <- "l r c l"
 
         if(is.data.frame(add_info))
             b <- paste(c(b, rep(" c", ncol(add_info)), " "), collapse="")
             
         return(b)  
     }
-
-    #
+ 
+    # draws (write to file) the header
     draw_header <- function()  {
         if(is.data.frame(add_info) && 
            (ncol(add_info) != 1 || names(add_info)[[1]] != "EMPTY")) {
-            x <- " & & "
+            x <- " & & & "
             for(k in 1:ncol(add_info)) {
                 n <- names(add_info)[[k]]
                 if(n == "EMPTY") 
@@ -58,32 +69,92 @@ pa_pathways_to_ltable <- function(filename, net, add_info=c(), marked=c(), sep=c
                 x <- paste(x, "& ", n, " ", sep="")
             }
 
-            x <- paste(x, "\\\\", sep="")
-
+            i(paste(x, "\\\\", sep=""))
             i("\\hline")
         }
     }
 
-    #
-    draw_em <- function(j) {
-        x <- paste(fus(jrnf_educts_to_string(net, j)), " & \\rightarrow & ",
-                   fus(jrnf_products_to_string(net, j)), " ", sep="")
-        
+    # builds (return as string) the specific reaction with specific multiplicity
+    # (if multiplicity is negative it means direction is reversed)
+    build_rea <- function(rea, mul) {
+        educts_s <- jrnf_educts_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,")
+        products_s <- jrnf_products_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,") 
+
+        if(mul > 1)
+            x <- paste(as.character(mul), "X & $", fus(educts_s), "$ & $\\rightarrow $ &  $",
+                       fus(products_s), " $ ", sep="")        
+        else if (mul == 1) 
+            x <- paste("  & $", fus(educts_s), "$ & $\\rightarrow $ &  $",
+                       fus(products_s), " $ ", sep="")        
+        else if(mul < -1)
+            x <- paste(as.character(-mul), "X & $", fus(products_s), "$ & $\\rightarrow $ &  $",
+                       fus(educts_s), " $ ", sep="")        
+        else if (mul == -1) 
+            x <- paste("  & $", fus(products_s), "$ & $\\rightarrow $ &  $",
+                       fus(educts_s), " $ ", sep="")        
+
+        i(paste(x, "\\\\", sep=""))
+    }
+
+    # builds (return as string) the additional columns / information for pathway
+    # 'i'. If first is numberic, the data (multirow) is written, else empty columns. 
+    build_info <- function(i, first=F) {
         if(is.data.frame(add_info)) {
             for(k in 1:ncol(add_info)) {
-                n <- names(add_info)[[k]]
-                if(n == "EMPTY") 
-                    n <- ""
-                x <- paste(x, "& ", fus(as.character(add_info[j,k])), " ", sep="")
+                if(is.numeric(first))
+                    x <- paste(x, "& ", fus(paste("\\multirow{", as.character(first) ,
+                                                  "}{*}{", as.character(add_info[j,k]),
+                                                  "}", sep="")), 
+                               " ", sep="")
+                else
+                    x <- paste(x, "& ", fus(" "), " ", sep="")
             }
         }
-        i(paste(x, "\\\\", sep=""))
+ 
+        return(x)
+    }
+
+    #
+    draw_pw <- function(j) {
+        # first list all the reactions in pathway
+        x <- which(pw[j,] != 0)
+        first <- length(x)+1
+        accum_s <- rep(0, nrow(N))
+
+        for(k in x) {
+            i(paste(build_rea(k, pw[j,k]), build_info(j, first), "\\\\", sep=""))
+            first <- F
+            accum_s[k] <- accum_s[k] + pw[j,k]
+        }
+        # now draw effective reaction
+        lhs <- jrnf_side_to_string(which(accum_s < 0),
+                                   abs(accum_s[accum_s < 0]),
+                                   net, jrnf_species_name_to_latex_rep, "\\,+\\,")
+        
+        rhs <- jrnf_side_to_string(which(accum_s > 0),
+                                   accum_s[accum_s > 0],
+                                   net, jrnf_species_name_to_latex_rep, "\\,+\\,")
+        
+        i("\\cline{1-4}")
+        i(paste("net: & $", lhs, "$ & $\\rightarrow $ &  $", rhs, build_info(j, first), "\\\\", sep="")) 
+        i("\\hline")
     }
 
 
     con <- file(filename, "w")
-    writeLines("bla",con)
-
+    i("% created by pa_pathways_to_ltable!")
+    i("% please don't forget to include \\usepackage{multirow}.")
+    i("\\begin{table}[h]")
+    i("%\\caption[table title]{long table caption}")
+    i("%\\label{tab:mytabletable}")
+    i("\\begin{tabular}{ ", get_layout_head(), " }")
+    i("\\hline")
+    draw_header()
+    for(k in 1:nrow(pw)) 
+        draw_pw(k)
+    i("\\hline")
+    i("\\end{tabular}")
+    i("\\end{table}")
     close(con)
 }
 
