@@ -454,11 +454,12 @@ jrnf_species_name_to_latex_rep <- function(sp_n) {
     y1 <- regexp(sp_n, "[[:alpha:]]+")$match
     y1 <- paste("\\mathrm{", y1, "}", sep="")
     y2 <- regexp(sp_n, "[[:digit:]]+")$match
-    y2 <- paste("_", y2, " ", sep="")
+    if(!is.null(y2))
+        y2_ <- paste("_", y2, " ", sep="")
 
-    if(length(y2) != length(y1))
-        y2 <- c(y2, "")
-    y <- c(rbind(y1,y2))
+    if(length(y2_) != length(y1))
+        y2_ <- c(y2_, "")
+    y <- c(rbind(y1,y2_))
  
     if(!is.na(h))
         y <- c("_", h, " ", y)
@@ -501,7 +502,7 @@ pa_h_add_count_column <- function(x) {
 # sep      - vector of id's of reactions after which a separation is drawn ("\hline")
 #            (not implemented yet)
 
-pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
+jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
     con <- file(filename, "w")
 
     # Standard argument for add_info (==1) is interpreted as having to replace it
@@ -510,7 +511,7 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
         add_info <- pa_h_add_count_column(nrow(net[[2]]))
 
     # fill up spaces (adds spaces to string to make the table code look smoother
-    fus <- function(x, s=15) {
+    fus <- function(x, s=25) {
         if(nchar(x) >= s)
             return(x)
         else 
@@ -522,7 +523,7 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
 
     # 
     get_layout_head <- function() {  
-        b <- "r c r"
+        b <- "l c r"
 
         if(is.data.frame(add_info))
             b <- paste(c(b, rep(" c", ncol(add_info)), " "), collapse="")
@@ -542,30 +543,27 @@ pa_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(),
                 x <- paste(x, "& ", n, " ", sep="")
             }
 
-            x <- paste(x, "\\\\", sep="")
-
+            i(paste(x, "\\\\", sep=""))
             i("\\hline")
         }
     }
 
     #
     draw_reaction <- function(j) {
-        x <- paste(fus(jrnf_educts_to_string(net, j)), " & \\rightarrow & ",
-                   fus(jrnf_products_to_string(net, j)), " ", sep="")
+        educts_s <- jrnf_educts_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,")
+        products_s <- jrnf_products_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,") 
+
+        x <- paste("$", fus(educts_s), "$ & $\\rightarrow $ &  $",
+                   fus(products_s), " $ ", sep="")
         
-        if(is.data.frame(add_info)) {
-            for(k in 1:ncol(add_info)) {
-                n <- names(add_info)[[k]]
-                if(n == "EMPTY") 
-                    n <- ""
+        if(is.data.frame(add_info)) 
+            for(k in 1:ncol(add_info)) 
                 x <- paste(x, "& ", fus(as.character(add_info[j,k])), " ", sep="")
-            }
-        }
+
         i(paste(x, "\\\\", sep=""))
     }
 
     i("% created by pa_network_to_ltable!")
-    i("% please don't forget to include \\usepackage{multirow}.")
     i("\\begin{table}[h]")
     i("%\\caption[table title]{long table caption}")
     i("\\begin{tabular}{ ", get_layout_head(), " }")
