@@ -906,7 +906,7 @@ jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
 #
 #
 
-jrnf_side_to_string <- function(r, r_m, net) {
+jrnf_side_to_string <- function(r, r_m, net, f=function(x) {  x  }, sum_c=" + ") {
         a <- ""
 
         if(!is.null(r))
@@ -914,10 +914,10 @@ jrnf_side_to_string <- function(r, r_m, net) {
                 if(r_m[i] != 1)
                     a <- paste(a, as.numeric(r_m[i]), " ", sep="")
 
-                a <- paste(a, net[[1]]$name[r[i]], sep="")
+                a <- paste(a, f(net[[1]]$name[r[i]]), sep="")
 
                 if(i < length(r))
-                    a <- paste(a, " + ", sep="")
+                    a <- paste(a, sum_c, sep="")
         }
 
     return(a)
@@ -927,29 +927,29 @@ jrnf_side_to_string <- function(r, r_m, net) {
 #
 #
 
-jrnf_educts_to_string <- function(net, re_id) {
+jrnf_educts_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
     return(jrnf_side_to_string(net[[2]]$educts[re_id][[1]],
                                net[[2]]$educts_mul[re_id][[1]],
-                               net))
+                               net, f, sum_c))
 }
 
 
 #
 #
 
-jrnf_products_to_string <- function(net, re_id) {
+jrnf_products_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
     return(jrnf_side_to_string(net[[2]]$products[re_id][[1]],
                                net[[2]]$products_mul[re_id][[1]],
-                               net))
+                               net, f, sum_c))
 }
 
 
 # Function creates a string representation of the reaction 're_id' from the 
 # network 'net'
 
-jrnf_reaction_to_string <- function(net, re_id) {
-    educts <- jrnf_educts_to_string(net, re_id)
-    products <- jrnf_products_to_string(net, re_id)
+jrnf_reaction_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
+    educts <- jrnf_educts_to_string(net, re_id, f, sum_c)
+    products <- jrnf_products_to_string(net, re_id, f, sum_c)
 
     return(paste(educts, " => ", products, sep=""))
 }
