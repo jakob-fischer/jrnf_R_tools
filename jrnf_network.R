@@ -29,6 +29,7 @@ if(!exists("sourced_jrnf_network_io"))
 # Transform all reactions to extended form where all multiplicities are 1
 
 jrnf_transform_extended <- function(net) {
+    # separate species and reactions dataframe (easier to access)
     species <- net[[1]]
     reactions <- net[[2]]    
  
@@ -38,39 +39,74 @@ jrnf_transform_extended <- function(net) {
 
         if(length(educts) > 0)
         for(ed in 1:length(educts)) {
+            # If multiplicity is higher 1 add aditional entries (with multiplicity 1)...
             if(as.integer(reactions$educts_mul[[i]][ed]) > 1) {
                 for(k in 2:as.integer(reactions$educts_mul[[i]][ed])) {
                     reactions$educts[[i]] <- c(reactions$educts[[i]], reactions$educts[[i]][ed])
                     reactions$educts_mul[[i]] <- c(reactions$educts_mul[[i]], 1) 
                 }    
             } 
+            # ...and set multiplicity of original entry to 1.
             reactions$educts_mul[[i]][ed] <- 1
         }            
 
 
         if(length(products) > 0)
         for(prod in 1:length(products)) {
+            # If multiplicity is higher 1 add aditional entries (with multiplicity 1)...
             if(as.integer(reactions$products_mul[[i]][prod]) > 1) {
                 for(k in 2:as.integer(reactions$products_mul[[i]][prod])) {
                     reactions$products[[i]] <- c(reactions$products[[i]], reactions$products[[i]][prod])
                     reactions$products_mul[[i]] <- c(reactions$products_mul[[i]], 1) 
                 }
             }
+            # ...and set multiplicity of original entry to 1.
             reactions$products_mul[[i]][prod] <- 1
         }
 
     }
 
+    # reassemble network
     return(list(species, reactions))
 }
 
 
-#
-#
+# Reverse of jrnf_transform_extended. If some reactions are internally formulated
+# like "A + A -> B + C + C" they are collapsed to "2 A -> B + 2 C". 
+# TODO: implement + check
 
-jrnf_transform_collapse <- function(net) {
-    
-    return(net)
+jrnf_transform_collapse <- function(net) {   
+    if(nrow(net[[2]]) > 0)
+    for(i in 1:nrow(net[[2]])) { 
+        educts <- unique(net[[2]]$educts[[i]])
+        educts_mul <- net[[2]]$educts_mul[[i]][!duplicated(net[[2]]$educts[[i]])]
+        products <- unique(net[[2]]$products[[i]])
+        products_mul <- net[[2]]$products_mul[[i]][!duplicated(net[[2]]$products[[i]])]
+        
+        if(length(educts) > 0) {
+            for(ed in which(duplicated(net[[2]]$educts[[i]]))) {
+                # find educts and add up
+                j <- which(educts == net[[2]]$educts[[i]][ed])
+                educts_mul[j] <- educts_mul[j] + net[[2]]$educts_mul[[i]][ed]
+            }  
+
+            net[[2]]$educts[[i]] <- educts
+            net[[2]]$educts_mul[[i]] <- educts_mul           
+        }
+
+        if(length(products) > 0) {
+            for(prod in which(duplicated(net[[2]]$products[[i]]))) {
+                # find products and add up
+                j <- which(products == net[[2]]$products[[i]][prod])
+                products_mul[j] <- products_mul[j] + net[[2]]$products_mul[[i]][prod]
+            }      
+
+            net[[2]]$products[[i]] <- products
+            net[[2]]$products_mul[[i]] <- products_mul          
+        }
+    }
+
+    return(net)    
 }
 
 
@@ -93,8 +129,7 @@ jrnf_simplify_multiplicity_rep <- function(net) {
 
         if(length(educts) > 0)
         for(ed in 1:length(educts)) 
-            reactions$educts_mul[[i]][ed] <- 1
-            
+            reactions$educts_mul[[i]][ed] <- 1  
 
         if(length(products) > 0)
         for(prod in 1:length(products)) 
@@ -116,7 +151,6 @@ jrnf_simplify_multiplicity <- function(net) {
 }
 
 
-
 # Randomize the reaction network by replacing each species id in each
 # reaction with a randomly choosen chemical species (uniformly)
 jrnf_randomize_species <- function(net) {
@@ -130,37 +164,18 @@ jrnf_randomize_species <- function(net) {
         educts <- reactions$educts[[i]]
         products <- reactions$products[[i]]
 
+        # set ids of all educts of reaction 'i' randomly
         if(length(educts) > 0)
         for(ed in 1:length(educts))
             reactions$educts[[i]][ed] <- sample(1:N, 1)  
 
+        # set ids of all products of reaction 'i' randomly
         if(length(products) > 0)
         for(prod in 1:length(products))  
             reactions$products[[i]][prod] <- sample(1:N, 1)  
     }
 
     return(list(species, reactions))
-}
-
-
-
-
-
-
-# Converts an igraph graph to an adjacency matrix...
-jrnf_graph_to_amatrix <- function(g) {
-    N <- length(V(g))
-    M <- length(E(g))
-
-    x <- matrix(0, ncol=N, nrow=N)
-    for(i in 1:M) {
-        a <- ends(g, i)[1,1]
-        b <- ends(g, i)[1,2]
-
-        x[a,b] <- x[a,b] + 1
-    }  
-
-    return(x)
 }
 
 
@@ -217,7 +232,6 @@ jrnf_calculate_stoich_mat <- function(net_N) {
 
     return(jrnf_calculate_stoich_mat_out(net_N)-jrnf_calculate_stoich_mat_in(net_N))
 }
-
 
 
 # Calculate the rate of concentration change assuming the reactions are
@@ -1203,29 +1217,33 @@ jrnf_copy_linearize <- function(infile, outfile, C) {
 }
 
 
+# Function samples energies (activation energies and chemical standard potential)
+# for the reaction network 'net' and calculates the assoziated rate constants.
+# The function allows tu set all energies to zero instead of using the standard 
+# distributions (zero = TRUE). Also if only 1-1 and 2-2 reactions are present
+# the parameter v can be used to virtually increase the density of the system
+# and increase the rates of the 2-2 reactions.
 
-jrnf_sample_energies <- function(jrnf_network, kB_T=1, v=1, zero=FALSE) {
-    N <- nrow(jrnf_network[[1]])
-    M <- nrow(jrnf_network[[2]])
+jrnf_sample_energies <- function(net, kB_T=1, v=1, zero=FALSE) {
+    N <- nrow(net[[1]])
+    M <- nrow(net[[2]])
 
-    rea_is_1on1 <- (as.numeric(lapply(jrnf_network[[2]]$educts, FUN=length)) == 1) &&
-                   (as.numeric(lapply(jrnf_network[[2]]$educts_mul, FUN=length)) == 1) &&
-                   (as.numeric(lapply(jrnf_network[[2]]$products, FUN=length)) == 1) &&
-                   (as.numeric(lapply(jrnf_network[[2]]$products_mul, FUN=length)) == 1) 
+    rea_is_1on1 <- (as.numeric(lapply(net[[2]]$educts, FUN=length)) == 1) &&
+                   (as.numeric(lapply(net[[2]]$educts_mul, FUN=length)) == 1) &&
+                   (as.numeric(lapply(net[[2]]$products, FUN=length)) == 1) &&
+                   (as.numeric(lapply(net[[2]]$products_mul, FUN=length)) == 1) 
 
 
     # Draw numbers for species energy and activation energy   
     if(zero) {
-        jrnf_network[[1]]$energy <- rep(0,N)
-        jrnf_network[[2]]$activation <- rep(0,M)
+        net[[1]]$energy <- rep(0,N)
+        net[[2]]$activation <- rep(0,M)
     } else {
-        jrnf_network[[1]]$energy <- rnorm(N)
-        jrnf_network[[2]]$activation <- rplancklike(M)+log(v)*as.numeric(!rea_is_1on1)
+        net[[1]]$energy <- rnorm(N)
+        net[[2]]$activation <- rplancklike(M)+log(v)*as.numeric(!rea_is_1on1)
     }
 
-
-
-    return (jrnf_calc_reaction_r(jrnf_network, kB_T))
+    return (jrnf_calc_reaction_r(net, kB_T))
 }
 
 
@@ -1234,4 +1252,5 @@ jrnf_sample_energies <- function(jrnf_network, kB_T=1, v=1, zero=FALSE) {
 jrnf_simplify_X <- jrnf_simplify_multiplicity
 jrnf_randomize <- jrnf_randomize_species
 calculate_flow <- jrnf_calculate_flow
+jrnf_graph_to_amatrix <- graph_to_amatrix
 

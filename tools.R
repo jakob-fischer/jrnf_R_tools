@@ -6,6 +6,7 @@
 sourced_tools <- T
 
 library(pracma)   # for gcd function
+library(igraph)
 
 # 'acc' was a self implemented version with the functionality of cumsum before
 # TODO If all code using "acc" has been changed to "cumsum", remove
@@ -20,6 +21,7 @@ clear_sourced_flags <- function() {
     for(i in ls()[grepl("sourced_", ls())])
         rm(i)
 }
+
 
 # This function removes all the duplicates / permutations if one checks for 
 # subisomorphisms with a directed ring with the igraph method 
@@ -106,4 +108,22 @@ scale_mat_rows <- function(mat, vec) {
     }    
 
     return(mat * matrix(rep(vec, ncol(mat)), ncol=ncol(mat)))
+}
+
+
+# Converts an igraph graph to an adjacency matrix...
+
+graph_to_amatrix <- function(g) {
+    N <- length(V(g))
+    M <- length(E(g))
+
+    x <- matrix(0, ncol=N, nrow=N)
+    for(i in 1:M) {
+        a <- ends(g, i)[1,1]
+        b <- ends(g, i)[1,2]
+
+        x[a,b] <- x[a,b] + 1
+    }  
+
+    return(x)
 }

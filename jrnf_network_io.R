@@ -523,7 +523,8 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
     # insert function writes string to file...
     i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
 
-    # 
+    # Returns the layout of the table (first three columns are "right hand side", 
+    # "=>" and "left hand side".
     get_layout_head <- function() {  
         b <- "l c r"
 
@@ -533,7 +534,8 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
         return(b)  
     }
 
-    #
+    # Draws (writes to file) the header. If add_info is not a data frame no 
+    # header is drawn. 
     draw_header <- function()  {
         if(is.data.frame(add_info) && 
            (ncol(add_info) != 1 || names(add_info)[[1]] != "EMPTY")) {
@@ -550,14 +552,16 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
         }
     }
 
-    #
+    # Draws (writes to file) the reaction with index 'j'.
     draw_reaction <- function(j) {
+        # create educt string and product string (with latex representation)
         educts_s <- jrnf_educts_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,")
         products_s <- jrnf_products_to_string(net, j, jrnf_species_name_to_latex_rep, "\\,+\\,") 
 
         x <- paste("$", fus(educts_s), "$ & $\\rightarrow $ &  $",
                    fus(products_s), " $ ", sep="")
         
+        # Add columns with additional information
         if(is.data.frame(add_info)) 
             for(k in 1:ncol(add_info)) 
                 x <- paste(x, "& ", fus(as.character(add_info[j,k])), " ", sep="")
@@ -579,7 +583,6 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
     i("\\end{table}")
     close(con)
 }
-
 
 
 # Legacy references / can be removed if no longer needed
