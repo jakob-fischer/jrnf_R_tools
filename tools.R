@@ -16,10 +16,10 @@ acc <- cumsum
 
 # Removes all flags that indicate that files have been sourced into the current
 # session by removing variables starting with "sourced_"
+# TODO check
 
 clear_sourced_flags <- function() {
-    for(i in ls()[grepl("sourced_", ls())])
-        rm(i)
+    rm(list= ls()[grepl("sourced_", ls())])
 }
 
 
@@ -114,16 +114,6 @@ scale_mat_rows <- function(mat, vec) {
 # Converts an igraph graph to an adjacency matrix...
 
 graph_to_amatrix <- function(g) {
-    N <- length(V(g))
-    M <- length(E(g))
-
-    x <- matrix(0, ncol=N, nrow=N)
-    for(i in 1:M) {
-        a <- ends(g, i)[1,1]
-        b <- ends(g, i)[1,2]
-
-        x[a,b] <- x[a,b] + 1
-    }  
-
-    return(x)
+    a <- get.adjacency(g)
+    return(matrix(as.numeric(a), ncol=ncol(a)))
 }

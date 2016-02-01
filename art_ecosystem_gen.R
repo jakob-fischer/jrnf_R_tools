@@ -60,7 +60,7 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000, x=0.5) {
     composition <- matrix(0, nrow=N, ncol=comp_no)
     energy <- rnorm(N)         
-    lambda <- (-1/(N))*log(x)
+    lambda <- (-1/comp_no)*log(x)
     component_names <- c("C", "N", "O", "H", "P")
     component_names <- component_names[1:comp_no]
     if(is.null(max_dup))
@@ -255,7 +255,7 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 #      Especially the way the elementary composition is drawn needs to be made easier (parameter of distribution!)
 
 jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod_no=0, mod_f=1, 
-                                             no_reordering=F, enforce_transfer=T) { 
+                                             no_reordering=T, enforce_transfer=T) { 
 
     # TODO check parameters   (N/mod_no has to be a natural number)!
     # module of each species / first entry is (NO SPECIES and last hv)
@@ -411,7 +411,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
     if(comp_no == 1)
         x <- hcae_draw_elem_composition(N, comp_no, as.integer(N), 1000, 0.5)
     else
-        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N/4), 1000, 0.1)
+        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N/4), 1000, 0.5)
 
     composition <- x$composition
     energy <- x$energy
@@ -455,7 +455,6 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
         rea_no <- x[[3]]   
         transfer <- x[[4]]  
     }
-
 
 
     cat("having ", sum(possible_reas != 0), " possible reactions out of ", (N+2)^4, "!\n")
