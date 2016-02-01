@@ -1249,6 +1249,7 @@ jrnf_sample_energies <- function(net, kB_T=1, v=1, zero=FALSE) {
 
 
 # Legacy references / can be removed if no longer needed
+
 jrnf_simplify_X <- jrnf_simplify_multiplicity
 jrnf_randomize <- jrnf_randomize_species
 calculate_flow <- jrnf_calculate_flow
