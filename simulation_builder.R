@@ -433,7 +433,7 @@ sb_em_analysis <- function(res, net, c_max=5) {
         # species specific data
         sp[[i]]$degree <- deg
         sp[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
-        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_re[[i]]$entropy_prod)
+        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
     }
 
     
@@ -490,7 +490,7 @@ sb_em_analysis <- function(res, net, c_max=5) {
 
 
 sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=100) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     path_old <- getwd()              # Save to restore properly
@@ -513,22 +513,50 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
     jrnf_create_pnn_file(net, "pfile.csv", "nfile.csv")
     pfile <- read.csv("pfile.csv")
     
-    # Calculate reduced (no hv) stoichiometric matrix            
-    N_red <- jrnf_calculate_stoich_mat(net)
-    N_red <- N_red[-nrow(N_red),] 
+    # Calculate stoichiometric matrix            
+    N <- jrnf_calculate_stoich_mat(net)
 
-  
     # sample <N_energies> different sets of energies
     for(i in 1:N_energies) {
         # create new directory and enter
         system(paste("mkdir ", i, sep=""))
         setwd(as.character(i))
-        
-         net <- jrnf_calc_reaction_r(net, 1)
+        net <- jrnf_ae_draw_energies(net)
+        net <- jrnf_calc_reaction_r(net, 1)
      
         cat("writing energies in netfile.\n")
         jrnf_write("net_energies.jrnf", net)
 
+        # Generate simulations without driving force (hv) by removing all photochemical reactions first
+        for(c in cvalues) {
+            net_red <- list(net[[1]][-nrow(N),], net[[2]][ N[nrow(N),]==0, ])
+            N_red <- N[-nrow(N), N[nrow(N),]==0] 
+            jrnf_write("net_reduced.jrnf", net_red)
+            ff <- paste(c("v0_", "c", as.character(c)), collapse="")
+            system(paste("mkdir", ff)) 
+            setwd(ff) 
+            for(j in 1:N_runs) {
+                s_sample <- sample(ncol(N_red))
+                s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
+                initial_con <- rep(c, length(net[[1]]$name)-1)
+
+                for(k in 1:length(s_sign)) {
+                    rea <- N_red[,s_sample[k]]*s_sign[k]
+
+                    l <- min(-((initial_con - c/100)/rea)[rea < 0])
+                    initial_con <- pmax(0, initial_con + rea*l)
+                }
+
+                df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
+                df[as.vector(net_red[[1]]$name)] <- initial_con
+                write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
+
+                scripts <- c(scripts, 
+                             paste(odeint_p, " simulate solve_implicit net=", i, "/net_reduced.jrnf con=", i, "/", ff, "/", j, ".con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=500", sep=""))
+            }
+
+            setwd("..")
+        }
 
         # Inner loop (create simulations with different boundary values and differenc initial concentrations
         for(v in bvalues) for(c in cvalues) {
@@ -610,6 +638,12 @@ sb_collect_results_ecol <- function() {
     for(bp in Edir_v) {
         setwd(bp)
         net <- jrnf_read("net_energies.jrnf")
+        N <- jrnf_calculate_stoich_mat(net)
+        if(file.exists("net_reduced.jrnf"))
+            net_red <- jrnf_read("net_reduced.jrnf")
+        else 
+            net_red <- NA
+
         bp <- as.numeric(strsplit(bp,"/")[[1]][2])
 
         vdir_v <- list.dirs(recursive=FALSE)
@@ -629,10 +663,18 @@ sb_collect_results_ecol <- function() {
                 last_time_ <- run[nrow(run),1]
                 last_msd_  <- run[nrow(run),2]
                 last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
-                
+
+                # v == 0 means simulation is not driven and was done with net_red 
+                # add concentration of hv==0 for calculation of rates
+                if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1)
+                    last_con <- rbind(last_con, 0)
+
                 last_flow <- jrnf_calculate_flow(net, last_con$con)
-                #flowb <- calculate_flow_dif(nrow(net[[1]]), net, last_flow$flow_effective)
-            
+
+                # set flow for photochemical reactions to zero if v==0
+                if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1) 
+                   last_flow[N[which(net[[1]]$name == "hv"),] != 0,] <- 0
+
                 cc <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)
                 flowb <- -cc[nrow(net[[1]])]
                 err_cc <- max(abs(cc[-nrow(net[[1]])]))
@@ -640,7 +682,8 @@ sb_collect_results_ecol <- function() {
 
                 df <- rbind(df,
                             data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                       v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb),  
+                                       v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb), 
+                                       relaxing_sim=as.logical(v == 0), 
                                        err_cc=err_cc, err_cc_rel=err_cc_rel,
                                        ep_tot=as.numeric(sum(last_flow$entropy_prod)), 
                                        sp_df=I(list(last_con)), re_df=I(list(last_flow)),
@@ -700,20 +743,11 @@ sb_em_analysis_ecol <- function(res, net, c_max=5) {
     # species degree
     deg <- as.vector(degree(jrnf_to_undirected_network(net)))    
 
-
-    for(i in 1:nrow(res)) {
-        cat("============================================================\n")
-        cat(" i=", i, "  v=", res$v[i], "  c=", res$c[i], "\n")  
-
-        # calculating directed network
-        gc()
-        g <- jrnf_to_directed_network_d(net, res$re_df[[i]]$flow_effective)
-        cat(".")         
-
-        # calculating elementary modes
+    # helper function
+    # calculating elementary modes
+    calc_em_info <- function(rev) {
         # TODO
-        rev <- res$re_df[[i]]$flow_effective
-        rates_rev <- abs(res$re_df[[i]]$flow_effective) 
+        rates_rev <- abs(rev) 
         net_rev <- jrnf_reverse_reactions(net, rev)
       
         cdif_r <- jrnf_calculate_concentration_change(net_rev, rates_rev)
@@ -726,7 +760,8 @@ sb_em_analysis_ecol <- function(res, net, c_max=5) {
                                        products=I(list(n_hv)), products_mul=I(list(1))))
         rates_rev <- c(rates_rev, -cdif_r[n_hv])
 
-        x <- pa_analysis(net_rev, rates_rev, 0, 0)
+        #x <- pa_analysis(net_rev, rates_rev, 0, 0)
+        x <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T)
 
         # rename results and sort decreasing with fraction of v explained...
         x_em <- x[[1]]
@@ -738,9 +773,12 @@ sb_em_analysis_ecol <- function(res, net, c_max=5) {
         x_rates <- x_rates[o] 
         x_sum <- x_sum[o]
 
-        em_no[i] <- nrow(x_em)
-        err_rel_max[i] <- x[[3]]
-        err[i] <- x[[4]]
+        em_no[i] <<- nrow(x_em)
+        # TODO pa_decompose (in contrary to pa_analysis) does not calculate errors
+        err_rel_max[i] <<- NA
+        err[i] <<- NA
+        #err_rel_max[i] <- x[[3]]
+        #err[i] <- x[[4]]
 
         # construct vector containing fraction of rate explained by pathway (with rate)
         exp_r <- rep(0, nrow(x_em))
@@ -762,16 +800,35 @@ sb_em_analysis_ecol <- function(res, net, c_max=5) {
 
             m <- which(apply(em_matrix, 1, identical, em))
             if(length(m) == 0) {    # add em to em_matrix
-                em_matrix <- rbind(em_matrix, em)
+                em_matrix <<- rbind(em_matrix, em)
                 em_id[l] <- nrow(em_matrix)
             } else {
                 em_id[l] <- m[1]
             }
         }
 
+        return(data.frame(id=em_id, rate=x_rates, exp_r=exp_r, exp_r_cum=cumsum(exp_r), 
+                          exp_d=exp_d, exp_d_acc=cumsum(exp_d)))
+    }
+
+
+    # MAIN LOOP
+    #
+
+    for(i in 1:nrow(res)) {
+        cat("============================================================\n")
+        cat(" i=", i, "  v=", res$v[i], "  c=", res$c[i], "\n")  
+
+        # calculating directed network
+        gc()
+        g <- jrnf_to_directed_network_d(net, res$re_df[[i]]$flow_effective)
+        cat(".")         
+        
         # build data frame refering to expansion of simulation's rate by elementary modes
-        em_ex[[i]] <- data.frame(id=em_id, rate=x_rates, exp_r=exp_r, exp_r_cum=cumsum(exp_r), 
-                                 exp_d=exp_d, exp_d_acc=cumsum(exp_d))
+        if(!res$relaxing_sim[i] & (res$err_cc_rel[i] < 0.1 | is.na(res$err_cc_rel[i])))
+            em_ex[[i]] <- calc_em_info(res$re_df[[i]]$flow_effective)
+        else
+            em_ex[[i]] <- NA
 
         # calculation of cycles 
         for(j in 1:c_max) 
@@ -790,7 +847,7 @@ sb_em_analysis_ecol <- function(res, net, c_max=5) {
         # species specific data
         sp[[i]]$degree <- deg
         sp[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
-        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_re[[i]]$entropy_prod)
+        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
     }
 
     
@@ -837,7 +894,8 @@ sb_em_cross_analysis <- function(net, em, res_em) {
     informationE <- rep(0, nrow(res_em))
     
  
-    for(i in 1:nrow(res_em)) {
+    for(i in 1:nrow(res_em)) 
+        if(is.data.frame(res_em$em_ex[[i]])) {
         em_exp_r_cross[i, res_em$em_ex[[i]]$id] <- res_em$em_ex[[i]]$exp_r
         exp_r_sum[i] <- sum(res_em$em_ex[[i]]$exp_r)
         exp_r_max[i] <- max(res_em$em_ex[[i]]$exp_r)
