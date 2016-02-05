@@ -646,9 +646,9 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F) {
     N <- matrix(N[branch_sp,], nrow=length(branch_sp))   
     turnover <- pa_calculate_turnover(scale_mat_rows(t(N), path_orig[sel_rea]))
 
-    if(branch_all)
-        cutoff <- max(abs(N %*% path_orig[sel_rea])) / (1e4)     
-    else 
+    #if(branch_all)
+    #    cutoff <- max(abs(N %*% path_orig[sel_rea])) / (1e4)     
+    #else 
         cutoff <- 0
 
     x <- pa_decompose_plain(N, path_orig[sel_rea], order(turnover), do_backlog, cutoff)
