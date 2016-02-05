@@ -519,14 +519,21 @@ pa_backlog_add <- function(bl, key, x) {
 }
 
 
-pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T) {
+# TODO This function need a way to handle numerical problems
+# (Especially when used with fuzzy input) no pathway but steady state vector
+# these can really slow down the calculation...
+#
+
+pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
     rates <- pw_init
     turnover <- 0.5*as.vector(abs(N) %*% rates) 
     rea_col <- -(1:nrow(N))
     M <- cbind(t(N), diag(ncol(N)))
 
+    #cat("CALL DECOMPOSE PLAIN\n")
     for(m in 1:length(branch_sp)) {
         i <- branch_sp[m]
+        #cat("i= ", i, "\n")
 
         sel_keep <- which(M[,i] == 0)
         sel_produce <- which(M[,i] > 0)
@@ -568,6 +575,11 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T) {
         M_ <- matrix(M_[x$keep,], ncol=ncol(M_))        
         rates_ <- x$coef
 
+        if(cutoff != 0) {
+            M_ <- matrix(M_[rates_ > cutoff,], ncol=ncol(M_)) 
+            rates_ <- rates_[rates_ > cutoff]         
+        }
+
         backlog <- c()
         repeat{
             keep_pw <- pa_find_elementary_pw(matrix(M_[,rea_col], nrow=nrow(M_)))
@@ -576,10 +588,13 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T) {
                 break
             }
 
+            #cat("having ", length(keep_pw), " pathways!\n")
+            #cat(sum(!keep_pw), " have to be dropped.\n")
+
             for(k in which(!keep_pw)) {
                 # recursive call just keep the backlog
 
-                y <- pa_decompose_plain(N, M_[k,rea_col], branch_sp[1:m], F)
+                y <- pa_decompose_plain(N, M_[k,rea_col], branch_sp[1:m], F, cutoff)
                 
                 key_ext <- pa_extend_pathways(M_[k,rea_col],N)
                 backlog <- pa_backlog_add(backlog, key_ext, list(M=y$M, coef=y$coef))   
@@ -612,22 +627,31 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T) {
 
 # BLA 
 
-pa_decompose <- function(N_orig, path_orig, do_backlog=T) {
+pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F) {
     # calculate the reaction set for which decomposition is done
     sel_rea <- which(path_orig != 0)
 
     # only species that are created and consumed by above reaction set are 
     # taken as branching species
     N <- matrix(N_orig[,sel_rea], nrow(N_orig), length(sel_rea))
-    branch_sp <- which(apply(N, 1, max) > 0 & apply(N, 1, min) < 0 & N %*% path_orig[sel_rea] == 0)
+    if(!branch_all)
+        branch_sp <- which(apply(N, 1, max) > 0 & apply(N, 1, min) < 0 & N %*% path_orig[sel_rea] == 0)
+    else
+        branch_sp <- which(apply(N, 1, max) > 0 & apply(N, 1, min) < 0)
 
     if(length(branch_sp) == 0)
         return(list(M=matrix(path_orig, nrow=1), coef=c(1)))
 
     # reduce N matrix even further
     N <- matrix(N[branch_sp,], nrow=length(branch_sp))   
-    
-    x <- pa_decompose_plain(N, path_orig[sel_rea], nrow(N):1, do_backlog)
+    turnover <- pa_calculate_turnover(scale_mat_rows(t(N), path_orig[sel_rea]))
+
+    if(branch_all)
+        cutoff <- max(abs(N %*% path_orig[sel_rea])) / (1e4)     
+    else 
+        cutoff <- 0
+
+    x <- pa_decompose_plain(N, path_orig[sel_rea], order(turnover), do_backlog, cutoff)
 
     # transform back to space with all reactions in it!
     M_ret <- matrix(0, nrow=nrow(x$M), ncol=ncol(N_orig))
