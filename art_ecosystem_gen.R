@@ -10,6 +10,21 @@ if(!exists("sourced_jrnf_network"))
 #
 
 
+# Function draws energies for artificial ecosystem
+# Activation energies are drawn from "rplancklike" distribution and standard chemical
+# potentials are drawn from a gauß distribution. Except the chemical potential for "hv" 
+# which is either 50 or the maximum of all other chemical potentials + 5...
+
+jrnf_ae_draw_energies <- function(net) {
+    net[[1]]$energy <- rnorm(nrow(net[[1]]))    
+    net[[2]]$activation <- rplancklike(nrow(net[[2]]))
+  
+    if(any(net[[1]]$name == "hv")) 
+        net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
+
+    return(net)
+}
+
 
 # Helper to create names consistent with elementary constituents
 hcae_create_name <- function(comp, c_names, ex_names, empty_name="X") {
