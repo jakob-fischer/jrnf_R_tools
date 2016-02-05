@@ -134,15 +134,18 @@ pa_extend_pathways <- function(pw, N) {
 # Given a reaction network and reaction rates this function adds inflow and outflow
 # reactions that would maintain steady state. Function returns a list with new network
 # and new rates.
+# If unique_dir is set all added (pseudo)-reactions are defined to be outflow reactions
+# and for inflow reactions their rate will be set negative. Else the reaction direction
+# is choosen the way that the rates are positive.
 
-pa_extend_net <- function(net, rates) {
+pa_extend_net <- function(net, rates, unique_dir=F) {
     # calculate rates that balance growth / decrease of concentrations
     cdif_r <- jrnf_calculate_concentration_change(net, rates)
 
     # add reactions to balance growth / decrease
     for(i in 1:length(cdif_r)) 
         # if species' concentration increases one pseudoreaction has to be included to remove it ("X -> ")
-        if(cdif_r[i] > 0) {   
+        if(cdif_r[i] > 0 | unique_dir) {   
 	    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
                               c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
                               activation=as.numeric(c(0)),educts=I(list(i)), educts_mul=I(list(1)),
@@ -156,7 +159,11 @@ pa_extend_net <- function(net, rates) {
         }
 
     # include inflow / outflow rates
-    rates_ext <- c(rates, abs(cdif_r))
+    if(unique_dir)
+        rates_ext <- c(rates, cdif_r)
+    else
+        rates_ext <- c(rates, abs(cdif_r))
+
     return(list(net, rates_ext))
 }
 
