@@ -465,7 +465,7 @@ pa_em_derive <- function(em_matrix, net, c_max=15) {
         g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
         for(k in 1:c_max) {
             C[i,k] <- get_n_cycles_directed(g_tmp,k)[[1]]
-            C_s[i,k] <- get_n_cycles_directed_A(g_tmp,k)[[1]]
+            C_s[i,k] <- get_n_cycles_directed_V(g_tmp,k)[[1]]
         }
             
         # calculate various other complexity measures
