@@ -30,7 +30,7 @@ get_n_cycles_directed_V <- function(g, n, list_cycles=F) {
         loops <- which(is.loop(g))        # which edges are loops?
 
         for(i in loops) {                 
-           v <- ends(g, i)[1,1]           # For each, the first node is the only one
+           v <- ends(g, i, names=F)[1,1]           # For each, the first node is the only one
            v_count[v] <- 1                # Count only once for each node (to be consistent with n>1) 
         }
 
@@ -84,7 +84,7 @@ get_n_cycles_directed_E <- function(g, n, list_cycles=F) {
         loops <- which(is.loop(g))        # which edges are loops?
 
         for(i in loops) {                 
-           v <- ends(g, i)[1,1]           # For each, the first node is the only one
+           v <- ends(g, i, names=F)[1,1]           # For each, the first node is the only one
            v_count[v] <- v_count[v] + 1   # 
         }
         
