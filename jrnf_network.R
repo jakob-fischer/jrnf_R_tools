@@ -346,22 +346,22 @@ jrnf_reverse_reactions <- function(net, rev) {
             p_m <- net[[2]]$products_mul[[i]]
          
             if(is.null(p)) 
-                net[[2]]$educts[i] <- I(list(NULL))
+                net[[2]]$educts[i] <- list(NULL)
             else
                 net[[2]]$educts[[i]] <- I(p)
 
             if(is.null(p_m)) 
-                net[[2]]$educts_mul[i] <- I(list(NULL))              
+                net[[2]]$educts_mul[i] <- list(NULL)              
             else
                 net[[2]]$educts_mul[[i]] <- I(p_m)
 
             if(is.null(e))
-                net[[2]]$products[[i]] <- I(list(NULL))
+                net[[2]]$products[i] <- list(NULL)
             else
                 net[[2]]$products[[i]] <- I(e)
 
             if(is.null(e_m))
-                net[[2]]$products_mul[[i]] <- I(list(NULL))                    
+                net[[2]]$products_mul[i] <- list(NULL)                    
             else
                 net[[2]]$products_mul[[i]] <- I(e_m)
         }
