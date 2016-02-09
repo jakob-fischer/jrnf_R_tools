@@ -14,6 +14,16 @@ if(!exists("sourced_simulation_builder"))
     source("simulation_builder.R")
 
 
+
+sb_write_network_pathways <- function(sel=0) {
+    jrnf_network_to_ltable("network.tex", net)
+
+    sel_em <- which(apply(em_exp_r_cross, 2, max) >= sel)
+    sel_em_info <- data.frame(cycles=em_derive$C_s_sum[sel_em] ,EMPTY=paste("(", as.character(sel_em), ")", sep=""))
+    pa_pathways_to_ltable("pathways.tex", em_m[sel_em,1:nrow(net[[2]])], net, sel_em_info)
+}
+
+
 #
 #
 
@@ -85,9 +95,12 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
 }
 
 
-plot_em_spectre <- function(em_cross, x_data, x_name="xname", sel=c(), filename="em_spectre.eps") { 
+plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), sel=c(), filename="em_spectre.eps") { 
     if(is.null(sel))
         sel <- rep(T, length(x_data))
+
+    if(is.null(em_name))
+       em_name <- 1:ncol(em_cross)
 
     sel <- which(sel)
 
@@ -99,14 +112,14 @@ plot_em_spectre <- function(em_cross, x_data, x_name="xname", sel=c(), filename=
         a <- rbind(a, 
                    data.frame(x_data=as.numeric(x_data[sel]), 
                               exp_r=as.numeric(em_cross[sel,i]),
-                              em=as.factor(rep(i, length(sel)))))
+                              em=as.factor(rep(em_name[i], length(sel)))))
     }
 
     setEPS()
     postscript(filename, width=10, height=6)
     
     gg<-ggplot(a, aes(x=x_data, y=exp_r, colour=em, group=em, shape=em))  + 
-          scale_x_log10() + scale_y_continuous(limits=c(1e-2,1)) + 
+          scale_x_log10() + scale_y_continuous(limits=c(1e-3,1)) + 
            ylab("exp. fraction") + 
            xlab(x_name) +
            geom_point(size=2.2) + 
@@ -122,6 +135,26 @@ plot_em_spectre <- function(em_cross, x_data, x_name="xname", sel=c(), filename=
 }
 
 
+
+plot_core_sp <- function(res_cross, filename="core_sp.eps") { 
+    setEPS()
+    postscript(filename, width=10, height=6)
+    
+    gg<-ggplot(res_cross, aes(x=v, y=core_sp_no, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
+          scale_x_log10() + scale_y_continuous() + 
+           ylab("#core species") + 
+           xlab("v (hv concentration)") +
+           geom_point(size=2.2) + 
+           theme_bw(22) +
+           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+
+    print(gg)
+    
+    dev.off()
+
+    return(gg)
+}
 
 
 plot_flow_v <- function(res_cross, filename="flow_v.eps") { 
