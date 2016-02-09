@@ -75,8 +75,9 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 }
 
 
+# TODO document
 
-hcae_draw_elem_composition_T <- function(N, comp_no, max_tot=N/3, max_single=2, 
+hcae_draw_elem_composition <- function(N, comp_no, max_tot=N/3, max_single=2, 
                                          lambda=0.1, allow_massless=F, max_stoich=10) {
     composition <- matrix(0, nrow=N, ncol=comp_no)
     energy <- rnorm(N)         
@@ -112,53 +113,6 @@ hcae_draw_elem_composition_T <- function(N, comp_no, max_tot=N/3, max_single=2,
         
         if(cnt[x] >= max_single)
             prob[x] <- 0
-    }
-
-    # now calculate names
-    name <- c()
-    for(i in 1:N)
-        name <- c(name, hcae_create_name(composition[i,], component_names,
-                                         name, empty_name))   
- 
-    return(list(composition=composition, name=name, energy=energy))
-}
-
-
-
-
-# TODO DOCUMENTATION
-
-hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), x=0.5) {
-    composition <- matrix(0, nrow=N, ncol=comp_no)
-    energy <- rnorm(N)         
-    lambda <- (-1/comp_no)*log(x)
-    component_names <- c("C", "N", "O", "H", "P")
-    component_names <- component_names[1:comp_no]
-    if(is.null(max_dup))
-        max_dup = N
-        
-    draw <- function(i) {
-        if(comp_no == 1)
-            composition[i,] <<- rpois(comp_no, lambda)+1
-        else
-            composition[i,] <<- rpois(comp_no, lambda)+sample(c(0,1), comp_no, T, c(comp_no-1,1))
-
-        if(sum(composition[i,]) == 0)
-            draw(i)
-    }
-
-    get_dup <- function() {
-        return(which(duplicated(composition)))
-    }
-
-    for(i in 1:N)
-        draw(i)
-
-    x <- get_dup()
-    while(length(x) > max_dup) {
-        for(i in x[-(1:max_dup)])
-            draw(i)
-        x <- get_dup()
     }
 
     # now calculate names
@@ -479,10 +433,8 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
     
     # draw compostition (el. constituents) and energy of species
     cat("Drawing elementary composition")
-    if(comp_no == 1)
-        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N), 1000, 0.5)
-    else
-        x <- hcae_draw_elem_composition(N, comp_no, as.integer(N/4), 1000, 0.5)
+    x <- hcae_draw_elem_composition(N, comp_no)
+    cat("done\n")
 
     composition <- x$composition
     energy <- x$energy
