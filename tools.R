@@ -117,3 +117,25 @@ graph_to_amatrix <- function(g) {
     a <- get.adjacency(g)
     return(matrix(as.numeric(a), ncol=ncol(a)))
 }
+
+
+# Transfers between multidimensional (vector) coordinates and one dimensional
+
+b_mdim_transf <- function(v) {
+    to_linear <- function(x) {
+        if(length(v) == 1)
+            return(x[1])
+        else
+            return(x[1] + v[1]*((b_mdim_transf(v[-1])$to_linear(x[-1]))-1))
+    }
+
+    from_linear <- function(x) {
+        if(length(v) == 1)
+            return(x)
+        else
+            return(c((x-1) %% v[1] + 1,
+                     b_mdim_transf(v[-1])$from_linear((x-1)%/% v[1]+1)))
+    }
+
+    return(list(to_linear=to_linear, from_linear=from_linear))
+}
