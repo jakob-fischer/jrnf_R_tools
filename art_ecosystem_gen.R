@@ -15,9 +15,14 @@ if(!exists("sourced_jrnf_network"))
 # potentials are drawn from a gauß distribution. Except the chemical potential for "hv" 
 # which is either 50 or the maximum of all other chemical potentials + 5...
 
-jrnf_ae_draw_energies <- function(net) {
+jrnf_ae_draw_energies <- function(net, flat_energies=F) {
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
     net[[2]]$activation <- rplancklike(nrow(net[[2]]))
+
+    if(flat_energies) {
+        net[[1]]$energy <- rep(0, nrow(net[[1]]))    
+        net[[2]]$activation <- rep(1, nrow(net[[2]]))    
+    }
   
     if(any(net[[1]]$name == "hv")) 
         net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
@@ -70,9 +75,60 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 }
 
 
+
+hcae_draw_elem_composition_T <- function(N, comp_no, max_tot=N/3, max_single=2, 
+                                         lambda=0.1, allow_massless=F, max_stoich=10) {
+    composition <- matrix(0, nrow=N, ncol=comp_no)
+    energy <- rnorm(N)         
+    component_names <- c("C", "N", "O", "H", "P")
+    component_names <- component_names[1:comp_no]
+
+    v <- rep(max_stoich+1, comp_no)
+    trans <- b_mdim_transf(v) 
+
+    calc_prop <- function(x)  {
+        p_x <- function(y)  {  return((lambda ** y)/factorial(y) * exp(-lambda))  }
+        return( prod( sapply(trans$from_linear(x), p_x) ) )   
+    } 
+
+    prob <- sapply(1:((max_stoich+1)**comp_no), calc_prop)
+    if(!allow_massless)
+        prob[trans$to_linear(rep(1, comp_no))] <- 0   
+    cnt <- rep(0, length(prob))
+    cnt_t <- 0
+
+    for(i in 1:nrow(composition)) { 
+        x <- sample(1:length(prob), 1, F, prob/sum(prob))   
+
+        composition[i,] <- trans$from_linear(x)-1
+
+        cnt[x] <- cnt[x] + 1
+        if(cnt[x] > 1) {
+            cnt_t <- cnt_t + 1
+             
+            if(cnt_t >= max_tot)
+                prob[cnt != 0] <- 0
+        }
+        
+        if(cnt[x] >= max_single)
+            prob[x] <- 0
+    }
+
+    # now calculate names
+    name <- c()
+    for(i in 1:N)
+        name <- c(name, hcae_create_name(composition[i,], component_names,
+                                         name, empty_name))   
+ 
+    return(list(composition=composition, name=name, energy=energy))
+}
+
+
+
+
 # TODO DOCUMENTATION
 
-hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), tries=1000, x=0.5) {
+hcae_draw_elem_composition <- function(N, comp_no, max_dup=c(), x=0.5) {
     composition <- matrix(0, nrow=N, ncol=comp_no)
     energy <- rnorm(N)         
     lambda <- (-1/comp_no)*log(x)
