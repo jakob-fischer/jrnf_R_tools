@@ -627,7 +627,7 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
 
 # BLA 
 
-pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F) {
+pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0) {
     # calculate the reaction set for which decomposition is done
     sel_rea <- which(path_orig != 0)
 
@@ -649,7 +649,7 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F) {
     #if(branch_all)
     #    cutoff <- max(abs(N %*% path_orig[sel_rea])) / (1e4)     
     #else 
-        cutoff <- 0
+    #    cutoff <- 0
 
     x <- pa_decompose_plain(N, path_orig[sel_rea], order(turnover), do_backlog, cutoff)
 
