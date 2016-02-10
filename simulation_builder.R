@@ -779,7 +779,7 @@ sb_h_calc_em_info <- function(net, v, em_matrix, ex_sp, em_cutoff=0) {
 #
 # TODO: check adaption
 
-sb_em_analysis_ecol <- function(res, net, c_max=4) {
+sb_em_analysis_ecol <- function(res, net, c_max=4, do_precise=T) {
     N_sp <- length(res$sp_df[[1]]$con)
     N_re <- length(results$re_df[[1]]$flow_effective)
    
@@ -827,9 +827,12 @@ sb_em_analysis_ecol <- function(res, net, c_max=4) {
                                        products=I(list(n_hv)), products_mul=I(list(1))))
         rates_rev <- c(rates_rev, -cdif_r[n_hv])
 
-        #x <- pa_analysis(net_rev, rates_rev, 0, 0)
-        x <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T, cutoff=cutoff)
-
+        if(do_precise)
+            x <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T, cutoff=cutoff)
+        else
+            x <- pa_analysis(net_rev, rates_rev, 0.01, 0.01, T)
+        
+        
         # rename results and sort decreasing with fraction of v explained...
         x_em <- x[[1]]
         x_rates <- x[[2]]

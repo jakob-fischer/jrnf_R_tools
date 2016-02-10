@@ -157,6 +157,10 @@ hcae_check_rea_conditions <- function(rea, N) {
     empty_ed  <- sum((rea[1] == 1) + (rea[2] == 1))
     empty_pro  <- sum((rea[3] == 1) + (rea[4] == 1))
 
+    # Avoid double reactions (through reverse reaction)
+    if(rea[2] > rea[1] || rea[4] > rea[3] || rea[3] > rea[1])
+        return(F) 
+
     # hv is on both sides
     if(hv_ed+hv_pro > 1)
         return(F)
@@ -169,12 +173,12 @@ hcae_check_rea_conditions <- function(rea, N) {
     if(empty_ed == 2 || empty_pro == 2)
         return(F)
 
-    # Reaction doesn't do anything  (TODO second part of condition excluded by next check?)
+    # Reaction doesn't do anything  (TODO second part of condition excluded by first check?)
     if(rea[1] == rea[3] && rea[2] == rea[4] || rea[1] == rea[4] && rea[2] == rea[3])
         return(F)
 
-    # Also avoid double reactions (through reverse reaction)
-    if(rea[2] > rea[1] || rea[4] > rea[3] || rea[3] > rea[1])
+    # Reaction has the form "hv + A -> A"
+    if(rea[1] == N+1 && rea[4] == 1 && rea[2] == rea[3])
         return(F) 
 
     return(T)
@@ -311,12 +315,41 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
         return(T)
     }
 
+    is_hv_rea <- function(i) {
+        x <- trans$from_linear(i)
+        return(any(x == N+2)) 
+    }
+
+    is_lin_rea <- function(i) {
+        x <- trans$from_linear(i)
+        return(x[2] == 1 && x[4] == 1)
+    }
+
+
     reactions <- which(sapply(1:((N+2)**4), is_rea_possible))
+    cat("found", length(reactions), "valid reactions!\n")
+    sel <- which(sapply(reactions, is_hv_rea))
+    rea_hv <- reactions[sel]
+    reactions <- reactions[-sel]
+    sel <- which(sapply(reactions, is_lin_rea))
+    rea_lin <- reactions[sel]
+    rea_nonl <- reactions[-sel]
 
-    cat("found", length(reactions), "valid reactions!\n") 
+    cat(length(rea_hv), "photochemical,", length(rea_lin), "linear (no loops) and", 
+        length(rea_nonl), "nonlinear reactions!\n")
+
+    if(length(rea_lin) < no_2fold)
+        no_2fold <- length(rea_lin)
+
+    if(length(rea_hv) < no_hv)
+        no_hv <- length(rea_hv)
+
+     rea_lin <- sample(rea_lin, no_2fold)
+     rea_hv <- sample(rea_hv, no_hv)
+     rea_nonl <- sample(rea_nonl, M-no_hv-no_2fold)
 
 
-    possible_reas_to_jrnf <- function(s_rea, s) {
+    possible_reas_to_jrnf <- function(s_rea) {
         M_ <- length(s_rea)
 
         # create network object and return it...
@@ -331,24 +364,24 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
             p_ <- c()
             pm_ <- c()
 
-            x <- trans$from_linear()
-            if(a != 1) {
-                e_ <- c(e_, a-1)
+            x <- trans$from_linear(s_rea[i])
+            if(x[1] != 1) {
+                e_ <- c(e_, x[1]-1)
                 em_ <- c(em_, 1)
             }
 
-            if(b != 1) {
-                e_ <- c(e_, b-1)
+            if(x[2] != 1) {
+                e_ <- c(e_, x[2]-1)
                 em_ <- c(em_, 1)
             }
 
-            if(c != 1) {
-                p_ <- c(p_, c-1)
+            if(x[3] != 1) {
+                p_ <- c(p_, x[3]-1)
                 pm_ <- c(pm_, 1)
             }
 
-            if(d != 1) {
-                p_ <- c(p_, d-1)
+            if(x[4] != 1) {
+                p_ <- c(p_, x[4]-1)
                 pm_ <- c(pm_, 1)
             }
             e[[i]] <- e_
@@ -372,4 +405,6 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
 
         return(list(species, reactions))
     }
+
+    return(possible_reas_to_jrnf(c(rea_hv, rea_lin, rea_nonl)))
 }
