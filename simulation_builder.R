@@ -11,8 +11,6 @@
 
 sourced_simulation_builder <- T
 
-if(!exists("sourced_simulation_builder_plot"))
-    source("simulation_builder_plot.R")
 
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
