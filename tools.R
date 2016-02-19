@@ -90,9 +90,8 @@ vec_gcd <- function(x) {
     x <- x[-1]
     x <- x[x != 0]
 
-    if(length(x) > 1) 
-        for(i in 2:length(x))
-            a <- gcd(a,x[i])             
+    for(i in x)
+        a <- gcd(a,i)             
            
     return(a)
 }
