@@ -77,8 +77,23 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 
 # TODO document
 
-hcae_draw_elem_composition <- function(N, comp_no, max_tot=N/3, max_single=2, 
+hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(), 
                                          lambda=0.1, allow_massless=F, max_stoich=10) {
+    if(comp_no == 1) {
+        if(is.null(max_tot))
+            max_tot <- N
+
+        if(is.null(max_single))
+            max_single <- N
+    }
+
+    if(is.null(max_tot))
+        max_tot <- N/3
+
+    if(is.null(max_single))
+        max_single <- 2
+
+
     composition <- matrix(0, nrow=N, ncol=comp_no)
     energy <- rnorm(N)         
     component_names <- c("C", "N", "O", "H", "P")
@@ -178,7 +193,8 @@ hcae_check_rea_conditions <- function(rea, N) {
         return(F)
 
     # Reaction has the form "hv + A -> A"
-    if(rea[1] == N+1 && rea[4] == 1 && rea[2] == rea[3])
+    # ">="-condition to exclude drawing "hv + A -> B" AND "hv + B -> A"
+    if(rea[1] == N+2 && rea[4] == 1 && rea[2] >= rea[3])
         return(F) 
 
     return(T)
@@ -328,13 +344,29 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
 
     reactions <- which(sapply(1:((N+2)**4), is_rea_possible))
     cat("found", length(reactions), "valid reactions!\n")
+    reactions <- reactions[sample(length(reactions))]
+
+    fval_to_stoichcol <- function(v) {
+        v <- trans$from_linear(v)
+        x <- matrix(0, ncol=N, nrow=1)
+        if(v[1] <= N) x[v[1]] <- x[v[1]] - 1
+        if(v[2] <= N) x[v[2]] <- x[v[2]] - 1
+        if(v[3] <= N) x[v[3]] <- x[v[3]] + 1
+        if(v[4] <= N) x[v[4]] <- x[v[4]] + 1
+        return(x)
+    }
+
+    x <- duplicated(t(sapply(reactions, fval_to_stoichcol)))
+    reactions <- reactions[!x]
+    
+    cat("after removing (effective) doubles, there are ", length(reactions), "valid reactions!\n")
+
     sel <- which(sapply(reactions, is_hv_rea))
     rea_hv <- reactions[sel]
     reactions <- reactions[-sel]
-    sel <- which(sapply(reactions, is_lin_rea))
+    sel <- sapply(reactions, is_lin_rea)
     rea_lin <- reactions[sel]
-    rea_nonl <- reactions[-sel]
-
+    rea_nonl <- reactions[!sel]
     cat(length(rea_hv), "photochemical,", length(rea_lin), "linear (no loops) and", 
         length(rea_nonl), "nonlinear reactions!\n")
 
