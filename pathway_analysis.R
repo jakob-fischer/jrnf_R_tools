@@ -626,6 +626,7 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
 
 
 # BLA 
+# TODO: documentation
 
 pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0) {
     # calculate the reaction set for which decomposition is done
@@ -651,11 +652,32 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0
     #else 
     #    cutoff <- 0
 
-    x <- pa_decompose_plain(N, path_orig[sel_rea], order(turnover), do_backlog, cutoff)
+    # because there might be reactions like "2A -> 2B" and the subsequent subfunctions
+    # only operate onto the effective change of concentration (but pathways coefficients
+    # should be integers)
+    s <- apply(N, 2, vec_gcd)
+    N <- t(scale_mat_rows(t(N), 1/s))
+
+    x <- pa_decompose_plain(N, path_orig[sel_rea]*s, order(turnover), do_backlog, cutoff)
+
+    x$M <- x$M[,-(1:nrow(N))]
+
+    for(i in 1:nrow(x$M)) {
+        sk <- x$M[i,] != 0
+        p <- prod(s[sk])
+        x$M[i,sk] <- x$M[i,sk]*p/s[sk]
+        x$coef[i] <- x$coef[i]/p
+        sh <- vec_gcd(x$M[i,sk])
+        if(sh!=1) {
+            x$coef[i] <- x$coef[i]*sh
+            x$M[i,sk] <- x$M[i,sk] / sh
+        }   
+    }
+ 
 
     # transform back to space with all reactions in it!
     M_ret <- matrix(0, nrow=nrow(x$M), ncol=ncol(N_orig))
-    M_ret[,sel_rea] <- x$M[,-(1:nrow(N))]
+    M_ret[,sel_rea] <- x$M
 
     return(list(M=M_ret, coef=x$coef))
 }
