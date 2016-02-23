@@ -298,8 +298,7 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 # TODO Function needs much cleanup #
 #      Especially the way the elementary composition is drawn needs to be made easier (parameter of distribution!)
 
-jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod_no=0, mod_f=1, 
-                                             no_reordering=T, enforce_transfer=T) { 
+jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat_as_lin=F, type_spec_dup=T, allow_direct_backflow=T) { 
     hv_name <- "hv"
     trans <- b_mdim_transf(rep(N+2, 4))    
 
@@ -338,28 +337,58 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
 
     is_lin_rea <- function(i) {
         x <- trans$from_linear(i)
-        return(x[2] == 1 && x[4] == 1)
+        if(!cat_as_lin)
+            return(x[2] == 1 && x[4] == 1)
+        else
+            return(x[1] == x[3] || x[1] == x[4] || x[2] == x[3] || x[2] == x[4])
+    }
+
+    fval_to_stoichcol <- function(v) {
+        v <- trans$from_linear(v)
+        x <- matrix(0, ncol=N+1, nrow=1)
+        if(v[1] != 1) x[v[1]-1] <- x[v[1]-1] - 1
+        if(v[2] != 1) x[v[2]-1] <- x[v[2]-1] - 1
+        if(v[3] != 1) x[v[3]-1] <- x[v[3]-1] + 1
+        if(v[4] != 1) x[v[4]-1] <- x[v[4]-1] + 1
+        # unique representation - first nonzero entry has to be positive
+        m <- which(x[1,] != 0)[1]
+
+        if(x[1,m] < 0)
+            x <- -x       
+
+        if(!allow_direct_backflow)
+            x[1,ncol(x)] <- 0
+
+        return(x)
+    }
+
+    s <- function(x) {
+        return(x[sample(length(x))])
+    }
+
+    r <- rev
+
+    dup <- function(xx, diag=F) {
+        if(diag) {
+            cat("DUP:\n")
+            print(t(sapply(xx, fval_to_stoichcol)))
+            cat("\n\n")
+        }
+        return(duplicated(t(sapply(xx, fval_to_stoichcol))))
     }
 
 
     reactions <- which(sapply(1:((N+2)**4), is_rea_possible))
     cat("found", length(reactions), "valid reactions!\n")
-    reactions <- reactions[sample(length(reactions))]
+    reactions <- s(reactions)
 
-    fval_to_stoichcol <- function(v) {
-        v <- trans$from_linear(v)
-        x <- matrix(0, ncol=N, nrow=1)
-        if(v[1] <= N) x[v[1]] <- x[v[1]] - 1
-        if(v[2] <= N) x[v[2]] <- x[v[2]] - 1
-        if(v[3] <= N) x[v[3]] <- x[v[3]] + 1
-        if(v[4] <= N) x[v[4]] <- x[v[4]] + 1
-        return(x)
+
+    if(!type_spec_dup) {
+        reactions <- s(reactions)
+        x <- dup(reactions)
+        reactions <- reactions[!x]
+        cat("after removing (effective) doubles, there are ", length(reactions), "valid reactions!\n")
     }
-
-    x <- duplicated(t(sapply(reactions, fval_to_stoichcol)))
-    reactions <- reactions[!x]
-    
-    cat("after removing (effective) doubles, there are ", length(reactions), "valid reactions!\n")
 
     sel <- which(sapply(reactions, is_hv_rea))
     rea_hv <- reactions[sel]
@@ -369,6 +398,53 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, mod
     rea_nonl <- reactions[!sel]
     cat(length(rea_hv), "photochemical,", length(rea_lin), "linear (no loops) and", 
         length(rea_nonl), "nonlinear reactions!\n")
+
+    if(type_spec_dup) {
+        # first remove duplicates inside of the different types
+        rea_hv <- s(rea_hv)
+        y <- dup(rea_hv)
+        rea_hv <- rea_hv[!y]
+
+        rea_lin <- s(rea_lin) 
+        y <- dup(rea_lin)
+        rea_lin <- rea_lin[!y]
+
+        rea_nonl <- s(rea_nonl)
+        y <- dup(rea_nonl)
+        rea_nonl <- rea_nonl[!y]
+
+        if(!allow_direct_backflow) {
+            # combine linear and hv reactions and shuffle
+            #rea_lin_hv <- s(c(rea_lin, rea_hv))
+            rea_lin_hv <- (c(rea_lin, rea_hv))
+            # identify duplicates to remove (x) and to keep (x_)
+            x <- dup(rea_lin_hv, T)
+            x_ <- r(dup(r(rea_lin_hv)))
+            # 
+            dp_rm <- rea_lin_hv[x]   # duplicates that are removed
+            dp_keep <- rea_lin_hv[x_]  # duplicates that are kept
+
+            cat("dp_rm=", dp_rm, "\n")
+            cat("dp_keep=", dp_keep, "\n")
+
+            rea_lin <- rea_lin[! rea_lin %in% dp_rm]
+            rea_hv_keep <- rea_lin[rea_hv %in% dp_keep]
+            rea_hv <- rea_hv[! (rea_hv %in% dp_rm | rea_hv %in% dp_keep)]
+
+            # similar as above / combine nonlinear with (undecided!) hv
+            rea_nonl_hv <- c(rea_hv_keep, s(c(rea_hv, rea_nonl)))
+            dp_rm_ <- rea_nonl_hv[dup(rea_nonl_hv)]
+
+            rea_nonl <- rea_nonl[! rea_nonl %in% dp_rm_]
+            rea_hv <- c(rea_hv_keep, rea_hv[! rea_hv %in% dp_rm_])
+        }
+    
+        cat("After removing type specific duplicates there are", length(rea_hv), 
+            "photochemical,", length(rea_lin), "linear (no loops) and", 
+            length(rea_nonl), "nonlinear reactions!\n")
+    }
+  
+
 
     if(length(rea_lin) < no_2fold)
         no_2fold <- length(rea_lin)
