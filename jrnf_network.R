@@ -1247,6 +1247,46 @@ jrnf_sample_energies <- function(net, kB_T=1, v=1, zero=FALSE) {
 }
 
 
+#
+#
+#
+
+jrnf_build_linear_stability_analyzer <- function(net, beta=1) {
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out-N_in
+    k_f <- net[[2]]$k
+    k_b <- net[[2]]$k_b
+    mu0 <- net[[1]]$energy
+    Ea <- pmax((mu0 %*% N_in)[1,], (mu0 %*% N_out)[1,]) + net[[2]]$activation         
+    e_bs_in <- exp(beta*(mu0 %*% N_in)[1,]);
+    e_bs_out <- exp(beta*(mu0 %*% N_out)[1,]);
+    e_m_bEa <- exp(-beta*Ea)
+
+
+    calculate <- function(x) {
+        M <- matrix(0, ncol=nrow(N), nrow=nrow(N))
+        for(i in 1:nrow(N)) 
+            if(!net[[1]]$constant[i]) 
+                for(l in 1:nrow(N)) {
+                    for(k in 1:ncol(N)) {
+                        p1 <- prod(x[-k]**N_in[-k,k])
+                        p2 <- prod(x[-k]**N_in[-k,k])
+                        
+                        M[i,l] <- M[i,l] + N[i,k]*e_m_bEa[k]*(e_bs_in[k]*N_in[l,k]*(x[l]**(N_in[l,k]-1))*p1 - 
+                                                              e_bs_out[k]*N_out[l,k]*(x[l]**(N_out[l,k]-1))*p2)
+                    }
+
+                    if(is.na(M[i,l]))
+                        M[i,l] <- 0
+                }
+        return(M)
+    }
+
+    return(list(calculate=calculate, N_in, N_out, N, mu0, Ea,e_bs_in, e_bs_out, e_m_bEa))
+}
+
+
 
 # Legacy references / can be removed if no longer needed
 
