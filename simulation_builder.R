@@ -488,7 +488,9 @@ sb_em_analysis <- function(res, net, c_max=4) {
 
 
 sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, flat_energies=F) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, deltaT_=128, flat_energies=F, N_runs_eq=c()) {
+    if(is.null(N_runs_eq)) N_runs_eq <- N_runs
+
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     path_old <- getwd()              # Save to restore properly
@@ -519,7 +521,8 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
         # create new directory and enter
         system(paste("mkdir ", i, sep=""))
         setwd(as.character(i))
-        net <- jrnf_ae_draw_energies(net, i==1 & flat_energies)
+        if(!(!flat_energies && i == 1 && N_energies == 1)) 
+            net <- jrnf_ae_draw_energies(net, i==1 && flat_energies)
         net <- jrnf_calc_reaction_r(net, 1)
      
         cat("writing energies in netfile.\n")
@@ -533,7 +536,7 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
             ff <- paste(c("v0_", "c", as.character(c)), collapse="")
             system(paste("mkdir", ff)) 
             setwd(ff) 
-            for(j in 1:N_runs) {
+            for(j in 1:N_runs_eq) {
                 s_sample <- sample(ncol(N_red))
                 s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
                 initial_con <- rep(c, length(net[[1]]$name)-1)
@@ -549,8 +552,10 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
                 df[as.vector(net_red[[1]]$name)] <- initial_con
                 write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
-                scripts <- c(scripts, 
-                             paste(odeint_p, " simulate solve_implicit net=", i, "/net_reduced.jrnf con=", i, "/", ff, "/", j, ".con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=500", sep=""))
+                for(k in 1:max(length(deltaT), length(Tmax)))
+                    scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit net=", i, "/net_reduced.jrnf con=", i, "/", ff, "/", j, 
+                                       ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
             }
 
             setwd("..")
@@ -586,9 +591,10 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
                 df[as.vector(net[[1]]$name)] <- c(initial_con, v)
                 write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
-
-                scripts <- c(scripts, 
-                             paste(odeint_p, " simulate solve_implicit net=", i, "/net_energies.jrnf con=", i, "/", ff, "/", j, ".con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=500", sep=""))
+                for(k in 1:max(length(deltaT), length(Tmax)))
+                    scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit net=", i, "/net_energies.jrnf con=", i, "/", ff, "/", j, 
+                                       ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
                 }
 
             setwd("..")
@@ -1011,6 +1017,9 @@ sb_em_cross_analysis <- function(net, em, res_em) {
     res_em$core_mass_f <- rep(NA, nrow(res_em))     # fraction of mass contained in network core
     res_em$equilibrium_ref <- rep(NA, nrow(res_em)) # id of equivalent equilibrium simulation for out of equilibrium sim.
     
+    # Matrix containing chemical potential difference for every reaction
+    dmu_cross <- matrix(0, ncol=ncol(N), nrow=nrow(res_em))
+
     # First calculate 'equilibrium_ref' for non-equilibrium rows and all the data for
     # the equilibrium rows
     for(i in 1:nrow(res_em)) {
@@ -1025,11 +1034,17 @@ sb_em_cross_analysis <- function(net, em, res_em) {
         } else {
             s <- which(res_em$relaxing_sim & res_em$Edraw == res_em$Edraw[i] &
                        res_em$Rdraw == res_em$Rdraw[i] & res_em$c == res_em$c[i])
+            if(length(s) == 0)
+                s <- which(res_em$relaxing_sim & res_em$Edraw == res_em$Edraw[i] &
+                           res_em$c == res_em$c[i])[1]
+
             res_em$equilibrium_ref[i] <- s
         }
     }
      
-    for(i in 1:nrow(res_em)) 
+    for(i in 1:nrow(res_em)) {
+        dmu_cross[i,] <- res_em$sp_df[[i]]$mu %*% N
+ 
         if(is.data.frame(res_em$em_ex[[i]])) {
             # load data on mu (chemical potential) and con (concentration)
             eqref <- res_em$equilibrium_ref[i]
@@ -1050,15 +1065,39 @@ sb_em_cross_analysis <- function(net, em, res_em) {
             res_em$core_diseq_f[i] <- sum(x[core_sp]-x2[core_sp])/res_em$diseq[i]
             res_em$core_mass_f[i] <- sum(con[core_sp])/sum(con[-length(con)])
         }   
+    }
      
     results_cross <- res_em
     em_derive=em_der
 
-    save(results_cross, em_exp_r_cross, em_derive, file="results_cross.Rdata")
+    save(results_cross, em_exp_r_cross, em_derive, dmu_cross, file="results_cross.Rdata")
  
-    return(list(results_cross=results_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_der))
+    return(list(results_cross=results_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_der, dmu_cross=dmu_cross))
 }
 
+
+
+sb_lin_stab_analysis_ecol <- function(res_nets, res) {
+    mat <- list()
+    ew <- list()
+    ew_max <- c()
+    ew_min <- c()    
+
+    for(i in 1:nrow(res)) {
+        cat(".")
+        sa <- jrnf_build_linear_stability_analyzer(res_nets[[res$Edraw[i]]])
+        x <- sa$calculate(res$sp_df[[i]]$con)
+        mat[[length(mat)+1]] <- x
+        y <- eigen(x, symmetric=F)$values
+        ew[[length(ew)+1]] <- y
+        rel <- Re(y) != 0
+        ew_max[length(ew_max)+1] <- max(Re(y[rel]))
+        ew_min[length(ew_min)+1] <- min(Re(y[rel]))
+    }
+    cat("\n")
+
+    return(list(jacobi=mat, jacobi_spec=ew, re_max=ew_max, re_min=ew_min))
+}
 
 
 sb_stability_analysis_ecol <- function(res_nets, res, var=0.05, d_v=1e-2) {
