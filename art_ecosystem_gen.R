@@ -15,9 +15,12 @@ if(!exists("sourced_jrnf_network"))
 # potentials are drawn from a gauß distribution. Except the chemical potential for "hv" 
 # which is either 50 or the maximum of all other chemical potentials + 5...
 
-jrnf_ae_draw_energies <- function(net, flat_energies=F) {
+jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
+    lAE <- NA
+    if(limit_AE) lAE <- 5
+
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
-    net[[2]]$activation <- rplancklike(nrow(net[[2]]))
+    net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE)
 
     if(flat_energies) {
         net[[1]]$energy <- rep(0, nrow(net[[1]]))    
@@ -298,7 +301,8 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 # TODO Function needs much cleanup #
 #      Especially the way the elementary composition is drawn needs to be made easier (parameter of distribution!)
 
-jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat_as_lin=F, type_spec_dup=T, allow_direct_backflow=T) { 
+jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat_as_lin=F, 
+                                             type_spec_dup=T, allow_direct_backflow=T, rm_dup=T) { 
     hv_name <- "hv"
     trans <- b_mdim_transf(rep(N+2, 4))    
 
@@ -368,12 +372,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
 
     r <- rev
 
-    dup <- function(xx, diag=F) {
-        if(diag) {
-            cat("DUP:\n")
-            print(t(sapply(xx, fval_to_stoichcol)))
-            cat("\n\n")
-        }
+    dup <- function(xx) {
         return(duplicated(t(sapply(xx, fval_to_stoichcol))))
     }
 
@@ -383,7 +382,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
     reactions <- s(reactions)
 
 
-    if(!type_spec_dup) {
+    if(!type_spec_dup && rm_dup) {
         reactions <- s(reactions)
         x <- dup(reactions)
         reactions <- reactions[!x]
@@ -399,7 +398,7 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
     cat(length(rea_hv), "photochemical,", length(rea_lin), "linear (no loops) and", 
         length(rea_nonl), "nonlinear reactions!\n")
 
-    if(type_spec_dup) {
+    if(type_spec_dup && rm_dup) {
         # first remove duplicates inside of the different types
         rea_hv <- s(rea_hv)
         y <- dup(rea_hv)
@@ -416,23 +415,21 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
         if(!allow_direct_backflow) {
             # combine linear and hv reactions and shuffle
             #rea_lin_hv <- s(c(rea_lin, rea_hv))
-            rea_lin_hv <- (c(rea_lin, rea_hv))
+            rea_lin_hv <- s(c(rea_lin, rea_hv))
             # identify duplicates to remove (x) and to keep (x_)
-            x <- dup(rea_lin_hv, T)
+            x <- dup(rea_lin_hv)
             x_ <- r(dup(r(rea_lin_hv)))
             # 
             dp_rm <- rea_lin_hv[x]   # duplicates that are removed
             dp_keep <- rea_lin_hv[x_]  # duplicates that are kept
 
-            cat("dp_rm=", dp_rm, "\n")
-            cat("dp_keep=", dp_keep, "\n")
-
             rea_lin <- rea_lin[! rea_lin %in% dp_rm]
-            rea_hv_keep <- rea_lin[rea_hv %in% dp_keep]
+            rea_hv_keep <- rea_hv[rea_hv %in% dp_keep]
             rea_hv <- rea_hv[! (rea_hv %in% dp_rm | rea_hv %in% dp_keep)]
 
             # similar as above / combine nonlinear with (undecided!) hv
             rea_nonl_hv <- c(rea_hv_keep, s(c(rea_hv, rea_nonl)))
+            #cat("rea_nonl_hv=", rea_nonl_hv, "\n")
             dp_rm_ <- rea_nonl_hv[dup(rea_nonl_hv)]
 
             rea_nonl <- rea_nonl[! rea_nonl %in% dp_rm_]
@@ -443,8 +440,6 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
             "photochemical,", length(rea_lin), "linear (no loops) and", 
             length(rea_nonl), "nonlinear reactions!\n")
     }
-  
-
 
     if(length(rea_lin) < no_2fold)
         no_2fold <- length(rea_lin)
@@ -452,9 +447,10 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
     if(length(rea_hv) < no_hv)
         no_hv <- length(rea_hv)
 
-     rea_lin <- sample(rea_lin, no_2fold)
-     rea_hv <- sample(rea_hv, no_hv)
-     rea_nonl <- sample(rea_nonl, M-no_hv-no_2fold)
+     rea_lin <- rea_lin[sample(length(rea_lin), no_2fold)]
+     rea_hv <- rea_hv[sample(length(rea_hv), no_hv)]
+     if(M-no_hv-no_2fold > 0 && M-no_hv-no_2fold < length(rea_nonl))
+         rea_nonl <- rea_nonl[sample(length(rea_nonl), M-no_hv-no_2fold)]
 
 
     possible_reas_to_jrnf <- function(s_rea) {
