@@ -483,12 +483,13 @@ sb_em_analysis <- function(res, net, c_max=4) {
 # <N_runs>      - number of runs done for every energy set + boundary value set
 #
 # TODO: - Add parameter for generation of multiple script-files  
-# TODO: - copy and pasted from sb_general_ecol   - adapt and document
-# TODO: - instead of having different energies one might have different initial conditions
+#
+# TODO: Maybe this method can be written in terms of the next one (sb_generator_ecol_mul) 
+#       with little code / effort? This would remove redundancies...
 
 
 sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, deltaT_=128, flat_energies=F, N_runs_eq=c()) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, flat_energies=F, N_runs_eq=c()) {
     if(is.null(N_runs_eq)) N_runs_eq <- N_runs
 
     # Save old and set new working directory
@@ -536,6 +537,7 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
             ff <- paste(c("v0_", "c", as.character(c)), collapse="")
             system(paste("mkdir", ff)) 
             setwd(ff) 
+            if(N_runs_eq != 0)
             for(j in 1:N_runs_eq) {
                 s_sample <- sample(ncol(N_red))
                 s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
@@ -618,6 +620,162 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
     setwd(path_old)
 }
 
+
+# Variant of sb_generator_ecol that does not load one network and assign <N_energies> 
+# of energies, but is given a <generator>-function from which <N_nets> networks are 
+# generated and each assigned <N_energies> of energies. 
+#
+# parameters:
+# <netfile>     - path to network file
+# <bvalues>   - vector containing the boundary values 
+# <N_nets>      -
+# <N_energies>  - number of energy sets that are drawn for the network
+# <N_runs>      - number of runs done for every energy set + boundary value set
+
+
+sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, flat_energies=F, N_runs_eq=0, limit_AE=T) {
+    if(is.null(N_runs_eq)) N_runs_eq <- N_runs
+
+    # Save old and set new working directory
+    scripts <- as.character()        # Vector of script entries / odeint_rnet calls
+    path_old <- getwd()              # Save to restore properly
+    path <- unlist(strsplit(path_s, "/", fixed=TRUE))
+    cat("path=", path, "\n")
+    if(length(path) > 0)
+        setwd(paste(path, collapse="/"))
+
+    next_dir <- 1
+    for(l in 1:N_nets) {
+        cat("creating network structure!\n")
+        net <- netgen()
+        net_O <- net
+        # make net reversible
+        net[[2]]$reversible <- rep(T, nrow(net[[2]]))
+        # Calculate stoichiometric matrix            
+        N <- jrnf_calculate_stoich_mat(net)
+
+        # sample <N_energies> different sets of energies
+        for(i in 1:N_energies) {
+            # create new directory and enter
+            system(paste("mkdir ", next_dir, sep=""))
+            setwd(as.character(next_dir))
+
+            net <- jrnf_ae_draw_energies(net, i==1 && flat_energies, limit_AE)
+            net <- jrnf_calc_reaction_r(net, 1)
+     
+            cat("writing energies in netfile.\n")
+            jrnf_write("net_energies.jrnf", net)
+
+            # Generate simulations without driving force (hv) by removing all photochemical reactions first
+            for(c in cvalues) {
+                net_red <- list(net[[1]][-nrow(N),], net[[2]][ N[nrow(N),]==0, ])
+                N_red <- N[-nrow(N), N[nrow(N),]==0] 
+                jrnf_write("net_reduced.jrnf", net_red)
+                ff <- paste(c("v0_", "c", as.character(c)), collapse="")
+                system(paste("mkdir", ff)) 
+                setwd(ff) 
+                if(N_runs_eq != 0)
+                for(j in 1:N_runs_eq) {
+                    s_sample <- sample(ncol(N_red))
+                    s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
+                    initial_con <- rep(c, length(net[[1]]$name)-1)
+
+                    for(k in 1:length(s_sign)) {
+                        rea <- N_red[,s_sample[k]]*s_sign[k]
+
+                        l <- min(-((initial_con - c/100)/rea)[rea < 0])
+                        initial_con <- pmax(0, initial_con + rea*l)
+                    }
+
+                    df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
+                    df[as.vector(net_red[[1]]$name)] <- initial_con
+                    write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
+
+                    for(k in 1:max(length(deltaT), length(Tmax)))
+                        scripts <- c(scripts, 
+                                     paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
+                }
+
+                setwd("..")
+            }
+
+            # Inner loop (create simulations with different boundary values and differenc initial concentrations
+            for(v in bvalues) for(c in cvalues) {
+                ff <- paste(c("v", as.character(v), "_", "c", as.character(c)), collapse="")
+                system(paste("mkdir", ff)) 
+                setwd(ff) 
+
+                for(j in 1:N_runs) {
+                    # It is not (trivially) possible to just preset the elementary components 
+                    # concentrations and derive species concentrations by that. 
+                    # To have random (but consistent) initial conditions all species' concentrations
+                    # are initialized with value c and afterwards randomly choosen reactions are 
+                    # applied as far as possible (no concentration should be below c/100).
+
+                    s_sample <- sample(ncol(N_red))
+                    s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
+                    initial_con <- rep(c, length(net[[1]]$name)-1)
+
+                    for(k in 1:length(s_sign)) {
+                        rea <- N_red[,s_sample[k]]*s_sign[k]
+
+                        l <- min(-((initial_con - c/100)/rea)[rea < 0])
+                        # TODO It occured that the argument of min was empty, check if that is really possible / how to handle it?
+                        if(!is.finite(l)) {
+                            cat("Error randomizing reaction initials: ", jrnf_reaction_to_string(net, k), "\n")
+                            cat("rea=", rea, "\n")
+                            print(N_red)
+                            print(N)
+                            return(list(net, net_O))
+                        }
+                        initial_con <- pmax(0, initial_con + rea*l)
+
+                        # now apply reaction "rea" until one species has concentration of c/100
+                    }
+
+                    df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
+                    df[as.vector(net[[1]]$name)] <- c(initial_con, v)
+                    write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
+
+                    for(k in 1:max(length(deltaT), length(Tmax)))
+                        scripts <- c(scripts, 
+                                     paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
+                    }
+
+                setwd("..")
+            }
+
+            next_dir <- next_dir + 1
+            setwd("..")
+        }
+    }
+
+    # write script file (file doing all the simulation when executed)
+    cat("create batch-script-files\n")    
+    con <- file("run.sh", "w")
+    writeLines("#!/bin/sh",con)
+    writeLines("#$ -N run.sh", con)
+    writeLines("#$ -j y", con)
+    writeLines("#$ -cwd", con)
+    writeLines(scripts, con)
+    close(con)
+    cat("done\n")
+    
+    # Restore working directory
+    setwd(path_old)
+}
+
+
+# After a simulation from sb_generator_ecol_mul was executed this function 
+#
+
+sb_find_mstable_net <- function(results) {
+
+
+}
 
 
 
@@ -703,6 +861,7 @@ sb_collect_results_ecol <- function() {
 
     setwd(save_wd)
     results <- df
+    results_nets <- results_nets[order(unique(results$Edraw))]
     save(results, results_nets, file="results.Rdata")
 }
 
@@ -783,7 +942,7 @@ sb_h_calc_em_info <- function(net, v, em_matrix, ex_sp, em_cutoff=0) {
 #
 # TODO: check adaption
 
-sb_em_analysis_ecol <- function(res, net, c_max=4, do_precise=T) {
+sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
     N_sp <- length(res$sp_df[[1]]$con)
     N_re <- length(results$re_df[[1]]$flow_effective)
    
@@ -809,9 +968,9 @@ sb_em_analysis_ecol <- function(res, net, c_max=4, do_precise=T) {
 
 
     # which reactions of network are linear
-    is_linear <- (unlist(lapply(net[[2]]$educts_mul, sum)) == 1) 
+    is_linear <- (unlist(lapply(res_net[[1]][[2]]$educts_mul, sum)) == 1) 
     # species degree
-    deg <- as.vector(degree(jrnf_to_undirected_network(net)))    
+    deg <- as.vector(degree(jrnf_to_undirected_network(res_net[[1]])))    
 
     # helper function
     # calculating elementary modes
@@ -892,7 +1051,7 @@ sb_em_analysis_ecol <- function(res, net, c_max=4, do_precise=T) {
     for(i in 1:nrow(res)) {
         cat("============================================================\n")
         cat(" i=", i, "  v=", res$v[i], "  c=", res$c[i], "\n")  
-
+        net <- res_nets[[res$Edraw[i]]]
         # calculating directed network
         gc()
         g <- jrnf_to_directed_network_d(net, res$re_df[[i]]$flow_effective)
@@ -952,9 +1111,13 @@ sb_em_analysis_ecol <- function(res, net, c_max=4, do_precise=T) {
 }
 
 
-# helper function for sb_em_cross_analysis and sb_stability_analysis_eco
+#
+#
 
-sb_h_cross_ana <- function(em, res_em, em_der) {
+sb_em_cross_analysis_ecol <- function(net, em, res_em) {
+    N <- jrnf_calculate_stoich_mat(net)
+    em_der <- pa_em_derive(em[,1:ncol(N)], net, 4)
+
     # Matrix containing information which part of ss-rates are explained by different pathways
     em_exp_r_cross <- matrix(0, ncol=nrow(em), nrow=nrow(res_em)) 
     # Over all explained fraction of rates (quality of pathway expansion)
@@ -995,84 +1158,94 @@ sb_h_cross_ana <- function(em, res_em, em_der) {
             res_em$informationE[i] <- -sum(r*log(r), na.rm=T)
         }
 
-    return(list(res_em=res_em, em_exp_r_cross=em_exp_r_cross))
+    results=results_em_cross <- res_em
+    save(results_em_cross, em_exp_r_cross, em_derive, file="results_em_cross.Rdata")
+    return(list(results_em_cross=results_em_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_derive))
 }
 
 
-sb_em_cross_analysis <- function(net, em, res_em) {
-    N <- jrnf_calculate_stoich_mat(net)
-    em_der <- pa_em_derive(em[,1:ncol(N)], net, 4)
+sb_cross_analysis_ecol <- function(res_nets, res) {
+    N <- jrnf_calculate_stoich_mat(res_nets[[1]])
+    # species degree
+    deg <- as.vector(degree(jrnf_to_undirected_network(res_nets[[1]])))   
 
-    x <- sb_h_cross_ana(em, res_em, em_der)
-    em_exp_r_cross <- x$em_exp_r_cross
-    res_em <- x$res_em
-
-    res_em$flow_energy <- rep(0, nrow(res_em))      # flow (of energy to hv)
-    res_em$energy <- rep(0, nrow(res_em))           # complete energy in system (except of hv species)
-    res_em$diseq <- rep(0, nrow(res_em))            # difference between energy of this SS and eq. SS
-    res_em$core_sp_no <- rep(NA, nrow(res_em))      # number of species in core (species with mu higher 
-                                             # than the reference state - eq. SS)
-    res_em$core_hash <- rep(NA, nrow(res_em))       # hash of vector indicating core species
-    res_em$core_diseq_f <- rep(NA, nrow(res_em))    # fraction of disequilibrium contained in network core
-    res_em$core_mass_f <- rep(NA, nrow(res_em))     # fraction of mass contained in network core
-    res_em$equilibrium_ref <- rep(NA, nrow(res_em)) # id of equivalent equilibrium simulation for out of equilibrium sim.
+    res$flow_energy <- rep(0, nrow(res))      # flow (of energy to hv)
+    res$energy <- rep(0, nrow(res))           # complete energy in system (except of hv species)
+    res$diseq <- rep(0, nrow(res))            # difference between energy of this SS and eq. SS
+    res$core_sp_no <- rep(NA, nrow(res))      # number of species in core (species with mu higher 
+                                              # than the reference state - eq. SS)
+    res$core_hash <- rep(NA, nrow(res))       # hash of vector indicating core species
+    res$core_diseq_f <- rep(NA, nrow(res))    # fraction of disequilibrium contained in network core
+    res$core_mass_f <- rep(NA, nrow(res))     # fraction of mass contained in network core
+    res$equilibrium_ref <- rep(NA, nrow(res)) # id of equivalent equilibrium simulation for out of equilibrium sim.
     
     # Matrix containing chemical potential difference for every reaction
-    dmu_cross <- matrix(0, ncol=ncol(N), nrow=nrow(res_em))
+    dmu_cross <- matrix(0, ncol=ncol(N), nrow=nrow(res))
 
     # First calculate 'equilibrium_ref' for non-equilibrium rows and all the data for
     # the equilibrium rows
-    for(i in 1:nrow(res_em)) {
-        if(res_em$relaxing_sim[i]) {
-            con <- res_em$sp_df[[i]]$con
-            mu <- res_em$sp_df[[i]]$mu
-            x <- con*mu
-           
-            res_em$energy[i] <- sum(x[-length(x)])
-            res_em$core_diseq_f[i] <- 1
-            res_em$core_mass_f[i] <- 1
-        } else {
-            s <- which(res_em$relaxing_sim & res_em$Edraw == res_em$Edraw[i] &
-                       res_em$Rdraw == res_em$Rdraw[i] & res_em$c == res_em$c[i])
-            if(length(s) == 0)
-                s <- which(res_em$relaxing_sim & res_em$Edraw == res_em$Edraw[i] &
-                           res_em$c == res_em$c[i])[1]
+    for(i in 1:nrow(res)) {
+        net <- res_nets[[res$Edraw[i]]]
+        cat("-")
+        if(i %% 1000 == 0) cat("\n", i/nrow(res))
+        res$sp_df[[i]]$degree <- deg
+        res$sp_df[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
+        res$sp_df[[i]]$mu[!is.finite(res$sp_df[[i]]$mu)] <- 0
+        res$sp_df[[i]]$mean_ep <- associate_reaction_to_species(net, res$re_df[[i]]$entropy_prod)
 
-            res_em$equilibrium_ref[i] <- s
+        con <- res$sp_df[[i]]$con
+        mu <- res$sp_df[[i]]$mu
+        x <- con*mu
+           
+        res$energy[i] <- sum(x[-length(x)])
+
+        if(res$relaxing_sim[i]) {     # If it is a relaxing simulation calculate energy
+            con <- res$sp_df[[i]]$con
+            mu <- res$sp_df[[i]]$mu
+            x <- con*mu 
+            res$energy[i] <- sum(x[-length(x)])
+            res$core_diseq_f[i] <- 1
+            res$core_mass_f[i] <- 1
+        } else {
+            s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
+                       res$Rdraw == res$Rdraw[i] & res$c == res$c[i])
+            if(length(s) == 0)
+                s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
+                           res$c == res$c[i])[1]
+
+            res$equilibrium_ref[i] <- s
         }
     }
      
-    for(i in 1:nrow(res_em)) {
-        dmu_cross[i,] <- res_em$sp_df[[i]]$mu %*% N
+    for(i in which(!res$relaxing_sim)) { 
+        cat(".")
+        if(i %% 1000 == 0) cat("\n", i/nrow(res))
+        dmu_cross[i,] <- res$sp_df[[i]]$mu %*% N
  
-        if(is.data.frame(res_em$em_ex[[i]])) {
-            # load data on mu (chemical potential) and con (concentration)
-            eqref <- res_em$equilibrium_ref[i]
-            con <- res_em$sp_df[[i]]$con
-            mu <- res_em$sp_df[[i]]$mu 
-            x <- con*mu
-            x2 <- res_em$sp_df[[eqref]]$con*res_em$sp_df[[eqref]]$mu
-            core_sp <- mu > res_em$sp_df[[ eqref ]]$mu
-            core_sp[length(core_sp)] <- F    # Ensure 'hv' is not in core
-            res_em$sp_df[[i]]$core_sp <- core_sp
+        # load data on mu (chemical potential) and con (concentration)
+        eqref <- res$equilibrium_ref[i]
+        con <- res$sp_df[[i]]$con
+        mu <- res$sp_df[[i]]$mu 
+        x <- con*mu
+        x2 <- res$sp_df[[eqref]]$con*res$sp_df[[eqref]]$mu
+        
+        core_sp <- mu > res$sp_df[[ eqref ]]$mu
+        core_sp[length(core_sp)] <- F    # Ensure 'hv' is not in core
+        res$sp_df[[i]]$core_sp <- core_sp
 
-            res_em$flow_energy[i] <- res_em$flow[i]*mu[length(mu)]
-            res_em$energy[i] <- sum(x[-length(x)])
-            res_em$diseq[i] <- res_em$energy[i] - res_em$energy[eqref]
-            res_em$core_sp_no[i] <- sum(core_sp) 
+        res$flow_energy[i] <- res$flow[i]*mu[length(mu)]
+        res$diseq[i] <- res$energy[i] - res$energy[eqref]
+        res$core_sp_no[i] <- sum(core_sp) 
                                              # than the reference state - eq. SS)
-            res_em$core_hash[i] <-  sb_v_to_hash(core_sp, 0.1)
-            res_em$core_diseq_f[i] <- sum(x[core_sp]-x2[core_sp])/res_em$diseq[i]
-            res_em$core_mass_f[i] <- sum(con[core_sp])/sum(con[-length(con)])
-        }   
+        res$core_hash[i] <-  sb_v_to_hash(core_sp, 0.1)
+        res$core_diseq_f[i] <- sum(x[core_sp]-x2[core_sp])/res$diseq[i]
+        res$core_mass_f[i] <- sum(con[core_sp])/sum(con[-length(con)])
     }
      
-    results_cross <- res_em
-    em_derive=em_der
+    results_cross <- res
 
-    save(results_cross, em_exp_r_cross, em_derive, dmu_cross, file="results_cross.Rdata")
- 
-    return(list(results_cross=results_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_der, dmu_cross=dmu_cross))
+    save(results_cross, dmu_cross, file="results_cross.Rdata")
+    return(list(results_cross=results_cross, dmu_cross=dmu_cross))
 }
 
 
@@ -1090,7 +1263,7 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
         mat[[length(mat)+1]] <- x
         y <- eigen(x, symmetric=F)$values
         ew[[length(ew)+1]] <- y
-        rel <- Re(y) != 0
+        rel <- abs(Re(y)) > 1e-10
         ew_max[length(ew_max)+1] <- max(Re(y[rel]))
         ew_min[length(ew_min)+1] <- min(Re(y[rel]))
     }
@@ -1100,80 +1273,3 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 }
 
 
-sb_stability_analysis_ecol <- function(res_nets, res, var=0.05, d_v=1e-2) {
-    # GENERATING
-    N <- jrnf_calculate_stoich_mat(res_nets[[1]])
-    em_st_m <- matrix(0, nrow=0, ncol=ncol(N))      # all elementary modes
-
-    # first select entries for rel_grow simulations
-    sel1 <- which(res$relaxing_sim & res$err_cc_rel < 0.1)
-    
-    # now select for "up", "down" and "rel"    
-    sel2 <- which(!is.na(res$em_ex))
-
-    # DATA FRAME
-    l_ <- length(sel2)
-    l <- length(sel1)+3*l_
-    df <- data.frame(id_orig=c(sel1,rep(sel2,3)),
-                     type=as.factor(c(rep("rel_grow", length(sel1)), 
-                                      rep("up", l_), rep("down", l_), rep("rel", l_))),
-                     v=c(res$v[sel1], rep(res$v[sel2], 3)),
-                     dv=c(rep(d_v, length(sel1)), var*res$v[sel2], -var*res$v[sel2], -res$v[sel2]),
-                     flow=c(res$flow[sel1], rep(res$flow[sel2], 3)),
-                     d_flow=rep(NA, l),
-                     flow_energy=c(res$flow_energy[sel1], rep(res$flow_energy[sel2], 3)),
-                     d_flow_energy=rep(NA, l),
-                     energy=c(res$energy[sel1], rep(res$energy[sel2], 3)),
-                     d_energy=rep(NA, l),
-                     diseq=c(res$diseq[sel1], rep(res$diseq[sel2], 3)),
-                     em_ex=I(as.list(rep(NA, l))), 
-                     em_no=rep(NA,l))
-
-    # Now calculate new (temporary) steady states
-    # Calculate temporary parameters and new (transition) pathways
-    for(i in 1:nrow(df)) {
-        io <- df$id_orig[i]
-        net <- res_nets[[ res$Edraw[io] ]]
-        c <- res$sp_df[[io]]$con
-        c[length(c)] <- df$v[i] + df$dv[i]
-        if(df$type[i] != "rel")
-            rate_ <- jrnf_calculate_flow(net, c)$flow_effective
-        else {  # Don't calculate rates the normal way for relaxing (c_hv == 0) but 
-                # copy old rates and set all photochemical reactions equal to zero
-            rate_ <- res$re_df[[io]]$flow_effective
-            n_hv <- which(net[[1]]$name == "hv")
-            rate_[N[n_hv,] != 0] <- 0 
-        }
-
-        dc <- N %*% rate_
-        mu <- net[[1]]$energy + log(c)        
-
-        df$d_flow[i] = dc[length(dc)] - df$flow[i]
-        # change of energyflow equals new flow times new mu minus old energy flow
-        df$d_flow_energy[i] <- (df$flow[i]+df$d_flow[i])*(mu[length(mu)]) - df$flow_energy[i]
-        df$d_energy[i] <- sum((c*mu)[-length(mu)])
-
-        x <- sb_h_calc_em_info(net, rate_, em_st_m, 1:(nrow(net[[1]])-1), em_cutoff=res$err_cc[io])
-
-        cat(".")
-
-        df$em_ex[[i]] <- x$em_ex
-        df$em_no=x$em_no
-        em_st_m=x$em_matrix
-   }
-
-    # calculate derived information from transition pathways
-    em_st_derive <- pa_em_derive(em_st_m[,1:ncol(N)], res_nets[[1]], 4)
-
-    # call sb_h_cross_ana for transition pathways
-    x <- sb_h_cross_ana(em_st_m, df, em_st_derive)
-    results_stability=x$res_em 
-    em_st_exp_r_cross=x$em_exp_r_cross
- 
-    # save to file
-    save(results_stability, em_st_m, em_st_exp_r_cross, em_st_derive, file="results_stability.Rdata")
- 
-    # return
-    return(list(results_stability=results_stability, em_st_m=em_st_m, 
-                em_st_exp_r_cross=em_st_exp_r_cross, em_st_derive=em_st_derive))
-}

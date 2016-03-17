@@ -26,7 +26,7 @@ if(!exists("sourced_jrnf_network"))
 #          -             : Data frame which has the same number of rows as pathway
 #                        : matrix has rows
 
-pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
+pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1, longtable=F) {
     con <- file(filename, "w")
     N <- jrnf_calculate_stoich_mat(net)
 
@@ -145,17 +145,44 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1) {
 
     con <- file(filename, "w")
     i("% created by pa_pathways_to_ltable!")
-    i("% please don't forget to include \\usepackage{multirow}.")
-    i("\\begin{table}[h]")
-    i("%\\caption[table title]{long table caption}")
-    i("%\\label{tab:mytabletable}")
-    i("\\begin{tabular}{ ", get_layout_head(), " }")
-    i("\\hline")
-    draw_header()
-    for(k in 1:nrow(pw)) 
-        draw_pw(k)
-    i("\\end{tabular}")
-    i("\\end{table}")
+    if(!longtable) {
+        i("% please don't forget to include \\usepackage{multirow}.")
+        i("\\begin{table}[h]")
+        i("%\\caption[table title]{long table caption}")
+        i("%\\label{tab:mytabletable}")
+        i("\\begin{tabular}{ ", get_layout_head(), " }")
+        i("\\hline")
+        draw_header()
+        for(k in 1:nrow(pw)) 
+            draw_pw(k)
+        i("\\end{tabular}")
+        i("\\end{table}")
+    } else {
+        i("% (longtable version - make sure longtable package is active)")
+        i("% please don't forget to include \\usepackage{multirow}.")
+        i("\\begin{center}")
+        i("\\begin{longtable}{ ", get_layout_head(), " }")
+        i("\\caption[table title]{long table caption} \\label{tab:mylabel} \\\\")
+        i("\\hline")
+        draw_header()
+        i("\\hline")
+        i("\\endfirsthead")
+        i("\\caption[]{(continued)}\\\\")
+        i("\\hline")
+        draw_header()
+        i("\\hline")
+        i("\\endhead")
+        i("\\hline")
+        i(paste("\\multicolumn{", as.character(3+ncol(add_info)) ,
+                "}{c}{(continued on next page)}"))
+        i("\\endfoot")
+        i("\\hline")
+        i("\\endlastfoot")
+        for(k in 1:nrow(pw)) 
+            draw_pw(k)
+        i("\\end{longtable}")
+        i("\\end{center}")
+    }
     close(con)
 }
 
