@@ -504,7 +504,7 @@ pa_h_add_count_column <- function(x) {
 # sep      - vector of id's of reactions after which a separation is drawn ("\hline")
 #            (not implemented yet)
 
-jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1) {
+jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(), style=1, longtable=F) {
     con <- file(filename, "w")
 
     # Standard argument for add_info (==1) is interpreted as having to replace it
@@ -570,17 +570,44 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
     }
 
     i("% created by pa_network_to_ltable!")
-    i("\\begin{table}[h]")
-    i("%\\caption[table title]{long table caption}")
-    i("%\\label{tab:mytabletable}")
-    i("\\begin{tabular}{ ", get_layout_head(), " }")
-    i("\\hline")
-    draw_header()
-    for(k in 1:nrow(net[[2]])) 
-        draw_reaction(k)
-    i("\\hline")
-    i("\\end{tabular}")
-    i("\\end{table}")
+    if(!longtable) {
+        i("\\begin{table}[h]")
+        i("%\\caption[table title]{long table caption}")
+        i("%\\label{tab:mytabletable}")
+        i("\\begin{tabular}{ ", get_layout_head(), " }")
+        i("\\hline")
+        draw_header()
+        for(k in 1:nrow(net[[2]])) 
+            draw_reaction(k)
+        i("\\hline")
+        i("\\end{tabular}")
+        i("\\end{table}")
+    } else {
+        i("% (longtable version - make sure longtable package is active)")
+        i("\\begin{center}")
+        i("\\begin{longtable}{ ", get_layout_head(), " }")
+        i("\\caption[table title]{long table caption} \\label{tab:mylabel} \\\\")
+        i("\\hline")
+        draw_header()
+        i("\\hline")
+        i("\\endfirsthead")
+        i("\\caption[]{(continued)}\\\\")
+        i("\\hline")
+        draw_header()
+        i("\\hline")
+        i("\\endhead")
+        i("\\hline")
+        i(paste("\\multicolumn{", as.character(3+ncol(add_info)) ,
+                "}{c}{(continued on next page)}"))
+        i("\\endfoot")
+        i("\\hline")
+        i("\\endlastfoot")
+        for(k in 1:nrow(net[[2]])) 
+            draw_reaction(k)
+        i("\\hline")
+        i("\\end{longtable}")
+        i("\\end{center}")
+    }
     close(con)
 }
 
