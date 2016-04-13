@@ -1,7 +1,7 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
 # testing-tool for algorithm which determines pathways / elementary flux modes
-# of reaction networks considering a flux vector v. All functions of this 
+# of reaction networks and a given flux (stea vector v. All functions of this 
 # file start with prefix "pa_"
 
 sourced_pathway_analysis <- T
@@ -28,7 +28,7 @@ if(!exists("sourced_pathway_analysis_eval"))
 # Given a reaction network <N_orig> and a subset of active reactions <path_orig>
 # this function calculates all elementary flux modes in the subset of reactions.
 # This function follows the original efm-algorithm (TODO: source) and can only be
-# used for small networks. It is used as a helper for the function which is usable
+# used for small sub-networks. It is used as a helper for the function which is usable
 # for bigger networks.
 
 pa_subpath_decomposition <- function(N_orig, path_orig, sel=c()) {
@@ -126,6 +126,12 @@ pa_check_pathway_present <- function(path_M, path_rates, path_M_el) {
 
 
 # TODO find a more intelligent method of deciding which pathways to drop
+# TODO This is the older pathway decomposition function that decomposes the
+#      steady state in one function call and uses "pa_subpath_decomposition"
+#      as a helper.
+#      The newer one is implemented in pa_initialize and pa_step and uses 
+#      "pa_decompose" for decomposition. A "one-function call" can be made 
+#      through pa_analysis_A 
 # 
 # parameters:
 # net  -  the network that is analysed
@@ -261,28 +267,7 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
                                 path_M_dec <- matrix(np, nrow=1)    # don't do subpath stuff (SLOW)
                             else
                                 path_M_dec <- pa_subpath_decomposition(N, np, sp_br_flag)
-                            
-                            #if(nrow(path_M_dec) > 2) {
-                            #    cat("PATHWAY NOT ELEMENTARY or TWO!\n")
-                            #    cat("==================================\n")
-                            #    pa_write_em(net, np, F)
-                            #    cat("==================================\n")
-                            #     
-                            #    for(r in 1:nrow(path_M_dec)) {
-                            #        cat("subpath ", r, "\n")
-                            #        cat("==================================\n")
-                            #        pa_write_em(net, path_M_dec[r,], F)
-                            #        cat("==================================\n")
-                            #    }
-                            #}
-
-                            # OVERWRITE (copied from above so diagnostics is printed
-                            #            even if
-
-
                         }
-
-                        
 
                         if(nrow(path_M_dec) == 0) 
                             cat("ERROR: assortion violated (D)!\n")
