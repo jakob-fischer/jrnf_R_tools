@@ -968,9 +968,9 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
 
 
     # which reactions of network are linear
-    is_linear <- (unlist(lapply(res_net[[1]][[2]]$educts_mul, sum)) == 1) 
+    is_linear <- (unlist(lapply(res_nets[[1]][[2]]$educts_mul, sum)) == 1) 
     # species degree
-    deg <- as.vector(degree(jrnf_to_undirected_network(res_net[[1]])))    
+    deg <- as.vector(degree(jrnf_to_undirected_network(res_nets[[1]])))    
 
     # helper function
     # calculating elementary modes
@@ -1159,8 +1159,8 @@ sb_em_cross_analysis_ecol <- function(net, em, res_em) {
         }
 
     results=results_em_cross <- res_em
-    save(results_em_cross, em_exp_r_cross, em_derive, file="results_em_cross.Rdata")
-    return(list(results_em_cross=results_em_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_derive))
+    save(results_em_cross, em_exp_r_cross, em_der, file="results_em_cross.Rdata")
+    return(list(results_em_cross=results_em_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_der))
 }
 
 
