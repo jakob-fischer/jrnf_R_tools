@@ -17,7 +17,7 @@ if(!exists("sourced_jrnf_network"))
 
 jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     lAE <- NA
-    if(limit_AE) lAE <- 5
+    if(limit_AE) lAE <- 3
 
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
     net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE)
