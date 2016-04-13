@@ -340,6 +340,7 @@ jrnf_reverse_reactions <- function(net, rev) {
 
     for(i in 1:nrow(net[[2]])) {
         if(rev[i]) {
+            # reverse topological part
             e <- net[[2]]$educts[[i]]
             e_m <- net[[2]]$educts_mul[[i]]
             p <- net[[2]]$products[[i]]
@@ -364,6 +365,11 @@ jrnf_reverse_reactions <- function(net, rev) {
                 net[[2]]$products_mul[i] <- list(NULL)                    
             else
                 net[[2]]$products_mul[[i]] <- I(e_m)
+
+            # reverse reaction constants
+            tmp <- net[[2]]$k[i]
+            net[[2]]$k[i] <- net[[2]]$k_b[i]
+            net[[2]]$k_b[i] <- tmp
         }
     }
     
