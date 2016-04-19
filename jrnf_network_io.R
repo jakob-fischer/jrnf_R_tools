@@ -616,3 +616,49 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
 load_jrnf <- jrnf_read
 write_jrnf <- jrnf_write
 
+
+# Function that takes a reaction network and initial concentration and writes 
+# it to an ODE file that can be simulated by xpp (http://www.math.pitt.edu/~bard/xpp/xpp.html)
+# The parameter 'energy_sp' describes if the differential equation is written
+# in terms of standard chemical potentials and activation energies or in terms
+# of reaction constants (that are derived from te former)
+
+jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
+    if(recalc_r)
+        net <- jrnf_calc_reaction_r(net)
+
+    con <- file(filename, "w")
+    i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
+
+    # header / comment
+    if(energy_sp)
+        i("#jrnf_network_to_ODE - energy specified equations")
+    else 
+        i("#jrnf_network_to_ODE - energy specified equations")
+
+    # precalculate constants that may be needed nultiple times
+    
+
+    # now output all the lines (change of all species)
+    for(j in 1:nrow(net[[1]])) {
+        lhs <- 0
+        
+        if(net[[1]]$constant[j])
+            rhs <- "0"        
+        else {
+            if(energy_sp)
+                rhs <- "b"
+            else
+                rhs <- "c"
+        }
+
+        i(lhs, "=", rhs)
+    }
+
+    # now output the initial concentration 
+    tmp <- paste(net[[1]]$name, "=", as.character(x), c(rep(",", length(x)-1), ""), sep="")
+    i(paste("init", paste(tmp, collapse="")))
+
+    close(con)
+}
+
