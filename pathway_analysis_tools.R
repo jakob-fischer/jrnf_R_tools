@@ -15,14 +15,17 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
-# Function writes elementary mode <em> of network <net>. Reactions that have 
-# only one educt and no products or only one product and no educts are ignored 
-# (they are probably) pseudo-reactions for the output and not considered when 
-# printing the net reaction. 
+# Function prints elementary mode <em> of network <net> to standard output. If
+# the option 'discard_s' is active reactions that have only one educt and no 
+# products or only one product and no educts are ignored (they are probably) 
+# pseudo-reactions for in- / outflow and thus concatenated.
 
-pa_write_em <- function(net, em, discard_s=T) {
-    N <- jrnf_calculate_stoich_mat(net)   
-    x <- (apply(N != 0, 2, sum) == 1)     # remove reactions with just one species involved
+pa_print_em <- function(net, em, discard_s=T) {
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)   
+    N <- N_out - N_in
+    x <- ( (apply(N_in != 0, 2, sum) + 
+            apply(N_out != 0, 2, sum)) == 1)      # remove reactions with just one species involved
     if(discard_s)
         em[x] <- 0    
 
@@ -73,12 +76,12 @@ pa_write_em <- function(net, em, discard_s=T) {
 # TODO: cleanup? Right place for this function?   
 
 pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
+    # Don't have to do anything if no em's present
     if(nrow(em) == 0)
         return()
 
     N <- min(N, nrow(em))
         
-
     em <- em[1:N,]
     exp_f <- exp_f[1:N]
     rates <- rates[1:N]
@@ -88,7 +91,7 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
     for(i in 1:nrow(em)) {
         x <- c(x, capture.output(cat(i, ": coefficient is", rates[i], "   explained fraction", exp_f[i])))
         x <- c(x, capture.output(cat("============================================================")))
-        x <- c(x, capture.output(pa_write_em(net, em[i,])))
+        x <- c(x, capture.output(pa_print_em(net, em[i,])))
         x <- c(x, capture.output(cat("\n")))
     }
 
@@ -97,7 +100,8 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
 
 
 # The helper function takes a matrix (complete list of pathways) as argument
-# and identifies those that are actually unique. 
+# and identifies those that are actually elementary by checking which ones are 
+# "contained" in other pathways from the complete set of pathway. 
 
 pa_find_elementary_pw <- function(mat) {
     keep_pw <- rep(T, nrow(mat))         
@@ -117,12 +121,11 @@ pa_find_elementary_pw <- function(mat) {
 # Function extends the pathway representation to one that does not only contain
 # the (positive integer) coefficients of all the reactions but also integer 
 # coefficients for the change of all species concentration by applying the pathway.
-# TODO choose a better name?
 
-pa_extend_pathways <- function(pw, N) {
+pa_extend_pathway_representation <- function(pw, N) {
     if(is.list(pw)) # if <pw> is not a matrix of pathways but a list of pathways
                     # $M and coefficients $coef...
-        return(list(M=pa_extend_pathways(pw$M, N), coef=pw$coef))
+        return(list(M=pa_extend_pathway_representation(pw$M, N), coef=pw$coef))
 
     if(is.vector(pw))
         return(c(N %*% pw, pw))
