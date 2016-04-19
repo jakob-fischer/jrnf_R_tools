@@ -172,7 +172,7 @@ pa_analysis_legacy <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition
     turnover <- as.vector(N_in %*% rates)
     count <- 1
 
-    # All species are taken as branching species (higher production rate first)
+    # All species are taken as branching species (lower turnover rate first)
     for(i in order(turnover, decreasing=F)) {
         cat("branching at species ", net[[1]]$name[i], "\n")
         sp_br_flag[i] <- T
@@ -241,7 +241,7 @@ pa_analysis_legacy <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition
                 cat(".")
                 for(dest in 1:length(con)) {
                     K_dst <- con_m[dest]       # How does the pathway dest change i 
-                    nr <- z[src,dest]*turnover/(K_dst*K_src)                    # new rate
+                    nr <- z[src,dest]*turnover/(K_dst*K_src)                # new rate
                     np <- K_dst*path_M[cr[src],] +                          # new pathway
                           K_src*path_M[con[dest],]  
 
@@ -584,7 +584,7 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
 
                 y <- pa_decompose_plain(N, M_[k,rea_col], branch_sp[1:m], F, cutoff)
                 
-                key_ext <- pa_extend_pathways(M_[k,rea_col],N)
+                key_ext <- pa_extend_pathway_representation(M_[k,rea_col],N)
                 backlog <- pa_backlog_add(backlog, key_ext, list(M=y$M, coef=y$coef))   
             }
 
