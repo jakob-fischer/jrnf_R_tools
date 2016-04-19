@@ -125,19 +125,22 @@ pa_check_pathway_present <- function(path_M, path_rates, path_M_el) {
 
 
 
-# TODO find a more intelligent method of deciding which pathways to drop
-# TODO This is the older pathway decomposition function that decomposes the
-#      steady state in one function call and uses "pa_subpath_decomposition"
-#      as a helper.
-#      The newer one is implemented in pa_initialize and pa_step and uses 
-#      "pa_decompose" for decomposition. A "one-function call" can be made 
-#      through pa_analysis_A 
+
+# This is the older pathway decomposition function that decomposes the
+# steady state in one function call and uses "pa_subpath_decomposition"
+# as a helper.
+# The newer one is implemented in pa_initialize and pa_step and uses 
+# "pa_decompose" for decomposition. A "one-function call" can be made 
+# through pa_analysis
 # 
 # parameters:
 # net  -  the network that is analysed
 # rates  -  the reaction rates of the network
+# TODO This function might be improved by finding a more intelligent criterion 
+#      on which pathways to drop. This is not a simple implementation issue
+#      and would require some research and testing.
 
-pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
+pa_analysis_legacy <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
     # Flag those rates that the reduction condition is applied to, even if this is
     # actually all reactions this makes still sense as some rates could
     # be zero and you want to exclude them.
@@ -353,16 +356,16 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
 # --------------------------------------------------------------------------------
 #
 # source("~/tmp/test.R", chdir=T)
-# PA_new_10_T <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0.5, 1e-3, T)     - 12
-# PA_new_10_F <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0.5, 1e-3, F)     - 12
-# PA_new_20_T <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0.5, 0, T)        - 183
-# PA_new_20_F <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0.5, 0, F)        - 183
-# PA_classic_10_T <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 1e-3, T)   - 2592
-# PA_classic_10_F <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 1e-3, F)   - 2838
-# PA_new_01_T <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0, 1e-1, T)       - 5
-# PA_new_01_F <- pa_analysis_A(net_rr_ext, rates_rr_ext, 0, 1e-1, F)       - 5
-# PA_classic_01_F <- pa_analysis(net_rr_ext, rates_rr_ext, 0, 1e-1, F)     - 399
-# PA_classic_01_T <- pa_analysis(net_rr_ext, rates_rr_ext, 0, 1e-1, T)     - 391
+# PA_new_10_T <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 1e-3, T)     - 12
+# PA_new_10_F <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 1e-3, F)     - 12
+# PA_new_20_T <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 0, T)        - 183
+# PA_new_20_F <- pa_analysis(net_rr_ext, rates_rr_ext, 0.5, 0, F)        - 183
+# PA_classic_10_T <- pa_analysis_legacy(net_rr_ext, rates_rr_ext, 0.5, 1e-3, T)   - 2592
+# PA_classic_10_F <- pa_analysis_legacy(net_rr_ext, rates_rr_ext, 0.5, 1e-3, F)   - 2838
+# PA_new_01_T <- pa_analysis(net_rr_ext, rates_rr_ext, 0, 1e-1, T)       - 5
+# PA_new_01_F <- pa_analysis(net_rr_ext, rates_rr_ext, 0, 1e-1, F)       - 5
+# PA_classic_01_F <- pa_analysis_legacy(net_rr_ext, rates_rr_ext, 0, 1e-1, F)     - 399
+# PA_classic_01_T <- pa_analysis_legacy(net_rr_ext, rates_rr_ext, 0, 1e-1, T)     - 391
 
 
 
@@ -1004,7 +1007,7 @@ pa_step <- function(obj, i=c()) {
 
 
 
-pa_analysis_A <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
+pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
     
     xx <- pa_initialize(net, rates, pmin, fexp, 0, F, do_decomposition)
 
