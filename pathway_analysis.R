@@ -672,6 +672,10 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0
 
 
 
+# Function calculates the turnover for all species
+#
+#
+
 pa_calculate_turnover <- function(M, N=c()) {
     if(!is.null(N))
         M <- matrix(M[,1:nrow(N)], nrow=nrow(M))
@@ -736,16 +740,21 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
 }
 
 
+# Limits the species that are planned for a pathway analysis object. For this 
+# the given rate vector is used to find out which species are not in steady 
+# state or have inflow or outflow outside of the reactions described in the network.
+# Species are excluded if their change rate (assuming the 'rates' known are a
+# steady state) is above 'bound'.
+
 pa_limit_sp_planned <- function(x, bound=1e-20) {
     sel <- as.logical(abs(x$parameters$N %*% x$parameters$rates) < bound)
     x$state$sp_planned <- x$state$sp_planned[x$state$sp_planned %in% which(sel)]
 
-    # TODO REMOVE NEXT LINE / just for testing
-    x$state$sp_planned <- sort(x$state$sp_planned, decreasing=T)
-
     return(x)
 }
 
+
+# Function returns true if no further species for branching are available 
 
 pa_is_done <- function(obj) {
     if(length(obj$state$sp_planned) == 0)
@@ -755,10 +764,11 @@ pa_is_done <- function(obj) {
 }
 
 
-
+#
+#
 
 pa_step <- function(obj, i=c()) {
-    gc()
+    gc()  # call garbage collector first because function needs a lot of memory
 
     if(is.null(i))
         if(is.null(obj$state$sp_planned) || size(obj$state$sp_planned) == 0) {
@@ -994,7 +1004,7 @@ pa_step <- function(obj, i=c()) {
     obj$state$sp_done <- c(obj$state$sp_done, obj$state$sp_planned[1])
     obj$state$sp_planned <- obj$state$sp_planned[-1]
 
-
+    # recalculate state parameters
     tmp <- scale_mat_rows(obj$pathways$M, obj$pathways$coefficients)
     obj$state$rates_active <- apply(matrix(tmp[obj$pathways$active_f, nrow(N)+1:ncol(N)],ncol=ncol(N)), 2, sum)
     obj$state$rates_dumped <- apply(matrix(tmp[!obj$pathways$active_f, nrow(N)+1:ncol(N)],ncol=ncol(N)), 2, sum)
@@ -1008,17 +1018,34 @@ pa_step <- function(obj, i=c()) {
 
 
 pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
-    
-    xx <- pa_initialize(net, rates, pmin, fexp, 0, F, do_decomposition)
+    # Initialize - Don't use explained turnover for cutoff (not implemented as of April 16)
+    xx <- pa_initialize(net, rates, pmin, fexp, co_exp_turnover=0, prep=F, decompose=do_decomposition)
 
+    # Do step till nothing more to do
     while(!pa_is_done(xx))
         xx <- pa_step(xx)
 
+    # Return list with active pathways as first element and coefficients as second (similar to pa_analysis_legacy)
     return(list(xx$pathways$M[xx$pathways$active_f,], xx$pathways$coefficients[xx$pathways$active_f], xx))
 } 
 
 
 
+pa_recalculate_coefficient <- function(net, pw, rate) {
+    # calculate subnetwork for reactions (and species) contained in pathway
 
+
+    # add pseudoreactions to balance effect of rates outside of the pathway
+
+
+    # calculate pathway decomposition for subnetwork
+
+
+    # remove pathways that include pseudoreactions and pathways that are not
+    # the original pathway 'pw'
+
+
+    # return coefficient
+}
 
 
