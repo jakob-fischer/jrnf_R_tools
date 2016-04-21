@@ -662,3 +662,163 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
     close(con)
 }
 
+
+
+# TODO Adapt layout in a way that first layouts the species-vertices and considers 
+#      reaction-vertices in an easier second step
+#      - Maybe just layout species-vertices (from substrate graph) and put reaction
+#        markers on the arithmetic mean of all contributing vertices?
+
+jrnf_plot_network_prep <- function(net, layout_f=layout.auto, mark_pseudor=T) {
+    # Extended mean all pultiplicities in network representation are 1 
+    # (species occur multiple times if necessary)
+    net <- jrnf_transform_extended(net)
+    N <- nrow(net[[1]])
+    M <- nrow(net[[2]])
+
+    # Parameters for plotting saved in prepare-object
+    name <- c(net[[1]]$name, rep("", M))
+    shape <- c(rep("none", N), rep("square", M))
+    size <- c(rep(10,N), rep(5, M))
+    color <- rep("orange", N+M)
+    
+    # Bipartite graph is first generated from an adjacency list
+    al <- rep(list(c()), N+M)
+
+    for(i in 1:M) {
+        # Add reaction-node to out-adjacency-list of educts
+        for(e in net[[2]]$educts[[i]])
+            al[[e]] <- c(al[[e]], i+N)
+
+        # Add product-node to out-adjacency-list of reaction
+        for(p in net[[2]]$products[[i]])
+            al[[N+i]] <- c(al[[N+i]], p)
+    }
+
+    g <- graph_from_adj_list(al)
+    la <- layout_f(g)
+    
+    # reaction reference - encodes from which reaction the nodes in the 
+    # bipartite are derived (necessary if ploting subnets / pathways)
+    re_ref <- unlist(al[1:N])-N
+    for(i in 1:M)
+        re_ref <- c(re_ref, rep(i, length(al[[N+i]])))
+
+    # If pseudoreactions are marked the color of their nodes (reaction nodes) are 
+    # plotted in blue and a little bit larger than normal reaction nodes.
+    if(mark_pseudor) {
+        pseudo_r <- which(apply(jrnf_calculate_stoich_mat(net) != 0, 2, sum) == 1) + N
+        color[pseudo_r] <- "blue"
+        size[pseudo_r] <- 6
+    }
+
+    return(list(net=net, N=N, M=M, name=name, shape=shape, size=size, color=color, g=g, la=la, re_ref=re_ref))
+}
+
+
+#
+# To giving a consistent return value for different parameters a naming scheme 
+# for the prepare objects is used. 'prep' is the original parameter, 'prep_r' is
+# the one that will be returned, 'prep_p' the one used to plot.
+
+jrnf_plot_network <- function(net, prep=c(), layout_f=layout.auto, rate_v=c(), mark_pseudor=T) {
+    # If it is not given "prepared" (including a fixed layout) as parameter
+    # the prepare function is used
+    if(is.null(prep))
+        prep_r <- jrnf_plot_network_prep(net, layout_f, mark_pseudor)
+    else
+        prep_r <- prep
+  
+    # Reaction rates 'rate_v' are used to change reaction directions and
+    # correctly plot reaction directions
+    if(!is.null(rate_v)) {
+        net_rev <- jrnf_reverse_reactions(net, rate_v)
+        prep_p <- jrnf_plot_network_prep(net_rev, layout_f, mark_pseudor)
+        prep_p$la <- prep_r$la
+    } else
+        prep_p <- prep_r
+
+
+    plot.igraph(prep_p$g, vertex.shape=prep_p$shape, vertex.label=prep_p$name, 
+                vertex.size=prep_p$size, vertex.color=prep_p$color, layout=prep_p$la)
+
+    return(prep_r)
+}
+
+
+# TODO How to mark multiplicity of reactions? By text or by size?
+# TODO Plot colored pathway last (order of edges in graph has to be changed)
+#
+# To giving a consistent return value for different parameters a naming scheme 
+# for the prepare objects is used. 'prep' is the original parameter, 'prep_r' is
+# the one that will be returned, 'prep_p' the one used to plot.
+
+jrnf_plot_pathway <- function(net, pw, prep=c(), layout_f=layout.auto, lim_plot=F, mark_pseudor=T) {
+    # If it is not given "prepared" (including a fixed layout) as parameter
+    # the prepare function is used
+    if(is.null(prep)) 
+        prep_r <- jrnf_plot_network_prep(net, layout_f, mark_pseudor)
+    else 
+        prep_r <- prep
+ 
+    # Independent from the prepare call made for the network (its directions) itself
+    # a call for a network with adapted reaction directions has to be made 
+    # (so arrow directions match in the plot). Note that only the original networks prepare
+    # is returned by jrnf_plot_pathway for reproducability.
+    prep_p <- jrnf_plot_network_prep(jrnf_reverse_reactions(net, pw), layout_f, mark_pseudor)
+    prep_p$la <- prep_r$la
+    pw <- abs(pw)
+
+    # Only plot actual part of pathway. If originally no layout ('prep') was 
+    # given to the function a new layout is created (nevertheless prep_r is 
+    # returned because it doesn't make sense to return a layout only for a 
+    # subnetwork).
+    if(lim_plot) {
+        prep_p_ <- prep_p
+        
+        # Redo layout / prepare (for subnetwork)
+        prep_p <- jrnf_plot_network_prep(jrnf_subnet_r(prep_p$net, pw !=0 ), layout_f, mark_pseudor)
+
+        # If original pathway was given, have to include its layout (that was 
+        # indirectly stored in prep_p_ 
+        if(!is.null(prep)) {
+            # else use "sublayout" to 
+            N_in <- jrnf_calculate_stoich_mat_in(prep_p_$net)
+            N_out <- jrnf_calculate_stoich_mat_out(prep_p_$net)
+            
+            sel_re <- pw != 0
+            sel_sp <- apply((N_in != 0 | N_out != 0)[,sel_re], 1, any)
+
+            prep_p$la <- prep_p_$la[c(sel_sp, sel_re),]
+        }
+
+        pw <- pw[pw != 0]
+    }
+
+    # Highlight pathway part (vertex)
+    rea <- which(pw != 0)
+    rea_m <- pw[rea]
+
+    i_pr <- prep_p$color == "blue"
+    prep_p$size[prep_p$N+rea] <- 5+2*rea_m
+    prep_p$color[prep_p$N+rea] <- "green"
+
+    # pseudoreactions that are part of the pathway are plotted purple (no size change here)
+    if(mark_pseudor)   
+        prep_p$color[i_pr & prep_p$color == "green"] <- "purple"        
+
+    # Highlight pathway part (edges) 
+    e_width <- rep(1, length(E(prep_p$g)))
+    e_color <- rep("darkgrey", length(E(prep_p$g)))
+
+    e_sel <- prep_p$re_ref %in% rea
+    e_width[e_sel] <- 1.5
+    e_color[e_sel] <- "red"
+
+    plot.igraph(prep_p$g, vertex.shape=prep_p$shape, vertex.label=prep_p$name, 
+                vertex.color=prep_p$color, vertex.size=prep_p$size, edge.width=e_width, 
+                edge.color=e_color, layout=prep_p$la)
+
+    return(prep_r)
+}
+
