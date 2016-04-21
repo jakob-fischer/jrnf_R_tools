@@ -27,6 +27,7 @@ if(!exists("sourced_jrnf_network_io"))
 
 
 # Transform all reactions to extended form where all multiplicities are 1
+# TODO rename to expand?
 
 jrnf_transform_extended <- function(net) {
     # separate species and reactions dataframe (easier to access)
