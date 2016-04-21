@@ -190,11 +190,13 @@ jrnf_calculate_stoich_mat_in <- function(net) {
     N <- matrix(0, no_sp, no_re)
     
     for(i in 1:no_re) {
-        for(j in 1:length(net[[2]]$educts[[i]])) {
-            e <- net[[2]]$educts[[i]][j]
-            N[e, i] <- N[e, i] + net[[2]]$educts_mul[[i]][j]
+        l <- length(net[[2]]$educts[[i]])
+        if(l != 0)
+            for(j in 1:l) {
+                e <- net[[2]]$educts[[i]][j]
+                N[e, i] <- N[e, i] + net[[2]]$educts_mul[[i]][j]
+            }
         }
-    }
 
     return(N)
 }
@@ -210,11 +212,13 @@ jrnf_calculate_stoich_mat_out <- function(net) {
     N <- matrix(0, no_sp, no_re)
     
     for(i in 1:no_re) {
-        for(j in 1:length(net[[2]]$products[[i]])) {
-            p <- net[[2]]$products[[i]][j]
-            N[p, i] <- N[p, i] + net[[2]]$products_mul[[i]][j]
+        l <- length(net[[2]]$products[[i]])
+        if(l != 0)
+            for(j in 1:l) {
+                p <- net[[2]]$products[[i]][j]
+                N[p, i] <- N[p, i] + net[[2]]$products_mul[[i]][j]
+            }
         }
-    }
 
     return(N)
 }
