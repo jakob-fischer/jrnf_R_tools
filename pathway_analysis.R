@@ -424,6 +424,7 @@ pa_backlog_add <- function(bl, key, x) {
         # Only thing to consider: key is part of it's own representation?
         tmp <- which(duplicated(rbind(matrix(key, nrow=1), x$M))[-1])
 
+        # If, it is removed and the coefficients rescaled 
         if(length(tmp) == 1) {
             sc <- 1/(1-x$coef[tmp])
             x$M <- x$M[-tmp,]
@@ -501,6 +502,8 @@ pa_backlog_add <- function(bl, key, x) {
             bl$sel <- bl$sel[,-tmp]
             bl$coef <- bl$coef[,-tmp]
         }
+
+        cat("dim(bl$coef) = ", dim(bl$coef), "\n")
 
         return(bl)
     }
@@ -582,6 +585,8 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
             for(k in which(!keep_pw)) {
                 # recursive call just keep the backlog
 
+                cat("cutoff=", cutoff, "\n")
+
                 y <- pa_decompose_plain(N, M_[k,rea_col], branch_sp[1:m], F, cutoff)
                 
                 key_ext <- pa_extend_pathway_representation(M_[k,rea_col],N)
@@ -616,7 +621,7 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
 # BLA 
 # TODO: documentation
 
-pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0) {
+pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0, rnd_o=F) {
     # calculate the reaction set for which decomposition is done
     sel_rea <- which(path_orig != 0)
 
@@ -643,10 +648,20 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0
     # because there might be reactions like "2A -> 2B" and the subsequent subfunctions
     # only operate onto the effective change of concentration (but pathways coefficients
     # should be integers)
-    s <- apply(N, 2, vec_gcd)
+    s <- apply(abs(N), 2, vec_gcd)
     N <- t(scale_mat_rows(t(N), 1/s))
 
-    x <- pa_decompose_plain(N, path_orig[sel_rea]*s, order(turnover), do_backlog, cutoff)
+    cat("DEC cutoff=", cutoff, "\n")
+
+    # Branch in random order or ordered with increasing turnover?
+    ord <- 0
+    if(rnd_o)
+        ord <- sample(length(branch_sp))
+    else 
+        ord <- order(turnover, decreasing=T)
+
+    cat("ord=", ord, "\n")
+    x <- pa_decompose_plain(N, path_orig[sel_rea]*s, ord, do_backlog, cutoff)
 
     x$M <- x$M[,-(1:nrow(N))]
 
@@ -1031,21 +1046,84 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
 
 
 
-pa_recalculate_coefficient <- function(net, pw, rate) {
+pa_recalculate_coefficient <- function(net, pw, v) {
+    # First, fix direction in pathways / rates / net
+    if(min(pw*v) < 0) {
+        cat("ERROR (pa_recalculate_coefficient): pw-rates sign missmatch!\n")
+        return()
+    }
+    net <- jrnf_reverse_reactions(net, pw)
+    pw <- abs(pw); v <- abs(v)
+
+    # calculate stoichiometric matrix...
+    N <- jrnf_calculate_stoich_mat(net)
+    # ... and error_bound (assuming steady state - else pathway method not applyable)
+    err_b <- max(abs(N %*% v))
+    
     # calculate subnetwork for reactions (and species) contained in pathway
+    net_rr <- list(net[[1]], net[[2]][pw != 0,])   # subnetwork
+    v_rr <- v[pw != 0]                             # rates restricted to subnetwork
+    N_rr <- jrnf_calculate_stoich_mat(net_rr)      
+    # Keep only that species that are as well produced as consumed by reactions of
+    # the relevant subnetwork
+    sp_keep <- apply(N_rr, 1, max) > 0 & apply(N_rr, 1, min) < 0 
 
 
-    # add pseudoreactions to balance effect of rates outside of the pathway
+    net_Arr <- list(net[[1]], net[[2]][pw == 0,])   
+    v_Arr <- v[pw == 0]
+    x <-  pa_extend_net(net_Arr, v_Arr, err_b)
 
+    # Network containing only exchange reactions
+    net_exch <- list(x[[1]][[1]], x[[1]][[2]][-(1:nrow(net_Arr[[2]])),])
+    v_exch <- x[[2]][-(1:nrow(net_Arr[[2]]))]
+  
+    net_exch <- jrnf_reverse_reactions(net_exch, rep(-1, nrow(net_exch[[2]])))
+    N_exch <- jrnf_calculate_stoich_mat(net_exch)
+    # find species associated with reactions ( only works because exactly
+    # one entry in every row is nonzero!) and select those that are kept
+    exch_which <- apply(N_exch != 0, 2, which)
+    exch_keep <- exch_which %in% which(sp_keep)
+
+    net_rr_exch <- list(net_rr[[1]], rbind(net_rr[[2]], net_exch[[2]][exch_keep,]))
+    v_rr_exch <- c(v_rr, v_exch[exch_keep])
+
+    # finally cut irrelevant species (removed reactions + species)
+    net_rrs <- jrnf_subnet(net_rr_exch, sp_keep, rm_reaction=F)
+    v_rrs <- v_rr_exch
+    pw_rrs <- c(pw[pw != 0], rep(0, length(which(exch_keep))))
+
+    if(length(v_rrs) != nrow(net_rrs[[2]]))
+        {   cat("ERROR (pa_recalculate_coefficients): v_rrs-net_rrs missmatch!\n"); 
+            return(0)   } 
+
+    return(list(net=net_rrs, pw=pw_rrs, v=v_rrs))
 
     # calculate pathway decomposition for subnetwork
+    return(list(net_rrs, v_rrs))
+    x <- pa_decompose(jrnf_calculate_stoich_mat(net_rrs), v_rrs, T, T, err_b, rnd_o=T)
+    
+    res <- which(duplicated(rbind(pw_rrs, x$M))) - 1
 
+    # Also calculate and print number of subpathways of the found pathway
+    kl <- x$M[,-(1:sum(pw != 0))]
+    w <- which(apply(kl == 0, 1, all))
+    if(length(w) != 1) {
+        cat("having ", lenth(w), " subpathways, coefficients:", x$coef[w], "\n")
+    }
 
-    # remove pathways that include pseudoreactions and pathways that are not
-    # the original pathway 'pw'
-
+    cat("maximum coefficient is ", max(x$coef), " and found coefficient ", x$coef[res], "\n")
+    f <- max(x$coef[res]*x$M[res,1:sum(pw != 0)]/v[pw!=0]) 
+    cat("maximum explained fraction of pathway is ", f, "\n")
+    
+    #cat("res=", res, "\n")
+    #return(x)
 
     # return coefficient
+    if(length(res) == 1)
+        return(x$coef[res])
+ 
+    cat("WARNING (pa_recalculate_coefficients): Pathway was not found uniquely in decomposition!\n")
+    return(NA)
 }
 
 
