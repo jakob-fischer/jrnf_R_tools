@@ -21,6 +21,7 @@ if(!exists("sourced_jrnf_network"))
 # pseudo-reactions for in- / outflow and thus concatenated.
 
 pa_print_em <- function(net, em, discard_s=T) {
+    em <- as.numeric(em)
     N_in <- jrnf_calculate_stoich_mat_in(net)
     N_out <- jrnf_calculate_stoich_mat_out(net)   
     N <- N_out - N_in
@@ -149,7 +150,7 @@ pa_extend_net <- function(net, rates, bound=0, unique_dir=F) {
 
     # add reactions to balance growth / decrease
     for(i in 1:length(cdif_r)) 
-        if(abs(cdif_r[i]) > bound)
+        if(abs(cdif_r[i]) >= bound)
             # if species' concentration increases one pseudoreaction has to be included to remove it ("X -> ")
             if(cdif_r[i] > 0 | unique_dir) {   
 	        net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
