@@ -369,153 +369,12 @@ pa_analysis_legacy <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition
 
 
 
-
-pa_backlog_apply <- function(bl, x) {
-    # if there is no backlog yet there is nothing to apply
-    if(is.null(bl))
-        return(x)
-
-    M <- x$M
-    coef <- x$coef
-
-    #print(M)
-    #print(bl$key)
-
-    # first find backlog keys and pathway entries that overlap
-    bl_ol <- duplicated(rbind(M, bl$key))[-(1:nrow(M))]    
-    M_ol <- duplicated(rbind(bl$key, M))[-(1:nrow(bl$key))]
-
-    M_ <- matrix(M[!M_ol,], ncol=ncol(M))   # Nothing to do for these
-    coef_ <- coef[!M_ol]
-
-    M <- matrix(M[M_ol,], ncol=ncol(M))
-    coef <- coef[M_ol]    
-
-    # now find for each element in M the (id of the) exact matching key
-    sel <- rep(1, nrow(M))
-    
-    if(length(sel) > 0) {
-        for(i in 1:length(sel)) 
-            while(!all(bl$key[which(bl_ol)[sel[i]],] == M[i,]))
-                sel[i] <- sel[i] + 1
-
-        x0 <- scale_mat_rows(matrix(bl$coef[which(bl_ol)[sel],], ncol=ncol(bl$coef)), coef)
-        x1 <- apply(x0, 2, sum) 
-        x2 <- apply(matrix(bl$sel[which(bl_ol)[sel],], ncol=ncol(bl$sel)), 2, any)
-    
-        coef__ <- x1[x2]
-        M__ <- bl$M[x2,]
-
-        coef_ <- c(coef_, coef__)
-        M_ <- rbind(M_, M__)
-    } 
-
-    y <- pa_rm_duprows_accum(M_, coef_)
-
-
-    return(list(M=M_[y$keep,], coef=y$coef))
-}
-
-
-pa_backlog_add <- function(bl, key, x) {
-    if(is.null(bl)) {
-        # If backlist is empty, generating a new one is easy
-
-        # Only thing to consider: key is part of it's own representation?
-        tmp <- which(duplicated(rbind(matrix(key, nrow=1), x$M))[-1])
-
-        # If, it is removed and the coefficients rescaled 
-        if(length(tmp) == 1) {
-            sc <- 1/(1-x$coef[tmp])
-            x$M <- x$M[-tmp,]
-            x$coef <- x$coef[-tmp]*sc
-        }
-
-        bl <- list(key=matrix(key, nrow=1),
-                   M=x$M, coef=matrix(x$coef, nrow=1), 
-                   sel=matrix(rep(T, length(x$coef)), nrow=1))
-    } else {
-        # First check that the new key isn't already in the backlist
-        if(any(duplicated(rbind(bl$key, key)))) {
-            cat("WARNING: pa_backlog_add - added key multiple times!\n")
-            return(bl)
-        }
-
-        # Then apply the backlist to the representation x
-        x <- pa_backlog_apply(bl, x)
-
-        # Key might be used in representation (remove and rescale)
-        tmp <- which(duplicated(rbind(key, x$M))[-1])
-         
-        if(length(tmp) == 1) {
-            sc <- 1/(1-x$coef[tmp])
-            x$M <- x$M[-tmp,]
-            x$coef <- x$coef[-tmp]*sc
-        }
-
-        # Identify pathways in x that are already in bl$M
-        sel <- duplicated(rbind(bl$M, x$M))[-(1:nrow(bl$M))]
-        n_sel <- sum(sel)
-        n_nsel <- sum(!sel)
-        id_sel <- rep(1, n_sel)
-        if(n_sel > 0)
-            for(i in 1:n_sel) 
-                while(!all(x$M[which(sel)[i],] == bl$M[id_sel[i],]))
-                    id_sel[i] <- id_sel[i] + 1
-
-        # ADD key, ADD empty columns in bl$sel, bl$coef and ADD pathways to bl$M
-        bl$key <- rbind(bl$key, matrix(key, nrow=1))
-
-        if(n_nsel > 0) {
-            bl$M <- rbind(bl$M, x$M[!sel,])
-            bl$sel <- cbind(bl$sel, matrix(F, ncol=n_nsel, nrow=nrow(bl$sel)))
-            bl$coef <- cbind(bl$coef, matrix(0, ncol=n_nsel, nrow=nrow(bl$sel)))
-        }
-
-        # Construct new row and add to bl$sel and bl$coef 
-        sel_ <- c(rep(F,ncol(bl$sel)-n_nsel), rep(T, n_nsel))
-        if(n_sel > 0)
-            sel_[id_sel] <- T
-        coef_ <- c(rep(0, ncol(bl$coef)-n_nsel), x$coef[!sel]) 
-        if(n_sel > 0)
-            coef_[id_sel] <- x$coef[sel]
-
-        bl$sel <- rbind(bl$sel, matrix(sel_, nrow=1))
-        bl$coef <- rbind(bl$coef, matrix(coef_, nrow=1))
-
-
-        # If the newly added key is used as representation of the other keys update
-        # these representations and remove the key from M (+ delete the columns in sel and coef)
-        tmp <- which(duplicated(rbind(matrix(key, nrow=1), bl$M))[-1])
-        
-         
-        if(length(tmp) == 1) {
-            # first use the last row's coefficients (just calculated) to insert
-            # in all the representations of the other keys
-                
-            for(i in which(bl$sel[,tmp])) {
-                bl$coef[i,] <- bl$coef[i,] + bl$coef[i,tmp]*coef_   
-                bl$sel[i,] <- bl$sel[i,] | sel_
-            }
-
-            bl$M <- matrix(bl$M[-tmp,], ncol=ncol(bl$M))
-            bl$sel <- bl$sel[,-tmp]
-            bl$coef <- bl$coef[,-tmp]
-        }
-
-        cat("dim(bl$coef) = ", dim(bl$coef), "\n")
-
-        return(bl)
-    }
-}
-
-
 # TODO This function need a way to handle numerical problems
 # (Especially when used with fuzzy input) no pathway but steady state vector
 # these can really slow down the calculation...
 #
 
-pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
+pa_decompose_plain <- function(N, pw_init , branch_sp cutoff=0) {
     rates <- pw_init
     turnover <- 0.5*as.vector(abs(N) %*% rates) 
     rea_col <- -(1:nrow(N))
@@ -571,33 +430,8 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
             rates_ <- rates_[rates_ > cutoff]         
         }
 
-        backlog <- c()
-        repeat{
-            keep_pw <- pa_find_elementary_pw(matrix(M_[,rea_col], nrow=nrow(M_)))
+        keep_pw <- pa_find_elementary_pw(matrix(M_[,rea_col], nrow=nrow(M_)))
             
-            if(all(keep_pw) | !do_backlog){
-                break
-            }
-
-            #cat("having ", length(keep_pw), " pathways!\n")
-            #cat(sum(!keep_pw), " have to be dropped.\n")
-
-            for(k in which(!keep_pw)) {
-                # recursive call just keep the backlog
-
-                cat("cutoff=", cutoff, "\n")
-
-                y <- pa_decompose_plain(N, M_[k,rea_col], branch_sp[1:m], F, cutoff)
-                
-                key_ext <- pa_extend_pathway_representation(M_[k,rea_col],N)
-                backlog <- pa_backlog_add(backlog, key_ext, list(M=y$M, coef=y$coef))   
-            }
-
-            x <- pa_backlog_apply(backlog, list(M=M_, coef=rates_))
-            M_ <- x$M
-            rates_ <- x$coef
-            
-        }
 
         # And replace old by new (rates + pathways)
         M <- M_
@@ -621,7 +455,7 @@ pa_decompose_plain <- function(N, pw_init , branch_sp, do_backlog=T, cutoff=0) {
 # BLA 
 # TODO: documentation
 
-pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0, rnd_o=F) {
+pa_decompose <- function(N_orig, path_orig, branch_all=F, cutoff=0, rnd_o=F) {
     # calculate the reaction set for which decomposition is done
     sel_rea <- which(path_orig != 0)
 
@@ -661,7 +495,7 @@ pa_decompose <- function(N_orig, path_orig, do_backlog=T, branch_all=F, cutoff=0
         ord <- order(turnover, decreasing=T)
 
     cat("ord=", ord, "\n")
-    x <- pa_decompose_plain(N, path_orig[sel_rea]*s, ord, do_backlog, cutoff)
+    x <- pa_decompose_plain(N, path_orig[sel_rea]*s, ord, cutoff)
 
     x$M <- x$M[,-(1:nrow(N))]
 
@@ -1043,87 +877,4 @@ pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
     # Return list with active pathways as first element and coefficients as second (similar to pa_analysis_legacy)
     return(list(xx$pathways$M[xx$pathways$active_f,], xx$pathways$coefficients[xx$pathways$active_f], xx))
 } 
-
-
-
-pa_recalculate_coefficient <- function(net, pw, v) {
-    # First, fix direction in pathways / rates / net
-    if(min(pw*v) < 0) {
-        cat("ERROR (pa_recalculate_coefficient): pw-rates sign missmatch!\n")
-        return()
-    }
-    net <- jrnf_reverse_reactions(net, pw)
-    pw <- abs(pw); v <- abs(v)
-
-    # calculate stoichiometric matrix...
-    N <- jrnf_calculate_stoich_mat(net)
-    # ... and error_bound (assuming steady state - else pathway method not applyable)
-    err_b <- max(abs(N %*% v))
-    
-    # calculate subnetwork for reactions (and species) contained in pathway
-    net_rr <- list(net[[1]], net[[2]][pw != 0,])   # subnetwork
-    v_rr <- v[pw != 0]                             # rates restricted to subnetwork
-    N_rr <- jrnf_calculate_stoich_mat(net_rr)      
-    # Keep only that species that are as well produced as consumed by reactions of
-    # the relevant subnetwork
-    sp_keep <- apply(N_rr, 1, max) > 0 & apply(N_rr, 1, min) < 0 
-
-
-    net_Arr <- list(net[[1]], net[[2]][pw == 0,])   
-    v_Arr <- v[pw == 0]
-    x <-  pa_extend_net(net_Arr, v_Arr, err_b)
-
-    # Network containing only exchange reactions
-    net_exch <- list(x[[1]][[1]], x[[1]][[2]][-(1:nrow(net_Arr[[2]])),])
-    v_exch <- x[[2]][-(1:nrow(net_Arr[[2]]))]
-  
-    net_exch <- jrnf_reverse_reactions(net_exch, rep(-1, nrow(net_exch[[2]])))
-    N_exch <- jrnf_calculate_stoich_mat(net_exch)
-    # find species associated with reactions ( only works because exactly
-    # one entry in every row is nonzero!) and select those that are kept
-    exch_which <- apply(N_exch != 0, 2, which)
-    exch_keep <- exch_which %in% which(sp_keep)
-
-    net_rr_exch <- list(net_rr[[1]], rbind(net_rr[[2]], net_exch[[2]][exch_keep,]))
-    v_rr_exch <- c(v_rr, v_exch[exch_keep])
-
-    # finally cut irrelevant species (removed reactions + species)
-    net_rrs <- jrnf_subnet(net_rr_exch, sp_keep, rm_reaction=F)
-    v_rrs <- v_rr_exch
-    pw_rrs <- c(pw[pw != 0], rep(0, length(which(exch_keep))))
-
-    if(length(v_rrs) != nrow(net_rrs[[2]]))
-        {   cat("ERROR (pa_recalculate_coefficients): v_rrs-net_rrs missmatch!\n"); 
-            return(0)   } 
-
-    return(list(net=net_rrs, pw=pw_rrs, v=v_rrs))
-
-    # calculate pathway decomposition for subnetwork
-    return(list(net_rrs, v_rrs))
-    x <- pa_decompose(jrnf_calculate_stoich_mat(net_rrs), v_rrs, T, T, err_b, rnd_o=T)
-    
-    res <- which(duplicated(rbind(pw_rrs, x$M))) - 1
-
-    # Also calculate and print number of subpathways of the found pathway
-    kl <- x$M[,-(1:sum(pw != 0))]
-    w <- which(apply(kl == 0, 1, all))
-    if(length(w) != 1) {
-        cat("having ", lenth(w), " subpathways, coefficients:", x$coef[w], "\n")
-    }
-
-    cat("maximum coefficient is ", max(x$coef), " and found coefficient ", x$coef[res], "\n")
-    f <- max(x$coef[res]*x$M[res,1:sum(pw != 0)]/v[pw!=0]) 
-    cat("maximum explained fraction of pathway is ", f, "\n")
-    
-    #cat("res=", res, "\n")
-    #return(x)
-
-    # return coefficient
-    if(length(res) == 1)
-        return(x$coef[res])
- 
-    cat("WARNING (pa_recalculate_coefficients): Pathway was not found uniquely in decomposition!\n")
-    return(NA)
-}
-
 
