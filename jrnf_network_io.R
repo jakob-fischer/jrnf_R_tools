@@ -624,8 +624,14 @@ write_jrnf <- jrnf_write
 # of reaction constants (that are derived from te former)
 
 jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
+    if(length(x) != nrow(net[[1]])) {
+        cat("ERROR (jrnf_network_to_ODE): initial concentration has to be given with correct length!\n")
+        return()
+    }
+
     if(recalc_r)
         net <- jrnf_calc_reaction_r(net)
+
 
     con <- file(filename, "w")
     i <- function(...)  {  writeLines(paste(list(...), collapse=""), con)  }
@@ -637,19 +643,83 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
         i("#jrnf_network_to_ODE - energy specified equations")
 
     # precalculate constants that may be needed nultiple times
-    
+    net <- jrnf_calc_reaction_r(net)
+    kf <- net[[2]]$k
+    kb <- net[[2]]$k_b
+    N_in <- jrnf_calculate_stoich_mat_in(net)
+    N_out <- jrnf_calculate_stoich_mat_out(net)
+    N <- N_out - N_in 
+    EA <- jrnf_Ea_rel_to_abs(net, net[[2]]$activation)
+    mu0 <- net[[1]]$energy
+    e_mBEA <- exp(-EA)
+    e_Bsmu_in <- exp(t(N_in) %*% mu0)
+    e_Bsmu_out <- exp(t(N_out) %*% mu0)
 
     # now output all the lines (change of all species)
     for(j in 1:nrow(net[[1]])) {
-        lhs <- 0
+        lhs <- paste(net[[1]]$name[j], "'", sep="")
         
         if(net[[1]]$constant[j])
             rhs <- "0"        
         else {
-            if(energy_sp)
-                rhs <- "b"
-            else
-                rhs <- "c"
+            if(energy_sp) {
+                acc <- c()
+
+                for(k in which(N[j,] != 0)) {
+                    ac_in <- c()
+                    ac_out <- c()
+
+                    for(l in which(N_in[,k] != 0))
+                        for(m in 1:N_in[l,k])
+                            ac_in <- c(ac_in, net[[1]]$name[l])
+                    ac_in <- paste(ac_in, collapse="*")
+
+                    for(l in which(N_out[,k] != 0))
+                        for(m in 1:N_out[l,k])
+                            ac_out <- c(ac_out, net[[1]]$name[l])
+                    ac_out <- paste(ac_out, collapse="*")
+
+                    acc <- c(acc,
+                             paste("(", as.character(N[j,k]), ")*", 
+                                   as.character(e_mBEA[k]), "*(", ac_in, "*", 
+                                   e_Bsmu_in[k], "-", ac_out, "*", e_Bsmu_out[k], 
+                                   ")" , sep=""))
+                }
+
+                # Now collapse all the forward and backward terms for all the reactions 
+                # changing the species concentration to the RHS of this row of the ODE
+                rhs <- paste(acc, collapse="+")
+            } else {
+                # Equations that don't use energies directly but use the rate
+                # constants kf and kb.
+                acc <- c()
+
+                for(k in which(N[j,] != 0)) {
+                    # reaction 'k' is generating / consuming 'N[j,k]' of species 'j' 
+                    # (first generate and add to 'acc' - the forward reaction term)
+                    cat(N[j,k], "\n")
+                    ac <- paste("(", as.character(N[j,k]), ")*", as.character(kf[k]), sep="")
+                    
+                    for(l in which(N_in[,k] != 0))
+                        for(m in 1:N_in[l,k])
+                            ac <- c(ac, net[[1]]$name[l])
+
+                    acc <- c(acc, paste(ac, collapse="*")) 
+
+                    # (now generate and add to 'acc' - the backward reaction term)
+                    ac <- paste("(", as.character(-N[j,k]), ")*", as.character(kb[k]), sep="")
+                    
+                    for(l in which(N_out[,k] != 0))
+                        for(m in 1:N_out[l,k])
+                            ac <- c(ac, net[[1]]$name[l])
+
+                    acc <- c(acc, paste(ac, collapse="*"))
+                }
+
+                # Now collapse all the forward and backward terms for all the reactions 
+                # changing the species concentration to the RHS of this row of the ODE
+                rhs <- paste(acc, collapse="+")
+            }
         }
 
         i(lhs, "=", rhs)
