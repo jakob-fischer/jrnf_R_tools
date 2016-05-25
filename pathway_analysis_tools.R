@@ -71,35 +71,6 @@ pa_print_em <- function(net, em, discard_s=T) {
 }
 
 
-# This function writes a list of <N> most relevant elementary modes /
-# pathways to the file with filename <filename>.
-#
-# TODO: cleanup? Right place for this function?   
-
-pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
-    # Don't have to do anything if no em's present
-    if(nrow(em) == 0)
-        return()
-
-    N <- min(N, nrow(em))
-        
-    em <- em[1:N,]
-    exp_f <- exp_f[1:N]
-    rates <- rates[1:N]
-
-    x <- c()
-
-    for(i in 1:nrow(em)) {
-        x <- c(x, capture.output(cat(i, ": coefficient is", rates[i], "   explained fraction", exp_f[i])))
-        x <- c(x, capture.output(cat("============================================================")))
-        x <- c(x, capture.output(pa_print_em(net, em[i,])))
-        x <- c(x, capture.output(cat("\n")))
-    }
-
-    writeLines(x, filename)
-}
-
-
 #
 #
 #
