@@ -884,8 +884,7 @@ jrnf_calc_reaction_r <- function(network, kB_T=1) {
 }
 
 
-#
-#
+# TODO document
 #
 
 jrnf_Ea_rel_to_abs <- function(network, Ea_rel) {
