@@ -100,6 +100,43 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
 }
 
 
+#
+#
+#
+
+pa_calc_coefficients <- function(M, v, con_fb=F) {
+    coef <- rep(0, nrow(M))
+    v_rem <- v      # REMaining flux vector (not explained by pw + coef till now)
+    v_active <- v_rem != 0                       # rates / reactions that are not saturated yet
+    pw_active <- !apply(M[,!v_active], 1, any)   # pathways compatible with non_saturated pathways
+    
+    while(any(v_active) && any(pw_active)) {
+       a <- apply(matrix(M[pw_active,], ncol=ncol(M)), 2, sum)
+       b <- (v_rem / a)
+       b[a == 0] <- NA
+
+       coef[pw_active] <- coef[pw_active] + min(b, na.rm=T)
+       v_active[which.min(b)] <- F
+       pw_active <- !apply(M[,!v_active] != 0, 1, any)
+
+       # recalculate remaining rate part
+       if(any(pw_active)) {
+           v_rem <- pmax(0, v - apply(scale_mat_rows(M, coef), 2, sum))
+           v_rem[!v_active] <- 0   # counter numerical errors
+            
+           if(con_fb)
+               cat(".")
+       }
+    }
+
+    v_res <- t(M) %*% coef # apply(scale_mat_rows(M, coef), 2, sum)
+    if(con_fb)
+        cat("\nPerfomance evaluation:", v_res / v, "\n")
+    score_b <- max(abs(1-v_res/v)[v != 0])
+    return(list(coef=coef, score_b=score_b))
+}
+
+
 # The helper function takes a matrix (complete list of pathways) as argument
 # and identifies those that are actually elementary by checking which ones are 
 # "contained" in other pathways from the complete set of pathway. 
