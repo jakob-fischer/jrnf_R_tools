@@ -138,3 +138,15 @@ b_mdim_transf <- function(v) {
 
     return(list(to_linear=to_linear, from_linear=from_linear))
 }
+
+
+# Function for generating matrices in which each element is it's respective row-id or column-id.
+# This is useful if one want's to transform from selected parts of a matix to their indices)
+rowid_m <- function(nrow, ncol)  { return(matrix(rep(1:nrow, ncol), ncol=ncol) )  }
+colid_m <- function(nrow, ncol)  { return(t(matrix(rep(1:ncol, nrow), ncol=nrow)) )  }
+
+mat_lin_to_rowid <- function(x, nrow, ncol)  {  return(as.vector(rowid_m(nrow, ncol))[x])  }
+mat_lin_to_colid <- function(x, nrow, ncol)  {  return(as.vector(colid_m(nrow, ncol))[x])  }
+
+mat_sel_to_rowid <- function(x) {  return(as.vector(rowid_m(nrow=nrow(x), ncol=ncol(x)))[as.vector(x)])  }
+mat_sel_to_colid <- function(x) {  return(as.vector(colid_m(nrow=nrow(x), ncol=ncol(x)))[as.vector(x)])  }
