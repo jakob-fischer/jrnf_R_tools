@@ -79,7 +79,7 @@ pa_calc_coefficients <- function(M, v, con_fb=F) {
     coef <- rep(0, nrow(M))
     v_rem <- v      # REMaining flux vector (not explained by pw + coef till now)
     v_active <- v_rem != 0                       # rates / reactions that are not saturated yet
-    pw_active <- !apply(M[,!v_active], 1, any)   # pathways compatible with non_saturated pathways
+    pw_active <- !apply(matrix(M[,!v_active] != 0, nrow=nrow(M)), 1, any)   # pathways compatible with non_saturated pathways
     
     while(any(v_active) && any(pw_active)) {
        a <- apply(matrix(M[pw_active,], ncol=ncol(M)), 2, sum)
@@ -88,7 +88,7 @@ pa_calc_coefficients <- function(M, v, con_fb=F) {
 
        coef[pw_active] <- coef[pw_active] + min(b, na.rm=T)
        v_active[which.min(b)] <- F
-       pw_active <- !apply(M[,!v_active] != 0, 1, any)
+       pw_active <- !apply(matrix(M[,!v_active] != 0, nrow=nrow(M)), 1, any)   # pathways compatible with non_saturated pathways
 
        # recalculate remaining rate part
        if(any(pw_active)) {
