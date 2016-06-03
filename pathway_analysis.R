@@ -519,7 +519,7 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
     turnover <- pa_calculate_turnover(N,rates)
 
     coefficients <- rates 
-    sp_planned <- order(turnover)
+    sp_planned <- order(turnover, decreasing=T)
     sp_done <- c()
     
     active_f <- rep(T, nrow(M_init))
@@ -737,7 +737,7 @@ pa_step <- function(obj, i=c()) {
 
 
     rm_duprows <- function(M) {
-        if(nrow(M) < 1)
+        if(nrow(M) <= 1)
             return(M)
 
         # first split the matrix (M) in a part that doesn't contain duplicates and one that doesn't
@@ -901,9 +901,9 @@ pa_step <- function(obj, i=c()) {
 
 
 
-pa_analysis <- function(net, rates, fexp=0.1, pmin=0.01, do_decomposition=T) {
+pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T) {
     # Initialize - Don't use explained turnover for cutoff (not implemented as of April 16)
-    xx <- pa_initialize(net, rates, pmin, fexp, co_exp_turnover=0, prep=F, decompose=do_decomposition)
+    xx <- pa_initialize(net, rates, pmin, fexp, fexp, prep=F, decompose=do_decomposition)
 
     # Do step till nothing more to do
     while(!pa_is_done(xx))
