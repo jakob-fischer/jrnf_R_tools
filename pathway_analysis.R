@@ -821,12 +821,17 @@ pa_step <- function(obj, i=c()) {
     # 
     if(length(sel_produce)*length(sel_consume) != 0) {
         # 1)
+        cat("A")
         M_new <- do.call("rbind", lapply(1:(length(sel_produce)*length(sel_consume)), gen_comb_pw)) 
+
+        cat("B")
         M_ext <- matrix(M_ext[sel_keep,], ncol=ncol(M_ext))
 
+        cat("c")
         # 2)
         M_new <- rm_duprows(M_new)
 
+        cat("D")
         # 3) 
         M_new <- t(apply(M_new, 1, calculate_scores))
         # TODO 4) here - drop or not to drop
@@ -837,6 +842,8 @@ pa_step <- function(obj, i=c()) {
 
         # 4)
         if(obj$parameters$do_decompose) {
+
+        cat("E")
             M_new <- apply(M_new, 1, decompose_to_elementary) 
 
             # some error handling (on previous call)
@@ -846,19 +853,26 @@ pa_step <- function(obj, i=c()) {
                 M_new <- t(M_new)
             }
         }
+
+        cat("F")
         M_ext <- rbind(M_ext, M_new)
 
+        cat("G")
         # 5) 
         M_ext <- rm_duprows(M_ext)
 
+        cat("H")
         # 6)  
         act_id <- as.logical(M_ext[,ncol(N)+nrow(N)+5])
         coef_new <- pa_calc_coefficients(M_ext[act_id,nrow(N)+1:ncol(N)], obj$parameters$rates, con_fb=F)
         M_ext[act_id, nrow(N)+ncol(N)+1] <- coef_new$coef
         M_ext[act_id, nrow(N)+ncol(N)+2:5] <- NA
 
+        cat("I")
         # 7)
         M_ext <- t(apply(M_ext, 1, calculate_scores))
+      
+        cat("J\n")
   
     } else if(length(sel_produce) != 0 || length(sel_consume) != 0) {
         M_ext[sel_produce,ncol(N)+nrow(N)+5] <- 0
