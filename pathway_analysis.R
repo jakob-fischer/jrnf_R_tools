@@ -665,7 +665,7 @@ pa_step <- function(obj, i=c()) {
             new_rate <- 0 
 
         branch_p <- cre_f*con_f_x_turnover/turnover[i]
-        return(matrix(c(pw, new_rate, NA, NA, NA, NA, branch_p), nrow=1))
+        return(matrix(c(pw, new_rate, NA, NA, NA, 1, branch_p), nrow=1))
     }
 
      # Calculate explained rates, turnover and interaction for all
@@ -820,20 +820,41 @@ pa_step <- function(obj, i=c()) {
     # or only consumed these are simply dumped or dropped depending do_dump
     # 
     if(length(sel_produce)*length(sel_consume) != 0) {
-        # 1)
-        cat("A")
-        M_new <- do.call("rbind", lapply(1:(length(sel_produce)*length(sel_consume)), gen_comb_pw)) 
+        # calculating branching probability (of fraction that is still exchanged)
 
-        cat("B")
+        cat("A")
+        if(obj$parameters$co_branch > 0) {
+            v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
+            v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
+            v_in <- v_in / sum(v_in)
+            v_out <- v_out / sum(v_out)
+
+            o_in <- order(v_in, decreasing=T)
+            s_in <- which(cumsum(v_in[o_in]) > (1-obj$parameters$co_branch))[1]
+            o_out <- order(v_out, decreasing=T)
+            s_out <- which(cumsum(v_out[o_out]) > (1-obj$parameters$co_branch))[1]
+
+            mb <- matrix(F, nrow=length(v_in), ncol=length(v_out))
+            mb[,o_out[1:s_out]] <- T
+            mb[o_in[1:s_in],] <- T
+
+            cat("_", length(which(as.vector(mb))), "_")
+            M_new <- do.call("rbind", lapply(which(as.vector(mb)), gen_comb_pw)) 
+        } else {
+            # 1)
+            M_new <- do.call("rbind", lapply(1:(length(sel_produce)*length(sel_consume)), gen_comb_pw)) 
+        }
+  
         M_ext <- matrix(M_ext[sel_keep,], ncol=ncol(M_ext))
 
-        cat("c")
+        cat("B")
         # 2)
         M_new <- rm_duprows(M_new)
 
         cat("D")
         # 3) 
-        M_new <- t(apply(M_new, 1, calculate_scores))
+        # M_new <- t(apply(M_new, 1, calculate_scores))
+        
         # TODO 4) here - drop or not to drop
         #   DON't have to think about it HERE because it's done by calculate score automatically
         #   -> else one has to omitt above call entirely
@@ -854,14 +875,16 @@ pa_step <- function(obj, i=c()) {
             }
         }
 
-        cat("F")
+        cat("F-")
         M_ext <- rbind(M_ext, M_new)
+        cat(nrow(M_ext))
 
-        cat("G")
+        cat("-G-")
         # 5) 
         M_ext <- rm_duprows(M_ext)
+        cat(nrow(M_ext))
 
-        cat("H")
+        cat("-H")
         # 6)  
         act_id <- as.logical(M_ext[,ncol(N)+nrow(N)+5])
         coef_new <- pa_calc_coefficients(M_ext[act_id,nrow(N)+1:ncol(N)], obj$parameters$rates, con_fb=F)
@@ -885,6 +908,8 @@ pa_step <- function(obj, i=c()) {
 
     if(obj$parameters$do_dump)
         M_ext <- matrix(M_ext[M_ext[,ncol(N)+nrow(N)+5] > 0.5,], ncol=ncol(M_ext)) # only keep active ones
+
+    cat("having", nrow(M_ext), "pathways after dump!\n")
     
     # copy back to "obj"
     # pathway specific
