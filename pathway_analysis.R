@@ -826,11 +826,11 @@ pa_step <- function(obj, i=c()) {
         if(obj$parameters$co_branch > 0) {
             v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
             v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
-            v_in <- v_in / sum(v_in)
-            v_out <- v_out / sum(v_out)
 
             cat("v_in=", v_in, "\n")
             cat("v_out=", v_out, "\n")
+            v_in <- v_in / sum(v_in)
+            v_out <- v_out / sum(v_out)
 
             o_in <- order(v_in, decreasing=T)
             s_in <- which(cumsum(v_in[o_in]) > (1-obj$parameters$co_branch))[1]
