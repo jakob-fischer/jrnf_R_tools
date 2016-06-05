@@ -829,6 +829,9 @@ pa_step <- function(obj, i=c()) {
             v_in <- v_in / sum(v_in)
             v_out <- v_out / sum(v_out)
 
+            cat("v_in=", v_in, "\n")
+            cat("v_out=", v_out, "\n")
+
             o_in <- order(v_in, decreasing=T)
             s_in <- which(cumsum(v_in[o_in]) > (1-obj$parameters$co_branch))[1]
             o_out <- order(v_out, decreasing=T)
