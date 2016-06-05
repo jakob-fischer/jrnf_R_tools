@@ -721,7 +721,7 @@ pa_step <- function(obj, i=c()) {
             return(matrix(x, ncol=length(x)))
 
         rt <- x[nrow(N)+1:ncol(N)]
-        tmp <- pa_decompose(N, rt)
+        tmp <- pa_decompose(N, rt, rnd_o=T)
 
         if(nrow(tmp) <= 1) {        
             x[nrow(N)+ncol(N)+6] <- NA
