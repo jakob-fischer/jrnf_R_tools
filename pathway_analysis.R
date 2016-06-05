@@ -501,7 +501,7 @@ pa_calculate_interaction <- function(N, M, alpha) {
 }
 
 
-pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover=0, prep=F, decompose=T, dump=T) {
+pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover=0, prep=F, decompose=T, dump=T, decreasing=T) {
     # if preparation is done here: remove reverse reactions and add pseudoreactions
     if(prep) {
         x <- jrnf_remove_reverse_pairs(net, rates)
@@ -519,7 +519,7 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
     turnover <- pa_calculate_turnover(N,rates)
 
     coefficients <- rates 
-    sp_planned <- order(turnover, decreasing=T)
+    sp_planned <- order(turnover, decreasing=decreasing)
     sp_done <- c()
     
     active_f <- rep(T, nrow(M_init))
@@ -940,9 +940,9 @@ pa_step <- function(obj, i=c()) {
 
 
 
-pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T) {
+pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, decreasing=T) {
     # Initialize - Don't use explained turnover for cutoff (not implemented as of April 16)
-    xx <- pa_initialize(net, rates, pmin, fexp, fexp, prep=F, decompose=do_decomposition)
+    xx <- pa_initialize(net, rates, pmin, fexp, fexp, prep=F, decompose=do_decomposition, decreasing=decreasing)
 
     # Do step till nothing more to do
     while(!pa_is_done(xx))
