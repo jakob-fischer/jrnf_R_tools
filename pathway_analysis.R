@@ -827,6 +827,7 @@ pa_step <- function(obj, i=c()) {
             v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
             v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
 
+            cat("turnover=", obj$parameters$turnover[i], "\n")
             cat("rates_produce=", rates[sel_produce], "\n")
             cat("rates_consume=", rates[sel_consume], "\n")
             cat("sel_produce=", sel_produce, "\n")
