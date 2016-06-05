@@ -827,6 +827,12 @@ pa_step <- function(obj, i=c()) {
             v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
             v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
 
+            cat("rates_produce=", rates[sel_produce], "\n")
+            cat("rates_consume=", rates[sel_consume], "\n")
+            cat("sel_produce=", sel_produce, "\n")
+            cat("sel_consume=", sel_consume, "\n")
+
+
             cat("v_in=", v_in, "\n")
             cat("v_out=", v_out, "\n")
             v_in <- v_in / sum(v_in)
