@@ -520,6 +520,7 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
 
     coefficients <- rates 
     sp_planned <- order(turnover, decreasing=decreasing)
+    sp_planned <- sp_planned[0 != turnover[sp_planned]]
     sp_done <- c()
     
     active_f <- rep(T, nrow(M_init))
