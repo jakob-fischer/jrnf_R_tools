@@ -605,7 +605,7 @@ pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, de
     while(!pa_is_done(xx))
         xx <- pa_step(xx)
 
-    # Return list with active pathways as first element and coefficients as second (similar to pa_analysis_legacy)
-    return(list(xx$pathways$M[xx$pathways$active_f,], xx$pathways$coefficients[xx$pathways$active_f], xx))
+    # Return list with active pathways as first element and coefficients as second 
+    return(list(xx$pathways$M[xx$pathways$active_f,-(1:nrow(net[[1]]))], xx$pathways$coefficients[xx$pathways$active_f], xx))
 } 
 
