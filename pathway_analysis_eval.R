@@ -216,41 +216,6 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
 }
 
 
-# The function checks in a matrix of elementary modes if they really are elementary
-# (by decomposing it with pa_subpath_decomposition) and removes multiple occurences.
-
-pa_rm_multiple_check_elementary <- function(net, ems) {
-    # cut these reactions of elementary modes that are not in reaction network
-    ems <- ems[,1:nrow(net[[2]])]
-
-    # new matrix / ems that are checked are put here
-    em_new <- ems[c(),]
-    N <- jrnf_calculate_stoich_mat(net)     # stoichiometric matrix
-
-    for(i in 1:nrow(ems)) {
-        cat(".")
-
-        path_M_dec <- pa_subpath_decomposition(N, ems[i,])
-
-        # Show warning if decomposition into elementary modes gives more than em back.
-        # This doesn't mean that ems[i,] was not an elementary mode. Could be the same
-        # set of reactions is involved in different elementary modes (different coefficients)!
-        if(nrow(path_M_dec) != 1)
-            cat("WARNING: Mode number ", i, " may not have been elementary!\n")
-
-        # If not already in em_new add the pathway
-        for(j in 1:nrow(path_M_dec)) {
-            cpp <- pa_check_pathway_present(em_new, rep(1, nrow(em_new)), matrix(path_M_dec[j,],1))
-            if(!any(cpp$present))  # adding
-                em_new <- rbind(em_new, path_M_dec[j,])
-        }
-    }
-    cat("\n\n")
-
-    return(em_new)
-}
-
-
 # TODO 
 # Function decomposes all pathways to be elementary and distributes the rates 
 # accordingly. For this the same method as in pa_analysis is used 
