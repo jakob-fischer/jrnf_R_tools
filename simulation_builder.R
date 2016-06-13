@@ -1289,7 +1289,7 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
             if(do_precise)
                 x_em <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T)
             else
-                x_em <- pa_analysis(net_rev, rates_rev, 0.01, 0.5, T, F)[[1]]
+                x_em <- pa_analysis(net_rev, rates_rev, 0.05, 0.5, T, F)[[1]]
             
             for(l in 1:nrow(x_em))
                 x_em[l,] <- x_em[l,]*(sign(r_ext))
