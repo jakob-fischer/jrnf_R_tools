@@ -1294,7 +1294,7 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
                 
             em_matrix[[i_net]] <<- rbind(em_matrix[[i_net]], x_em)
 
-            x_keep <- !duplicated(matrix(em_matrix[[i_net]],nrow=em_matrix[[i_net]]))
+            x_keep <- !duplicated(matrix(em_matrix[[i_net]],nrow=nrow(em_matrix[[i_net]])))
             em_matrix[[i_net]] <- matrix(em_matrix[[i_net]][x_keep,], ncol=ncol(em_matrix[[i_net]]))   
         }
     }
