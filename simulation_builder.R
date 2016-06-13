@@ -1272,6 +1272,8 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
  
     # helper function one, 
     add_em <- function(rev, cutoff, i_net) {
+        if(is.na(cutoff))
+            cutoff <- 0
         #print(res_nets[[i_net]])
         cat("length(ex_state_hashes)= ", length(ex_state_hashes[[i_net]]), "\n")
 
@@ -1307,6 +1309,8 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
     # TODO Extract all general functionality of this method to sb_h_calc_em_info
     #      (that is also used by sb_stability_analysis_eco)
     calc_em_info <- function(rev, cutoff, i_net) {
+        if(is.na(cutoff))
+            cutoff <- 0
         r_ext <- c(rev, jrnf_calculate_concentration_change(res_nets[[i_net]], rev))    
 
         net_rev <- jrnf_reverse_reactions(res_nets[[i_net]], r_ext)
