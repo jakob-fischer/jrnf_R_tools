@@ -124,7 +124,7 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1, longta
         accum_s <- N %*% pw[j,]
 
         for(k in x) {
-            i(paste(build_rea(k, pw[j,k]), build_info(j, first), "\\\\", sep=""))
+            i(paste(build_rea(k, pw[j,k]), build_info(j, first), "\\\\*", sep=""))
             first <- F
         }
 
@@ -138,7 +138,7 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1, longta
                                    net, jrnf_species_name_to_latex_rep, "\\,+\\,")
         
         i("\\cline{1-4}")
-        i(paste("net: & $", lhs, " $ & $\\rightarrow $ &  $", rhs, " $ ", build_info(j, first), "\\\\", sep="")) 
+        i(paste("net: & $", lhs, " $ & $\\rightarrow $ &  $", rhs, " $ ", build_info(j, first), "\\\\*", sep="")) 
         i("\\hline")
     }
 
@@ -160,6 +160,21 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1, longta
     } else {
         i("% (longtable version - make sure longtable package is active)")
         i("% please don't forget to include \\usepackage{multirow}.")
+        i("% also the following redefinition might be necessary:")
+        i("% % from http://tex.stackexchange.com/questions/52100/longtable-multirow-problem-with-cline-and-nopagebreak")
+        i("%\\makeatletter")
+        i("%\\def\\@cline#1-#2\\@nil{%")
+        i("%\\omit")
+        i("%\\@multicnt#1%")
+        i("%\\advance\\@multispan\\m@ne")
+        i("%\\ifnum\\@multicnt=\\@ne\\@firstofone{&\\omit}\\fi")
+        i("%\\@multicnt#2%")
+        i("%\\advance\\@multicnt-#1%")
+        i("%\\advance\\@multispan\\@ne")
+        i("%\\leaders\\hrule\\@height\\arrayrulewidth\\hfill")
+        i("%\\cr")
+        i("%\\noalign{\\nobreak\\vskip-\\arrayrulewidth}}")
+        i("%\\makeatother")
         i("\\begin{center}")
         i("\\begin{longtable}{ ", get_layout_head(), " }")
         i("\\caption[table title]{long table caption} \\label{tab:mylabel} \\\\")
@@ -357,7 +372,7 @@ pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
 #
 #
 
-pa_em_derive <- function(em_matrix, net, c_max=15) {
+pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
     # generating empty vectors
     C <- matrix(0, ncol=c_max, nrow=nrow(em_matrix))     # Number of cycles of different length
     C_s <- matrix(0, ncol=c_max, nrow=nrow(em_matrix))   # Counting cycles by subgraph isomorphism (nodes!)
@@ -375,6 +390,11 @@ pa_em_derive <- function(em_matrix, net, c_max=15) {
     Out <- rep(0, nrow(em_matrix))           # Number of output to environment
     Out_s <- rep(0, nrow(em_matrix))         # Number of output to environment (each species only once) 
 
+    # these species are not counted for Ex, In, Out!
+    ex_exclude_f <- c()
+
+    if(ignore_hv) 
+        ex_exclude_f <- c(which(net[[1]]$name == "hv'" | net[[1]]$name == "hv"))
 
     # calculating degree of <net> independently of em's
     net_deg <- as.vector(degree(jrnf_to_undirected_network(net)))
@@ -411,7 +431,7 @@ pa_em_derive <- function(em_matrix, net, c_max=15) {
             N_int[,j] <- 0
   
         em_bilance <- N_int %*% em_matrix[i,]        
-        
+        em_bilance[ex_exclude_f] <- 0
 
         # find cycles
         g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
