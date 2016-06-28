@@ -262,6 +262,10 @@ calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
 #
 
 calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) {
+    # first (re)calculate pathway's explained fraction
+    x <- apply(abs(ems), 1, sum)*em_rates
+    exp_f <- x / sum(x)
+
     re_en <- calculate_reactions_energetics(net, mu, re_rates)
     N <- jrnf_calculate_stoich_mat(net)
 
@@ -363,6 +367,9 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
 
     cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions], na.rm=T)/sum(em_rates), 
         "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
+
+    cat("Weighted with pathway's explained fraction mismatch is", sum(exp_f[!match_interactions], na.rm=T), 
+        "and undecided", sum(exp_f[is.na(match_interactions)]), ".\n")
 
     cat("===================================================================================\n")
 
