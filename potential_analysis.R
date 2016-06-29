@@ -214,9 +214,12 @@ check_potentials <- function(net, rates, E) {
 calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
     no_reas <- nrow(net[[2]])
 
-    N_in <- jrnf_calculate_stoich_mat_in(net)
-    N_out <- jrnf_calculate_stoich_mat_out(net)
-    N <- N_out - N_in
+    N <- jrnf_calculate_stoich_mat(net)
+    N_in <- abs(-N)
+    N_in[N > 0] <- 0
+    N_out <- abs(N)
+    N_out[N < 0] <- 0
+
     hv_id <- which(net[[1]]$name == "hv")
     if(length(hv_id) != 1) {
         cat("ERROR: did not find unique hv species!\n")
@@ -233,13 +236,21 @@ calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
     has_hv <- N[hv_id,] != 0
 
     dir_match <- (mu_out < mu_in) | (N[hv_id,] < 0)
-
     undecided <- which(is.na(dir_match))
     mismatch <- which(dir_match == FALSE)
+
+    match_n_quantified <- dir_match & !is.na(mu_eff)
+    match_n_quantified[is.na(match_n_quantified)] <- F
 
     cat("===================================================================================\n")
     cat("From totally", length(dir_match), "reaction directions", sum(dir_match == TRUE, na.rm=T), "are correct ")
     cat(length(mismatch), "are incorrect and", length(undecided), "are undecided.\n")
+     
+    m <- sum(dir_match == TRUE & is.na(mu_eff), na.rm=T)
+    cat("From the ones with matching directions", m, "can not be quantified - ", 
+         sum(re_rates[dir_match == TRUE & is.na(mu_eff)], na.rm=T)/sum(re_rates), "rate fraction!\n")
+    
+
     if(length(re_rates) != 0)
         cat("Weighted with reaction's rates mismatch is", sum(re_rates[mismatch])/sum(re_rates), 
             "and undecided", sum(re_rates[undecided])/sum(re_rates), ".\n")
@@ -249,8 +260,12 @@ calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
         length(which(has_hv & N[hv_id,] > 0 & mu_eff < 0)), "of them are dissipating and",
         length(which(has_hv & N[hv_id,] > 0 & (dir_match == F | is.na(dir_match)))), "of them are mismatching or NA.\n")
     cat("===================================================================================\n")
+    cat("overall there are ", sum(match_n_quantified), "reactions that match and are quantified. This is ", 
+        sum(re_rates[match_n_quantified])/sum(re_rates), "in terms of rates explained!\n")
+    cat("===================================================================================\n")
 
-    return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_eff=mu_eff, dir_match=dir_match, has_hv=has_hv))
+
+    return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_eff=mu_eff, dir_match=dir_match, has_hv=has_hv, match_n_quantified=match_n_quantified))
 }
 
 
@@ -355,7 +370,10 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
     eff <- pmin(pmax(delta_mu/hv_in,0),1)  
 
     dis_D <- hv_in_D - delta_mu_D
-    eff_D <- pmin(pmax(delta_mu_D/hv_in_D,0),1)  
+    eff_D <- pmin(pmax(delta_mu_D/hv_in_D,0),1) 
+
+    match_n_quantified <- match_interactions & !is.na(hv_in_D) & !is.na(delta_mu_D)
+    match_n_quantified[is.na(match_n_quantified)] <- F 
 
     cat("===================================================================================\n")
     cat("From", nrow(ems), "pathways on a reaction level", length(which(match_all_reactions)),
@@ -364,6 +382,10 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
     cat("On pathway level", length(which(match_interactions)),
         "match", length(which(!match_interactions)), "mismatches and", 
         length(which(is.na(match_interactions))), "are NA!\n")
+    
+    m <- sum(is.na(dis_D) & match_interactions, na.rm=T)
+    cat("Of the ones matching on pathway level", m, "are non quantifyable -", sum(exp_f[is.na(dis_D) & match_interactions], na.rm=T),
+        "in terms of explained fraction!\n")
 
     cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions], na.rm=T)/sum(em_rates), 
         "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
@@ -372,9 +394,13 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
         "and undecided", sum(exp_f[is.na(match_interactions)]), ".\n")
 
     cat("===================================================================================\n")
+    cat("overall there are ", sum(match_n_quantified), "pathways that match and are quantified. This is ", 
+        sum(exp_f[match_n_quantified]), "in terms of explained rate fraction!\n")
+    cat("===================================================================================\n")
+
 
     return(data.frame(hv_in, delta_mu, dis, eff, match_all_reactions, all_species_present, hv_in_D,
-                       delta_mu_D, dis_D, eff_D, match_interactions, interacting_species_present,
+                       delta_mu_D, dis_D, eff_D, match_interactions, match_n_quantified, interacting_species_present,
                        Sp_no, Re, Re_s, In, In_s, Out, Out_s, Hv))
 }
 
