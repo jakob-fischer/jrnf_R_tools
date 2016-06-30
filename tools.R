@@ -14,6 +14,13 @@ library(igraph)
 acc <- cumsum
 
 
+# Simple helper function to normalize a vector...
+
+mt_norm <- function(x) {
+    return(x/sum(x))
+}
+
+
 # Removes all flags that indicate that files have been sourced into the current
 # session by removing variables starting with "sourced_"
 # TODO check

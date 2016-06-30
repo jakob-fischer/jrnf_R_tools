@@ -617,7 +617,7 @@ pa_build_species_incidence <- function(em_matrix, net_N) {
     # first: relative exchange with environment (with sign)
     # second: absolute change of all reactions added (non-negative)
     # third: absolute change that is not explained by exchange with environment
-    return(list(x1,x2,(x2-abs(x1))))
+    return(list(change=x1,prod_cons=x2,internal=(x2-abs(x1))))
 }
 
  

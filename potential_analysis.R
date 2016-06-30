@@ -13,6 +13,7 @@ if(!exists("sourced_pathway_analysis"))
 k_B <- 1.381E-23  # Boltzmann constant (J / K)
 R <- 8.314        # Ideal gas constant (J/(K mol))
 p0 <- 100000      # Standard pressure (Pa | N/m²)
+N_A <- 6.02214129E23  # Avogadro constant (1/mol)
 
 
 # Load coefficients of nasa polynomials
@@ -235,7 +236,7 @@ calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
 
     has_hv <- N[hv_id,] != 0
 
-    dir_match <- (mu_out < mu_in) | (N[hv_id,] < 0)
+    dir_match <- (mu_out <= mu_in) | (re_rates == 0) | (N[hv_id,] < 0)
     undecided <- which(is.na(dir_match))
     mismatch <- which(dir_match == FALSE)
 
