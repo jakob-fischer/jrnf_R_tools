@@ -1574,3 +1574,13 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 }
 
 
+
+#
+# NEW CODE FOR ARTIFICIAL ECOSYSTEM EVOLUTION
+# 
+
+#- Function for analyzing the results
+
+
+#- Function that generates a set of initial conditions, prepares everything and calls the ode-solver
+

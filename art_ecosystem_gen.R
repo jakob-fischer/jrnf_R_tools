@@ -78,27 +78,35 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
 }
 
 
-# TODO document
+# This function draws an elementary composition for <N> species that are build from
+# the number of elementary components in comp$components. Parameters is the maximal
+# allowed number of duplicates (<max_tot>), the maximum number of duplicates for a single
+# species (<max_single>), maximal stoichiometric coefficient (<max_stoich>) and the flag 
+# controlling massless species creation (<allow_massless>). The parameter <lambda> 
+# corresponds to this parameter in the poisson distribution from which stoichiometric
+# coefficents are sampled.
 
-hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(), 
+hcae_extend_elem_composition <- function(N, comp, max_tot=c(), max_single=c(), 
                                          lambda=0.1, allow_massless=F, max_stoich=10) {
-    if(comp_no == 1) {
-        if(is.null(max_tot))
-            max_tot <- N
+    comp_no <- ncol(comp$composition)  # number of components derived by existing composition matrix
+    N_new <- N + nrow(comp$composition)
+
+    if(comp_no == 1) {                 # if only one component is allowed and max_tot, max_single
+        if(is.null(max_tot))           # are unset they are set to total number of species
+            max_tot <- N_new
 
         if(is.null(max_single))
-            max_single <- N
+            max_single <- N_new
+    } else {
+        if(is.null(max_tot))           # else (more than one component) the standard maximum is 
+            max_tot <- (N_new)/3       # two duplicates per composition and one third in total
+
+        if(is.null(max_single))
+            max_single <- 2
     }
 
-    if(is.null(max_tot))
-        max_tot <- N/3
-
-    if(is.null(max_single))
-        max_single <- 2
-
-
-    composition <- matrix(0, nrow=N, ncol=comp_no)
-    energy <- rnorm(N)         
+    composition <- matrix(0, nrow=N_new, ncol=comp_no)
+    energy <- c(comp$energy, rnorm(N))         
     component_names <- c("C", "N", "O", "H", "P")
     component_names <- component_names[1:comp_no]
 
@@ -116,10 +124,18 @@ hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(),
     cnt <- rep(0, length(prob))
     cnt_t <- 0
 
-    for(i in 1:nrow(composition)) { 
-        x <- sample(1:length(prob), 1, F, prob/sum(prob))   
+    # Following loop is run for all existing and newly created compositions. 
+    # The reason it is rerun for existing ones is that the duplicates have 
+    # to be counted in 'cnt' and 'cnt_t'.
 
-        composition[i,] <- trans$from_linear(x)-1
+    for(i in 1:N_new) { 
+        if(i > (N_new-N)) {
+            x <- sample(1:length(prob), 1, F, prob/sum(prob))   
+            composition[i,] <- trans$from_linear(x)-1
+        } else {  
+            composition[i,] <- comp$composition[i,]
+            x <- trans$to_linear(composition[i,]+1)
+        }
 
         cnt[x] <- cnt[x] + 1
         if(cnt[x] > 1) {
@@ -133,13 +149,25 @@ hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(),
             prob[x] <- 0
     }
 
-    # now calculate names
+    # now (re)calculate names
     name <- c()
-    for(i in 1:N)
+    for(i in 1:N_new)
         name <- c(name, hcae_create_name(composition[i,], component_names,
                                          name, empty_name))   
  
     return(list(composition=composition, name=name, energy=energy))
+}
+
+
+# wrapper function / drawing an elementary composition is a special case of 
+# adding new species to an existing composition. All parameters are explained in
+# the corresponding function (above).
+
+hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(), 
+                                         lambda=0.1, allow_massless=F, max_stoich=10) {
+    comp <- list(composition=matrix(0, nrow=0, ncol=comp_no), name=c(), energy=c())
+
+    return(hcae_extend_elem_composition(N, comp, max_tot, max_single, lambda, allow_massless, max_stoich))
 }
 
 
@@ -299,7 +327,14 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 #
 #
 # TODO Function needs much cleanup #
-#      Especially the way the elementary composition is drawn needs to be made easier (parameter of distribution!)
+#      Changing distribution from which reactions are drawn can avoided.
+#      If number of species is small enough (<) 100) all reactions can be enumrated,
+#      those that don't follow mass-conservation. Afterwards all reactions are put
+#      into equivalence groups of those that are incompatible with each other. and
+#      these equivalence groups are separated in different reaction-types. Finally
+#      for each reaction type only a fixed number of equivalence groups has to be 
+#      drawn (eventually with number of elements as weights).
+#
 
 jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat_as_lin=F, 
                                              type_spec_dup=T, allow_direct_backflow=T, rm_dup=T) { 
@@ -512,3 +547,49 @@ jrnf_create_artificial_ecosystem <- function(N, M, no_2fold, no_hv, comp_no, cat
 
     return(possible_reas_to_jrnf(c(rea_hv, rea_lin, rea_nonl)))
 }
+
+
+
+#
+# NEW CODE FOR ARTIFICIAL ECOSYSTEM EVOLUTION
+# 
+
+
+#- Function creates anorganic network / environment
+#  jrnf_create_artificial_ecosystem - parameters are number of species (N), numbers of reactions (M), number of linear reactions (no_2fold), number of #photoreactions (no_hv) - also parameters for elementary components (number of elementary components, number of duplicates allowed, how often is the same #duplicate allowed)
+
+
+
+jrnf_ae_create_anorganic_core <- function() {
+
+}
+
+
+
+jrnf_ae_add_organism <- function() {
+
+
+
+}
+
+
+jrnf_ae_replace_organism <- function() {
+
+
+}
+
+
+
+
+
+
+
+#- Function that adds an additional organism to an network out of environment + organisms
+#  Parameters are: number of interacting species, number of additional species, number of reactions, number of linear reactions, number of photochemical ones
+
+
+
+#- Function for removing an organism
+
+
+
