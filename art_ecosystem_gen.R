@@ -21,7 +21,7 @@ jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     if(is.numeric(limit_AE)) lAE <- limitAE
 
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
-    net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE)
+    net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE, na.rm=T)
 
     if(flat_energies) {
         net[[1]]$energy <- rep(0, nrow(net[[1]]))    
