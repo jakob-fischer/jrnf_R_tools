@@ -126,6 +126,9 @@ graph_to_amatrix <- function(g) {
 
 
 # Transfers between multidimensional (vector) coordinates and one dimensional
+# The function creates a list / object with two methods to transform in both
+# ways. Parameter <v> is a integer vector with every element containing the
+# size of one dimension. Both spaces (linear, multidimensional) are 1-indexed.
 
 b_mdim_transf <- function(v) {
     to_linear <- function(x) {
