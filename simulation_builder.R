@@ -1582,5 +1582,63 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 #- Function for analyzing the results
 
 
-#- Function that generates a set of initial conditions, prepares everything and calls the ode-solver
+
+
+#- Function that generates a set of initial conditions, prepares everything and calls the solver
+# parameters:
+#  <net>: network containing information on association of species to organisms - inorganic part
+#  <con_a>: 
+
+sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
+    
+    init <- rep(con_o, nrow(net[[1]]))
+    init[net$assoc$sp == 0] <- con_a       # set concentration for anorganic part
+    init[net[[1]]$name == "hv"] <- con_hv  # for hv / energy
+    N <- jrnf_calculate_stoich_mat(net)   # calculate stoich matrix 
+    N[net[[1]]$name == "hv",] <- 0        # and set row for "hv" to zero
+
+    # shuffle concentrations by randomly applying different reactions to (almost) exhaustion
+
+
+
+
+    # now write network file and initial concentration file to filesystem
+    jrnf_write("X34tmp_net.jrnf", net)
+    df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
+    df[as.vector(net[[1]]$name)] <- init         
+    write.csv(df, "X34tmp_ini.con", row.names=FALSE)
+
+    # call the c++-program that solves the ode
+    odeint_p <- "~/apps/jrnf_int"
+    cmd <- paste(odeint_p, " simulate solve_implicit  write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep="")
+    cat("CMD: ", cmd, "\n")
+    system(cmd)
+
+
+    # load the dynamics / final concentrations / rates
+    run <- read.csv("X34tmp_ini.com")
+  
+    return()
+
+    # cleanup
+    system("rm X34tmp_net.jrnf", ignore.stderr=T, ignore.stdout=T) 
+    system("rm X34tmp_ini.con", ignore.stderr=T, ignore.stdout=T)
+
+    # return final concentrations / rates / evaluation of error!
+}
+
+
+
+# 
+
+sb_ae_org_evolve <- function(net_ac, no_o, no_gen, T_max, no_sim) {
+
+
+
+
+
+
+
+}
+
 
