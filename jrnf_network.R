@@ -11,6 +11,14 @@
 # it is 'reversible' (boolean), the reaction constants 'c', 'k', 'k_b', 
 # 'activation' energy (numeric), lists on 'products' and 'educts' and 
 # their multiplicity in the reaction ('educts_mul' and 'products_mul')
+#
+# TODO: For some specific cases additional entries might be added to the list.
+#       This is of course not saved in the official file format but only when
+#       object is saved ad R-object. For artificial ecosystems for example the
+#       species composition is saved in the $composition field as matrix. 
+#       Unresolved issue is how methods that transform the network handle this.
+#       Many rebuild the network and drop the additional data. This could be 
+#       changed but then the metadata might become inconsistent.
 
 sourced_jrnf_network <- T
 
@@ -739,7 +747,9 @@ jrnf_subnet <- function(jrnf_network, keep_flag, rm_reaction="r", list_changes=F
         new_reactions$products_mul[j] <- list(pm[p_f])
     }
 
-    return(list(new_species, new_reactions))
+    jrnf_network[[1]] <- new_species
+    jrnf_network[[2]] <- new_reactions
+    return(jrnf_network)
 }
 
 
@@ -1294,6 +1304,37 @@ jrnf_build_linear_stability_analyzer <- function(net, beta=1) {
     }
 
     return(list(calculate=calculate, N_in, N_out, N, mu0, Ea,e_bs_in, e_bs_out, e_m_bEa))
+}
+
+
+# Function for merging two networks. Implementation works by adding the second
+# network to the first one. Duplicates of species are recognized (by name) 
+# and removed. Possible duplicates of reactions are not removed!
+
+jrnf_merge_net <- function(net1, net2) {
+    d <- duplicated(c(net1[[1]]$name, net2[[1]]$name))[-(1:nrow(net1[[1]]))]
+    # create new species data
+    net1[[1]] <- rbind(net1[[1]], net2[[1]][!d,])
+
+    # for each species of the second network calculate the according id in the new network 
+    new_id <- rep(0, nrow(net2[[1]]))
+
+    for(i in 1:nrow(net2[[1]])) 
+        new_id[i] <- which(net1[[1]]$name == net2[[1]]$name[i])
+
+    # Transform indices for "added" reactions
+    new_reactions <- net2[[2]]
+
+    for(j in 1:nrow(new_reactions)) {
+        e <- unlist(new_reactions[j,]$educts)
+        p <- unlist(new_reactions[j,]$products)
+
+        new_reactions$educts[j] <- list(new_id[e])
+        new_reactions$products[j] <- list(new_id[p])
+    }
+
+    net1[[2]] <- rbind(net1[[2]], new_reactions)
+    return(net1)
 }
 
 
