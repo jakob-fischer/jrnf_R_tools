@@ -704,8 +704,10 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                     write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
                     scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(1e-8), " wint=", as.character(3), sep=""),
                                  paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
-                                           ".con Tmax=", as.character(Tmax[k]), " wint=", as.character(wint), sep=""))
+                                           ".con Tmax=", as.character(Tmax), " wint=", as.character(wint), sep=""))
                 }
 
                 setwd("..")
@@ -749,9 +751,11 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                     df[as.vector(net[[1]]$name)] <- c(initial_con, v)
                     write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
-                    scripts <- c(scripts, 
+                    scripts <- c(scripts,  
+                                 paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(1e-8), " wint=", as.character(3), sep=""),
                                  paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
-                                           ".con Tmax=", as.character(Tmax[k]), " wint=", as.character(wint), sep=""))
+                                           ".con Tmax=", as.character(Tmax), " wint=", as.character(wint), sep=""))
                     }
 
                 setwd("..")
@@ -763,7 +767,7 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
     }
 
     # write script file (file doing all the simulation when executed)
-    cat("create batch-script-files\n")    
+    cat("create batch-script-files\n")  
     con <- file("run.sh", "w")
     writeLines("#!/bin/sh",con)
     writeLines("#$ -N run.sh", con)
