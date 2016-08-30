@@ -443,7 +443,6 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
     }
 
     sel <- which(sapply(reactions, is_hv_rea))
-    cat("sel=", sel, "\n")
     if(length(sel) == 0) {
         rea_hv <- c()
     } else {
