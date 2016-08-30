@@ -641,7 +641,7 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
 
 
 sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=10, flat_energies=F, N_runs_eq=0, limit_AE=T) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T) {
     if(is.null(N_runs_eq)) N_runs_eq <- N_runs
 
     # Save old and set new working directory
@@ -651,6 +651,10 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
     cat("path=", path, "\n")
     if(length(path) > 0)
         setwd(paste(path, collapse="/"))
+
+    wlog_s <- "write_log"
+    if(!write_log)
+        wlog_s <- ""
 
     next_dir <- 1
     for(l in 1:N_nets) {
@@ -699,10 +703,9 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                     df[as.vector(net_red[[1]]$name)] <- initial_con
                     write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
-                    for(k in 1:max(length(deltaT), length(Tmax)))
-                        scripts <- c(scripts, 
-                                     paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
-                                           ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
+                    scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(Tmax[k]), " wint=", as.character(wint), sep=""))
                 }
 
                 setwd("..")
@@ -746,10 +749,9 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                     df[as.vector(net[[1]]$name)] <- c(initial_con, v)
                     write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
-                    for(k in 1:max(length(deltaT), length(Tmax)))
-                        scripts <- c(scripts, 
-                                     paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
-                                           ".con deltaT=", as.character(deltaT[k]), " Tmax=", as.character(Tmax[k]), " wint=500", sep=""))
+                    scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(Tmax[k]), " wint=", as.character(wint), sep=""))
                     }
 
                 setwd("..")
