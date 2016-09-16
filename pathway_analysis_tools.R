@@ -146,34 +146,40 @@ pa_extend_pathway_representation <- function(pw, N) {
 # Given a reaction network and reaction rates this function adds inflow and outflow
 # reactions that would maintain steady state. Function returns a list with new network
 # and new rates.
-# 'bound' is used to determined if there is an actual in- / outflow to a species or if
-# it is actually zero. For species without in- / outflow no pseudoreaction is added
-# If unique_dir is set all added (pseudo)-reactions are defined to be outflow reactions
-# and for inflow reactions their rate will be set negative. Else the reaction direction
-# is choosen the way that the rates are positive.
+# <bound> is used to determined if there is an actual in- / outflow to a species or if
+#         it is actually zero. For species without in- / outflow no pseudoreaction is 
+#         added. If bound is boolean (vector) with the length equaling the number of 
+#         species it is used to select those species for which an exchange pseudoreaction
+#         is added. The actual change is only considered to calculate the new / extended
+#         rate vector.
+# <unique_dir> is set iff all added (pseudo)-reactions are defined to be outflow reactions
+#              and for inflow reactions their rate will be set negative. Else the 
+#              reaction direction is choosen the way that the rates are positive.
 
 pa_extend_net <- function(net, rates, bound=0, unique_dir=F) {
     # calculate rates that balance growth / decrease of concentrations
     cdif_r <- jrnf_calculate_concentration_change(net, rates)
+    
+    if(!is.logical(bound)) 
+        bound <- abs(cdif_r) >= bound
 
     # add reactions to balance growth / decrease
-    for(i in 1:length(cdif_r)) 
-        if(abs(cdif_r[i]) >= bound)
-            # if species' concentration increases one pseudoreaction has to be included to remove it ("X -> ")
-            if(cdif_r[i] > 0 | unique_dir) {   
-	        net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
-                                  c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
-                                  activation=as.numeric(c(0)),educts=I(list(i)), educts_mul=I(list(1)),
-                                  products=I(list(c())), products_mul=I(list(c()))))
-                rates <- c(rates, cdif_r[i])
-            # if species' concentration decreases one pseudoreaction is included to add it ("-> X ")
-            } else { 
-	        net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
-                                  c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
-                                  activation=as.numeric(c(0)),educts=I(list(c())), educts_mul=I(list(c())),
-                                  products=I(list(i)), products_mul=I(list(1))))
-                rates <- c(rates, -cdif_r[i])
-            }
+    for(i in which(bound))
+        # if species' concentration increases one pseudoreaction has to be included to remove it ("X -> ")
+        if(cdif_r[i] > 0 | unique_dir) {   
+	    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
+                              c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
+                              activation=as.numeric(c(0)),educts=I(list(i)), educts_mul=I(list(1)),
+                              products=I(list(c())), products_mul=I(list(c()))))
+            rates <- c(rates, cdif_r[i])
+        # if species' concentration decreases one pseudoreaction is included to add it ("-> X ")
+        } else { 
+	    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(c(FALSE)), 
+                              c=as.numeric(c(1)), k=as.numeric(c(1)),k_b=as.numeric(c(0)), 
+                              activation=as.numeric(c(0)),educts=I(list(c())), educts_mul=I(list(c())),
+                              products=I(list(i)), products_mul=I(list(1))))
+            rates <- c(rates, -cdif_r[i])
+        }
 
     return(list(net, rates))
 }
