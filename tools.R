@@ -21,6 +21,11 @@ mt_norm <- function(x) {
 }
 
 
+# inverse which - function that "inverts" the effect of the which function
+
+invwhich <- function(x, N)  {  a <- rep(F, N);  a[x] <- T;  return(a)  }
+
+
 # Removes all flags that indicate that files have been sourced into the current
 # session by removing variables starting with "sourced_"
 # TODO check
