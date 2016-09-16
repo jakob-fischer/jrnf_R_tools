@@ -14,11 +14,13 @@ if(!exists("sourced_jrnf_network"))
 # Activation energies are drawn from "rplancklike" distribution and standard chemical
 # potentials are drawn from a gauß distribution. Except the chemical potential for "hv" 
 # which is either 50 or the maximum of all other chemical potentials + 5...
+# If no <flat_energies> (all zero) are drawn additionally the constraint that 
+# photoreactions increase the energy is preserved.
 
 jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     lAE <- NA
     if(limit_AE) lAE <- 3
-    if(is.numeric(limit_AE)) lAE <- limitAE
+    if(is.numeric(limit_AE)) lAE <- limit_AE
 
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
     net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE, na.rm=T)
@@ -28,20 +30,42 @@ jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
         net[[2]]$activation <- rep(1, nrow(net[[2]]))    
     }
   
-    if(any(net[[1]]$name == "hv")) 
+    if(any(net[[1]]$name == "hv")) {
+        if(!flat_energies) {   # If having hv-species and no flat energies have
+                               # to maintain property of photochemical reactions
+                               # only increasing energy levels
+            hv_id <- which(net[[1]]$name == "hv")
+            N <- jrnf_calculate_stoich_mat(net)
+
+            hv_lhs <- which(N[hv_id,] < 0)
+            hv_rhs <- which(N[hv_id,] > 0)
+            N[,hv_id] <- 0
+
+            is_v <- function() {
+                energy <- net[[1]]$energy
+                energy[hv_id] <- 0
+                d_E <- as.numeric(t(N) %*% matrix(energy, ncol=1))
+                return(all(d_E[hv_lhs] > 0) && all(d_E[hv_rhs] < 0))
+            }
+ 
+            while(!is_v()) 
+                net[[1]]$energy <- rnorm(nrow(net[[1]])) 
+        }
+
         net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
+    }
 
     return(net)
 }
 
 
 # Helper to create names consistent with elementary constituents
-hcae_create_name <- function(comp, c_names, ex_names, empty_name="X") {
-    name <- ""
+hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="") {
+    name <- prefix
 
     # first build name
     if(sum(comp) == 0) 
-        name <- empty_name
+        name <- paste(name, empty_name, sep="")
     else 
         for(i in 1:length(comp))
             if(comp[i] != 0) 
@@ -62,7 +86,8 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name="X") {
 
 # Checks if a reaction is possible from elementary constituents
 hcae_check_rea_constituents <- function(rea, comp, N) {
-    #cat("hcrc rea=", rea, "  comp=", dim(comp), "  N=", N, "\n")
+    comp <- comp$composition
+    # Returns composition of <i>th participant in reaction
     get_c <- function(i) {
         if(rea[i] == 1)
             return(rep(0, ncol(comp)))
@@ -70,11 +95,8 @@ hcae_check_rea_constituents <- function(rea, comp, N) {
             return(comp[rea[i]-1,])
     }
 
-    # the components that are hv are set to zero / empty species first
-    for(i in 1:4)
-        if(rea[i] == N+2) 
-            rea[i] <- 1
-
+    # All components have to match (empty species rea[x] == 1) is mapped to
+    # zero of all components by the get_c-helper function
     return(all(get_c(1)+get_c(2) == get_c(3)+get_c(4)))
 }
 
@@ -153,9 +175,8 @@ hcae_extend_elem_composition <- function(N, comp, max_tot=c(), max_single=c(),
     # now (re)calculate names
     name <- comp$name
     for(i in (nrow(comp$composition)+1):N_new)
-        name <- c(name, paste(sp_n_pre, 
-                              hcae_create_name(composition[i,], component_names,
-                                               name), sep=""))   
+        name <- c(name, hcae_create_name(composition[i,], component_names,
+                                         name, prefix=sp_n_pre))   
  
     return(list(composition=composition, name=name, energy=energy))
 }
@@ -175,6 +196,7 @@ hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(),
 
 # If reaction is valid (by composition) returns max mass transfer
 hcae_calc_rea_transfer <- function(rea, comp, N) {
+    comp <- comp$composition
     get_c <- function(i) {
         if(rea[i] == 1)
             return(rep(0, ncol(comp)))
@@ -199,36 +221,74 @@ hcae_calc_rea_transfer <- function(rea, comp, N) {
 }
 
 # Check further conditions on reactions 
-hcae_check_rea_conditions <- function(rea, N) {
-    hv_ed <- sum((rea[1] == N+2) + (rea[2] == N+2))
-    hv_pro <- sum((rea[3] == N+2) + (rea[4] == N+2))
-    empty_ed  <- sum((rea[1] == 1) + (rea[2] == 1))
-    empty_pro  <- sum((rea[3] == 1) + (rea[4] == 1))
+hcae_check_rea_conditions <- function(rea, N, comp) {
+    hv_id <- which(comp$name == "hv") + 1
+    empty_id <- 1
+
+    empty_ed  <- (rea[1] == empty_id) + (rea[2] == empty_id)
+    empty_pro  <- (rea[3] == empty_id) + (rea[4] == empty_id)
 
     # Avoid double reactions (through reverse reaction)
     if(rea[2] > rea[1] || rea[4] > rea[3] || rea[3] > rea[1])
         return(F) 
 
-    # hv is on both sides
-    if(hv_ed+hv_pro > 1)
-        return(F)
-
-    # One side of reaction has only hv
-    if(hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
-        return(F)
+    hv_ed <- (rea[1] == hv_id) + (rea[2] == hv_id)
+    hv_pro <- (rea[3] == hv_id) + (rea[4] == hv_id)
 
     # One side is completely empty
     if(empty_ed == 2 || empty_pro == 2)
         return(F)
 
-    # Reaction doesn't do anything  (TODO second part of condition excluded by first check?)
+    # Reaction doesn't do anything  
     if(rea[1] == rea[3] && rea[2] == rea[4] || rea[1] == rea[4] && rea[2] == rea[3])
         return(F)
 
+
+    if(length(hv_id) != 1)  # If there are no photoreactions: can finish here
+        return(T)
+
+
+    # hv is on both sides  OR  one side only has hv
+    if(hv_ed+hv_pro > 1 || hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
+        return(F)
+
+
     # Reaction has the form "hv + A -> A"
-    # ">="-condition to exclude drawing "hv + A -> B" AND "hv + B -> A"
-    if(rea[1] == N+2 && rea[4] == 1 && rea[2] >= rea[3])
-        return(F) 
+    # (complicated - permutations because hv_id can be bigger or smaller than id(A))
+    if(rea[1] == hv_id && rea[2] == rea[3] && rea[4] == empty_id ||
+       rea[2] == hv_id && rea[1] == rea[3] && rea[4] == empty_id ||
+       rea[3] == hv_id && rea[4] == rea[1] && rea[2] == empty_id ||
+       rea[4] == hv_id && rea[3] == rea[1] && rea[2] == empty_id)
+        return(F)
+
+    # Exclude drawing "hv + A -> B" AND "hv + B -> A"
+    # 
+    # Question: should reactions like "hv + A -> B + C" be 
+    # forbidden if mu_A > mu_B + mu_C 
+    energy <- c(0, comp$energy)
+    energy[hv_id] <- 0
+    delta_energy <- sum(energy[c(rea[3], rea[4])], -energy[c(rea[1], rea[2])])
+
+    # iff no energy difference "linear" photochemical reactions are only allowed
+    # from lower to higher species id's - photochemical reactions with three 
+    # components are always allowed
+    if(delta_energy == 0) {
+        if(rea[1] == hv_id && rea[4] == empty_id && rea[2] >= rea[3] ||
+           rea[2] == hv_id && rea[4] == empty_id && rea[1] >= rea[3] ||
+           rea[3] == hv_id && rea[2] == empty_id && rea[4] >= rea[1] ||
+           rea[4] == hv_id && rea[2] == empty_id && rea[3] >= rea[1])
+            return(F)
+    # if energy decreases in forward direction the reaction is discarded if the
+    # photon occurs on the LHS (independently of the number of components)
+    } else if (delta_energy < 0) { 
+        if(rea[1] == hv_id || rea[2] == hv_id)
+            return(F)
+    # if energy increases in forward direction the reaction is discarded if the
+    # photon occurs on the RHS (independently of the number of components)
+    } else if (delta_energy > 0) {
+        if(rea[3] == hv_id || rea[4] == hv_id)
+            return(F)
+    }
 
     return(T)
 }
@@ -377,11 +437,12 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
     energy <- comp$energy
     name <- comp$name
 
+    
     is_rea_possible <- function(i) {
         x <- trans$from_linear(i)
 
-        if(!hcae_check_rea_constituents(x, composition, N) ||
-           !hcae_check_rea_conditions(x, N))
+        if(!hcae_check_rea_constituents(x, comp, N) ||
+           !hcae_check_rea_conditions(x, N, comp))
             return(F)
             
         return(T)
@@ -389,17 +450,23 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 
     is_hv_rea <- function(i) {
         x <- trans$from_linear(i)
-        return(any(x == hv_id)) 
+        return(any(x-1 == hv_id)) 
     }
 
+    # Check if the reaction with id <i> is linear (definition depends on whether 
+    # catalytic reactions are considered linear)
     is_lin_rea <- function(i) {
         x <- trans$from_linear(i)
-        if(!cat_as_lin)
-            return(x[2] == 1 && x[4] == 1)
+        if(!cat_as_lin)   
+            return(x[2] == 1 && x[4] == 1) 
         else
             return(x[1] == x[3] || x[1] == x[4] || x[2] == x[3] || x[2] == x[4])
     }
 
+    # Subfunction transforms a linear reaction id <v> into an effective change
+    # of concentration. Change is normalized to first nonzero component being
+    # greater zero. If direct backflow is forbidden change of hv is set to zero
+    # (so backflow is a duplicate of "forward flow") 
     fval_to_stoichcol <- function(v) {
         v <- trans$from_linear(v)
         x <- matrix(0, ncol=N+1, nrow=1)
@@ -414,17 +481,19 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
             x <- -x       
 
         if(!allow_direct_backflow)
-            x[1,hv_id+1] <- 0
+            x[1,hv_id] <- 0
 
         return(x)
     }
 
+    # Sample one element from x
     s <- function(x) {
         return(x[sample(length(x))])
     }
 
     r <- rev
 
+    # Find the duplicates (in terms of effective change of species) reactions
     dup <- function(xx) {
         return(duplicated(t(sapply(xx, fval_to_stoichcol))))
     }
@@ -562,8 +631,10 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 
         species <- data.frame(type=as.integer(rep(0, N+1)), name=as.character(name), 
                               energy=as.numeric(energy),
-                              constant=as.logical(c(rep(F, N), T)),
+                              constant=as.logical(rep(F, N+1)),
                               stringsAsFactors=FALSE)
+
+        species$constant[hv_id] <- T
 
         reactions <- data.frame(reversible=as.logical(rep(T, M_)),
                                 c=as.numeric(rep(0, M_)), 
@@ -625,19 +696,26 @@ jrnf_ae_add_organism <- function(net,
     i <- sample(which(net$assoc$sp == 0), net$para$org$i_N)
     # construct composition object for current net - and extend
     comp <- list(composition=net$composition, name=net[[1]]$name, energy=net[[1]]$energy)
-    cc <- list(composition=comp$composition[i,], name=comp$name[i], energy=comp$energy[i])
+    cc <- list(composition=matrix(comp$composition[i,], ncol=ncol(comp$composition)), name=comp$name[i], energy=comp$energy[i])
     c <- hcae_extend_elem_composition(net$para$org$N, cc, 
                                       sp_n_pre=prefix_table[net$para$org$next_id])
+
+    cat("extended composition (private part) contains ", nrow(c$composition) - nrow(cc$composition), "\n")
 
     # create subnet for organism
     net_ <- jrnf_ae_create(net$para$org$i_N+net$para$org$N, net$para$org$M, net$para$org$no_2fold, 
                            net$para$org$no_hv, c)
 
+    # FOR DIAGNOSTICS TODO REMOVE
+    #net$net_old <- net
+    #net$net_new <- net_
+    #net$c_new <- c
+
     # join new organism subnet with existing network
     net <- jrnf_merge_net(net, net_)
 
     # update $composition as well as $assoc
-    net$composition <- rbind(comp$composition, c$composition[-(1:length(i)),])
+    net$composition <- rbind(comp$composition, matrix(c$composition[-(1:length(i)),], ncol=ncol(c$composition)))
     net$assoc$sp <- c(net$assoc$sp, rep(next_id,nrow(net[[1]])-N))
     net$assoc$re <- c(net$assoc$re, rep(next_id,nrow(net[[2]])-M))
 
