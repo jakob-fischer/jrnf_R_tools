@@ -370,9 +370,14 @@ pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
 # Function derives properties of all elementary modes in a matrix and returns
 # them in a data frame. The function returns them 
 #
+# TODO At the moment his function assumes to get a network without pseudo-exchange
+#      species and a set of elementary modes that fit the number of reaction. For
+#      future releases it should be extended to cut the network to pathway size and
+#      also drop all exchange pseudoreactions automaticly.
 #
+#      
 
-pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
+pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
     # generating empty vectors
     C <- matrix(0, ncol=c_max, nrow=nrow(em_matrix))     # Number of cycles of different length
     C_s <- matrix(0, ncol=c_max, nrow=nrow(em_matrix))   # Counting cycles by subgraph isomorphism (nodes!)
@@ -389,12 +394,15 @@ pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
     In_s <- rep(0, nrow(em_matrix))          # Number of input (counting each species only once)
     Out <- rep(0, nrow(em_matrix))           # Number of output to environment
     Out_s <- rep(0, nrow(em_matrix))         # Number of output to environment (each species only once) 
+    Hv <- rep(0, nrow(em_matrix))            # Number of hv species consumed (generated?) by this pathway
+    Hv_s <- rep(0, nrow(em_matrix))          # Hv input present? (1 iff, 0 else)
 
     # these species are not counted for Ex, In, Out!
     ex_exclude_f <- c()
+    ex_hv <- c(which(net[[1]]$name == "hv'" | net[[1]]$name == "hv"))
 
     if(ignore_hv) 
-        ex_exclude_f <- c(which(net[[1]]$name == "hv'" | net[[1]]$name == "hv"))
+        ex_exclude_f <- ex_hv
 
     # calculating degree of <net> independently of em's
     net_deg <- as.vector(degree(jrnf_to_undirected_network(net)))
@@ -404,23 +412,25 @@ pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
     for(i in 1:nrow(em_matrix)) {
         cat(".")
 
-        rev <- c()                   # is the reaction reverted in the specific elementary mode
+        rev <- em_matrix[i,] < 0       # is the reaction reverted in the specific elementary mode
         em_abs <- abs(em_matrix[i,]) 
-        sel <- c()                   # which reactions are in the elementary mode (id's of ones with 
-        sel_s <- c()                 # higher coefficients are put there multiple times)
+        sel <- which(em_abs != 0)       # which reactions are in the elementary mode (id's of ones with 
+                                        # higher coefficients are put there multiple times)
 
-        for(j in which(em_abs != 0)) {
-            sel_s <- c(sel_s, j)
-
-            for(k in 1:em_abs[j]) {
-                sel <- c(sel, j)
-                rev <- c(rev, em_matrix[i,j] < 0)
-            }           
-        }
+        # Network was changed from containing the same reaction multiple times to 
+        # containing each reaction just one time (even if the pathway has higher
+        # coefficients.) TODO allow alternative ways of calculating / remove
+        # consider that for pathways with big coefficients calculation of cycles
+        # get's quite complicated)
+        #for(j in which(em_abs != 0)) {
+        #    for(k in 1:em_abs[j]) {
+        #        sel <- c(sel, j)
+        #        rev <- c()
+        #    }           
+        #}
             
         # build temporary networks
         net_tmp <- list(net[[1]], net[[2]][sel,])
-        net_tmp_s <- list(net[[1]], net[[2]][sel_s,])
         N_tmp <- jrnf_calculate_stoich_mat(net_tmp)  
         N_tmp_in <- jrnf_calculate_stoich_mat_in(net_tmp)  
         N_tmp_out <- jrnf_calculate_stoich_mat_out(net_tmp)  
@@ -430,7 +440,8 @@ pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
         for(j in which(apply(N_int != 0, 2, sum) == 1)) 
             N_int[,j] <- 0
   
-        em_bilance <- N_int %*% em_matrix[i,]        
+        em_bilance <- N_int %*% em_matrix[i,]   
+        Hv[i] = sum(abs(em_bilance[ex_hv]))
         em_bilance[ex_exclude_f] <- 0
 
         # find cycles
@@ -452,26 +463,27 @@ pa_em_derive <- function(em_matrix, net, c_max=15, ignore_hv=F) {
         Deg_max_int[i] <- max( degree_internal )
         Sp_no[i] <- length( species_con )
 
-        Re[i] <- nrow( net_tmp[[2]] )
-        Re_s[i] <- nrow( net_tmp_s[[2]] )
+        Re[i] <- sum(em_abs) 
+        Re_s[i] <- sum(em_abs != 0)
         Ex[i] <- sum(abs(em_bilance))
-        Ex_s[i] <- length(which(em_bilance != 0))
+        Ex_s[i] <- sum(em_bilance != 0)
         In[i] <- sum(abs(pmin(em_bilance,0)))
-        In_s[i] <- length(which(abs(pmin(em_bilance,0)) != 0))
+        In_s[i] <- sum(abs(pmin(em_bilance,0)) != 0)
         Out[i] <- sum(abs(pmax(em_bilance,0)))
-        Out_s[i] <- length(which(abs(pmax(em_bilance,0)) != 0))
+        Out_s[i] <- sum(abs(pmax(em_bilance,0)) != 0)
     }    
 
     # sum of cycles is calculated
     C_sum <- apply(C, 1, sum)
     C_s_sum <- apply(C_s, 1, sum)
+    Hv_s = sign(Hv)
 
 
     # assemble data frame and return it
     return(data.frame(C_sum=C_sum, C_s_sum=C_s_sum, C_1=C[,1], C_2=C[,2], C_3=C[,3], C_1_s=C_s[,1], 
                       C_2_s=C_s[,2], C_3_s=C_s[,3], Deg=Deg, Deg_int=Deg_int, Deg_max=Deg_max, 
                       Deg_max_int=Deg_max_int, Sp_no=Sp_no, Re=Re, Re_s=Re_s, Ex=Ex, Ex_s=Ex_s,
-                      In=In, In_s=In_s, Out=Out, Out_s=Out_s))
+                      In=In, In_s=In_s, Out=Out, Out_s=Out_s, Hv=Hv, Hv_s=Hv_s))
 }
 
 
