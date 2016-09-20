@@ -952,16 +952,16 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
 # TODO the function has to be changed to the new convention. We expects a individual network
 #      for each Edraw in a list called <res_nets>
 #
-# 
+# deleted em_exp_r_cross because it is not compatible with having different networks data inside 
+# one results object (res_nets). One has to subset res_nets for a certain network / Edraw first.
 
 sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em) {
     em_der <- list()           # 
-    em_exp_r_cross <- list()   # Matrix containing information which part of ss-rates are explained by different pathways
 
     for(i in 1:length(res_nets)) {
+        cat("i=", i, "\n")
         N <- jrnf_calculate_stoich_mat(res_nets[[i]])
-        em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], 4)
-        em_exp_r_cross[[i]] <- matrix(0, ncol=nrow(em_m[[i]]), nrow=nrow(res_em[[i]])) 
+        em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], 3, ignore_hv=T)
     }
 
     # Over all explained fraction of rates (quality of pathway expansion)
@@ -979,11 +979,14 @@ sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em) {
     res_em$species_r <- rep(0, nrow(res_em))
     # Information entropy in pathway distribution (explained fractions)			
     res_em$informationE <- rep(0, nrow(res_em))
-    
+    # Fraction of pathways by explained fraction that are in steady state			
+    res_em$em_steadystate_r <- rep(0, nrow(res_em))
+    # Fraction of pathways that is changing concentration (not steady state)		 
+    res_em$em_con_ch_r <- rep(0, nrow(res_em))
 
     for(i in 1:nrow(res_em)) 
         if(is.data.frame(res_em$em_ex[[i]])) {
-            em_exp_r_cross[i, res_em$em_ex[[i]]$id] <- res_em$em_ex[[i]]$exp_r
+            i_net <- res_em$Edraw[i]
             res_em$exp_r_sum[i] <- sum(res_em$em_ex[[i]]$exp_r)
             res_em$exp_r_max[i] <- max(res_em$em_ex[[i]]$exp_r)
 
@@ -995,18 +998,26 @@ sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em) {
                 res_em$need_em_90[i] <- xp[1]
 
             # normalize
-            r <- em_exp_r_cross[i,] / sum(em_exp_r_cross[i,])
-            res_em$cycles_r[i] <- sum(em_der$C_s_sum*r)
-            res_em$reactions_r[i] <- sum(em_der$Re_s*r)
-            res_em$species_r[i] <-  sum(em_der$Sp_no*r)
+            id <- res_em$em_ex[[i]]$id
+            r <- res_em$em_ex[[i]]$exp_r
+            res_em$cycles_r[i] <- sum(em_der[[i_net]]$C_s_sum[id]*r)
+            res_em$reactions_r[i] <- sum(em_der[[i_net]]$Re_s[id]*r)
+            res_em$species_r[i] <-  sum(em_der[[i_net]]$Sp_no[id]*r)
             res_em$informationE[i] <- -sum(r*log(r), na.rm=T)
+
+            res_em$em_steadystate_r[i] <- sum(r[(em_der[[i_net]]$Ex_s[id] == 0)])
+            res_em$em_con_ch_r[i] <- sum(r[(em_der[[i_net]]$Ex_s[id] != 0)])
         }
 
     results=results_em_cross <- res_em
-    save(results_em_cross, em_exp_r_cross, em_der, file="results_em_cross.Rdata")
-    return(list(results_em_cross=results_em_cross, em_exp_r_cross=em_exp_r_cross, em_derive=em_der))
+    save(results_em_cross, em_der, file="results_em_cross.Rdata")
+    return(list(results_em_cross=results_em_cross, em_derive=em_der))
 }
 
+
+# 
+#
+#
 
 sb_cross_analysis_ecol <- function(res_nets, res) {
     N <- jrnf_calculate_stoich_mat(res_nets[[1]])
