@@ -2,17 +2,14 @@
 # description: 
 # Script for generating files and directory structure of artificial chemistry
 # simulations with thermodynamic constraints. (simulation builder = "sb_")
-# This file contains the core functionality to build and evaluate wide ranging
-# simulations - entire directories with multiple changing parameters. The 
-# functions to plot (and partially evaluate) the results is in "simulation_builder_plot.R".
+# The functionality has been distributed in multiple files:
+# simulation_builder_flow.R - Build simulation driven by in- and outflow
+# simulation_builder_ecol.R - Ecosystems with constant mass driven by energy
+# simulation_builder_evol.R - Evolving Ecosystem (containing organisms)
+# simulaiton_builder_plot.R - Plot methods for different types of simulations
 #
 # Parts of this this file / modules functionality are shared with "netodeint_control.R", this
 # could be unified in future.
-#
-# TODO functionality of this file (as described above) has been distributed into three
-#      individual parts: "simulation_builder_flow.R", "simulaiton_builder_ecol.R" and
-#      "simulation_builder_evol.R". Description here (above) and in these Files has to
-#      be adapted!
 
 sourced_simulation_builder <- T
 
