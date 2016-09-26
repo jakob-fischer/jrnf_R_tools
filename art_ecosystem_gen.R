@@ -736,7 +736,7 @@ jrnf_ae_remove_organism <- function(net, id) {
     # now one can simply remove all associated species
     keep_sp <- net$assoc$sp != id
     net$assoc$sp <- net$assoc$sp[keep_sp]
-    net$composition <- net$composition[keep_sp,]
+    net$composition <- matrix(net$composition[keep_sp,], ncol=ncol(net$composition))
     net <- jrnf_subnet(net, keep_sp)
 
     # update next free organism id
