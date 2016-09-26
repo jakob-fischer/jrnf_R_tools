@@ -521,15 +521,9 @@ pa_step <- function(obj, i=c()) {
         # 4)
         if(obj$parameters$do_decompose) {
 
-        cat("E")
-            M_new <- apply(M_new, 1, decompose_to_elementary) 
-
-            # some error handling (on previous call)
-            if(is.list(M_new)) {                   
-                M_new <- do.call("rbind", M_new)
-            } else {
-                M_new <- t(M_new)
-            }
+            cat("E") 
+            list_result <- lapply(split(M_new,seq(nrow(M_new))),decompose_to_elementary)
+            M_new <- do.call(rbind,list_result)
         }
 
         cat("F-")
