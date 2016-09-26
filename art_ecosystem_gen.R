@@ -674,7 +674,7 @@ jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
     net$para <- list(an = list(N=N, M=M, no_2fold=no_2fold, no_hv=no_hv, comp_no=comp_no),
                      org = list(i_N=oi_N, N=o_N, M=o_M, no_2fold=o_no_2fold, 
                                 no_hv=o_no_hv, next_id=1))
-    net$assoc <- list(sp=rep(0,nrow(net[[1]])), re=rep(0,nrow(net[[1]])))
+    net$assoc <- list(sp=rep(0,nrow(net[[1]])), re=rep(0,nrow(net[[2]])))
 
     return(net)   
 }
@@ -736,6 +736,7 @@ jrnf_ae_remove_organism <- function(net, id) {
     # now one can simply remove all associated species
     keep_sp <- net$assoc$sp != id
     net$assoc$sp <- net$assoc$sp[keep_sp]
+    net$composition <- net$composition[keep_sp,]
     net <- jrnf_subnet(net, keep_sp)
 
     # update next free organism id
