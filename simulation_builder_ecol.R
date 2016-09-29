@@ -170,8 +170,12 @@ sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs,
 
 
 sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T, TlogMax=1e8) {
     if(is.null(N_runs_eq)) N_runs_eq <- N_runs
+    Tmax_ <- Tmax
+
+    if(Tmax > TlogMax && write_log)
+        Tmax_ = TlogMax
 
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
@@ -232,11 +236,18 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                     df[as.vector(net_red[[1]]$name)] <- initial_con
                     write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
 
+
+                    
                     scripts <- c(scripts, 
                                  paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
                                            ".con Tmax=", as.character(1e-8), " wint=", as.character(3), sep=""),
                                  paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(Tmax_), " wint=", as.character(wint), sep=""))
+                    if(Tmax > Tmax_) 
+                        scripts <- c(scripts, 
+                                 paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_reduced.jrnf con=", next_dir, "/", ff, "/", j, 
                                            ".con Tmax=", as.character(Tmax), " wint=", as.character(wint), sep=""))
+
                 }
 
                 setwd("..")
@@ -284,6 +295,11 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                                  paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
                                            ".con Tmax=", as.character(1e-8), " wint=", as.character(3), sep=""),
                                  paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
+                                           ".con Tmax=", as.character(Tmax_), " wint=", as.character(wint), sep=""))
+
+                    if(Tmax > Tmax_)
+                        scripts <- c(scripts,  
+                                 paste(odeint_p, " simulate solve_implicit net=", next_dir, "/net_energies.jrnf con=", next_dir, "/", ff, "/", j, 
                                            ".con Tmax=", as.character(Tmax), " wint=", as.character(wint), sep=""))
                     }
 
