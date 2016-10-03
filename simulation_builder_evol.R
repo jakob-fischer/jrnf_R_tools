@@ -107,9 +107,6 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r$fl
         comp <- net$composition
         comp[net[[1]]$name == "hv",1] <- 1
         x <- c()
-        cat("re_assoc=", re_assoc, "  - len(..)=", length(re_assoc), "\n")
-        cat("i_i=", i_i, "\n")
-        cat("dim(N_rev)=", dim(N_rev), "\n")
  
         for(i in i_i) {
             dx <- abs(matrix(N_rev[,re_assoc == i], nrow=nrow(N_rev)) %*% rates_rev[re_assoc == i])
@@ -121,14 +118,9 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r$fl
     # conclude pathway analysis
     hv_id <- which(net[[1]]$name == "hv")
 
-    cat("net - size: ", nrow(net[[1]]), " - ", nrow(net[[2]]), "\n")
-
     x <- pa_extend_net(net, result$flow$flow_effective, invwhich(hv_id, nrow(net[[1]])), T)
     net_ex <- x[[1]]
     rates_ex <- x[[2]]
-
-
-    cat("net_ex - size: ", nrow(net_ex[[1]]), " - ", nrow(net_ex[[2]]), "\n")
 
     net_rev <- jrnf_reverse_reactions(net_ex, rates_ex)
     N_rev <- jrnf_calculate_stoich_mat(net_rev)
