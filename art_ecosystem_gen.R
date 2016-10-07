@@ -684,7 +684,8 @@ jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
 jrnf_ae_add_organism <- function(net, 
                                  oi_N=c(), o_N=c(), o_M=c(), 
                                  o_no_2fold=c(), o_no_hv=c()) {
-    prefix_table <- c("X_", "Y_", "Z_", "U_", "V_", "W_", "K_", "L_", "M_", "I_") 
+    prefix_table <- c("X_", "Y_", "Z_", "U_", "V_", "W_", "K_", "L_", "M_", "I_", "J_", 
+                      "x_", "y_", "z_", "u_", "v_", "w_", "k_", "l_", "m_", "i_", "j_") 
 
     if(is.null(net$para$org$i_N)) # if parameters are not available yet - update
         net$para$org <- list(i_N=oi_N, N=o_N, M=o_M, no_2fold=o_no_2fold, 
