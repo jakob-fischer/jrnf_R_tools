@@ -18,8 +18,7 @@ sourced_simulation_builder_evol <- T
 # <Tmax>   - time to which is simulated
 # <wint>   - number of intervalls that the results is written to file
 
-sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
-    
+sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {    
     init <- rep(con_o, nrow(net[[1]]))
     init[net$assoc$sp == 0] <- con_a       # set concentration for anorganic part
     init[net[[1]]$name == "hv"] <- con_hv  # for hv / energy
@@ -64,6 +63,8 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     system("rm X34tmp_ini.con", ignore.stderr=T, ignore.stdout=T)
 
     # return final concentrations / rates / evaluation of error!
+    time <- as.numeric(as.matrix(run)[nrow(run), 1])
+    msd <- as.numeric(as.matrix(run)[nrow(run), 2])
     con <- as.numeric(as.matrix(run)[nrow(run), -(1:2)])
     flow <- jrnf_calculate_flow(jrnf_calc_reaction_r(net), con)
     cc <- jrnf_calculate_concentration_change(net, flow$flow_effective)
@@ -72,13 +73,17 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     # constant its concentration change is through "missing" inflow reactions
     # and thuss discarded.
     # Relative error through concentration change scaled by concentration
+    err_cc <- abs(cc)
+    flow_b <- err_cc[net[[1]]$name == "hv"]
+    err_cc[net[[1]]$name == "hv"] <- 0
     err_cc_con <- abs(cc) / con
     err_cc_con[net[[1]]$name == "hv"] <- 0   
     # relative error concentration change scaled by maximal effective reaction rate
     err_cc_flow <- abs(cc) / max(flow$flow_effective)
     err_cc_flow[net[[1]]$name == "hv"] <- 0
 
-    return(list(concentration=con, flow=flow, err_cc_con=max(err_cc_con), err_cc_flow=max(err_cc_flow)))
+    return(list(concentration=con, flow=flow, err_cc=max(err_cc), err_cc_con=max(err_cc_con), 
+                err_cc_flow=max(err_cc_flow), flow_b=flow_b, msd=msd, time=time))
 }
 
 
@@ -251,15 +256,17 @@ sb_ae_evo_merge <- function(res_eval) {
 #          - score function that i used by sb_ae_evo_score to evaluate which
 #            of the organisms can be dropped in the next simulation step. 
 #            (see above)
+# <param>  - parameters for simulation (solving the ODE)
 
-sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_ana=T) {
+sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_ana=T,
+                             param=list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)) {
     # Submethod calling <sb_solve_ae_org> to calculate initial conditions and
     # simulate the differential equation. The parameters are hardcoded now 
     # but that might be changed later. 
     # Most important parameter (initial concentration before shuffeling for 
     #                           anorganic part 10 and for organisms 1e-3)
     solve <- function(net) {
-        res <- sb_solve_ae_org(net, 10, 1e-3, 10, 1e7, 50)
+        res <- sb_solve_ae_org(net, param$con_a, param$con_o, param$con_hv, param$Tmax, param$wint)
         return(res)
     }
 
@@ -302,12 +309,12 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
         res_eval <- list()
 
         for(k in 1:no_eva) {
-            res[[i]] <- solve(ext)                  # solve
-            res_eval[[i]] <- sb_ae_evo_score(ext, res[[i]], eval_worst, do_pw_ana)        # evaluate result
+            res[[k]] <- solve(ext)                  # solve
+            res_eval[[k]] <- sb_ae_evo_score(ext, res[[k]], eval_worst, do_pw_ana)        # evaluate result
             cat("EVALUATED!\n")
         }
 
-        x <- sb_ae_evo_merge(res_eval)  # TODO implement this function
+        x <- sb_ae_evo_merge(res_eval) 
         dyn$worst_id <- c(dyn$worst_id, eval_worst(res_eval))
 
         dyn$weight_anorg_f <- c(dyn$weight_anorg_f, x$weight_anorg_f)
@@ -333,7 +340,7 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
         }
     } 
 
-    return(list(net_list=net_list, res_list=res_list, dyn_data=dyn))
+    return(list(net_list=net_list, res_list=res_list, dyn_data=dyn, param=param))
 }
 
 
@@ -349,93 +356,80 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
 # TODO complete (copy and paste of sb_collect_results_ecol at the moment)s
 
 sb_evol_build_results <- function(res) {
-    save_wd <- getwd()   # just to be save
+    if(is.null(res$param)) # Old version without param / add standard values that were used
+        res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
+
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical())
-    results_nets <- list() # append all reaction networks in order of Edraw to this list
 
-    Edir_v <- list.dirs(recursive=FALSE)
+    net_l = res$net_list;
+    res_l = res$res_list
+    dyn = res$dyn_data
+    param = res$param
+    v <- param$con_hv
+    c <- param$con_a
 
-    for(bp in Edir_v) {
-        setwd(bp)
-        net <- jrnf_read("net_energies.jrnf")
-        results_nets[[length(results_nets)+1]] <- net
+    for(bp in 1:length(net_l)) {
+        net <- net_l[[bp]]
         N <- jrnf_calculate_stoich_mat(net)
-        if(file.exists("net_reduced.jrnf"))
-            net_red <- jrnf_read("net_reduced.jrnf")
-        else 
-            net_red <- NA
 
-        bp <- as.numeric(strsplit(bp,"/")[[1]][2])
+        for(i in 1:length(res_l[[bp]])) {
+            cat("v=", v, "c=", c, "Edraw=", as.numeric(bp), "Rdraw=", i, "\n")
+           
+            xres <- res_l[[bp]][[i]]
+            state_hash <- sb_v_to_hash(xres$flow$flow_effective, 1e-20)
+            con <- data.frame(con=xres$concentration)
 
-        vdir_v <- list.dirs(recursive=FALSE)
-        for(vp in vdir_v) {
-            l <- strsplit(vp, "v")[[1]][2]
-            v <- as.numeric(strsplit(l, "_")[[1]][1])
-            c <- as.numeric(strsplit(strsplit(l, "_")[[1]][2], "c")[[1]][2])
-            setwd(vp)
+            xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
 
-            edir_v <- list.files(recursive=FALSE)
-            for(ep in edir_v) {
-                i <- as.numeric(strsplit(ep,"\\.")[[1]][1])
-                
-                cat("v=", v, "c=", c, "Edraw=", as.numeric(bp), "Rdraw=", i, "\n")
-                run <- read.csv(ep)
-
-                sel_r <- 1:nrow(run)
-                if(!col_dynamics) 
-                    sel_r <- nrow(run)
-
-                for(t in sel_r) {
-                    time_ <- run[t,1]
-                    msd_  <- run[t,2]
-                    is_last_ <- t == nrow(run)
-                    con <- data.frame(con=as.numeric(run[t, 3:ncol(run)]))
-
-                    # v == 0 means simulation is not driven and was done with net_red 
-                    # add concentration of hv==0 for calculation of rates
-                    if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1)
-                        con <- rbind(con, 0)
-
-                    flow <- jrnf_calculate_flow(net, con$con)
-
-                    # set flow for photochemical reactions to zero if v==0
-                    if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1) 
-                        flow[N[which(net[[1]]$name == "hv"),] != 0,] <- 0
-
-                    cc <- jrnf_calculate_concentration_change(net, flow$flow_effective)
-                    flowb <- -cc[nrow(net[[1]])]
-                    err_cc <- max(abs(cc[-nrow(net[[1]])]))
-                    err_cc_rel <- err_cc/flowb
-                    state_hash <- sb_v_to_hash(flow$flow_effective, 1e-20)
-
-                    df <- rbind(df,
-                                data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                           v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb), state_hash=as.numeric(state_hash),
-                                           relaxing_sim=as.logical(v == 0), 
-                                           err_cc=err_cc, err_cc_rel=err_cc_rel,
-                                           ep_tot=as.numeric(sum(flow$entropy_prod)), 
-                                           sp_df=I(list(con)), re_df=I(list(flow)),
-                                           time=time_, msd=msd_, is_last=is_last_))
-
-                    if(t == nrow(run) && col_dynamics && nrow(run) > 1) {
-                        s <- (nrow(df)-nrow(run)+1):(nrow(df)-1)
-                        df$err_cc[s] <- df$err_cc[t]
-                        df$err_cc_rel[s] <- NA
-                    }
-                }
-            }
-   
-            setwd("..")
+            df <- rbind(df,
+                        data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
+                                   v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
+                                   relaxing_sim=as.logical(F), 
+                                   err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
+                                   ep_tot=as.numeric(sum(xres$flow$entropy_prod)), 
+                                   sp_df=I(list(con)), re_df=I(list(xres$flow)),
+                                   time=xres$time, msd=xres$msd, is_last=as.logical(T)))
         }
-        setwd("..")
     }
+   
+    # add columns from dynamical data <dyn>
+    xres$od_worst_id <- dyn$worst_id 
+    xres$od_weight_anorg_f <- dyn$weight_anorg_f
+    xres$od_flux_anorg_f <- dyn$flux_anorg_f
+    xres$od_flux_f_max <- dyn$flux_f_max
+    xres$od_rates_f_max <- dyn$rates_f_max
+    xres$od_weight_f_max <- dyn$weight_f_max 
+    xres$od_cycling_f_max <- dyn$cycling_f_max
+    xres$od_flux_f_mean <- dyn$flux_f_mean
+    xres$od_rates_f_mean <- dyn$rates_f_mean
+    xres$dyn_weight_f_mean <- dyn$weight_f_mean
+    xres$dyn_cycling_f_mean <- dyn$cycling_f_mean
 
-    setwd(save_wd)
     results <- df
-    results_nets <- results_nets[order(unique(results$Edraw))]
-    save(results, results_nets, file="results.Rdata")
+    results_nets <- net_l
+    system("mkdir -p joint")
+    save(results, results_nets, file="joint/results.Rdata")
+}
+
+
+# Function extracts the anorganic subnet identified by assoc$re and assoc$sp.
+# This is nontrivial because the function maintains all the metainformation
+# and updates it. 
+#
+# TODO Generalize this (subnet maintaining metainformation)? Also, make it work
+#      if anorganic network is not at the start?
+
+sb_get_anorganic_subnet <- function(net) {
+    net[[1]] <- net[[1]][net$assoc$sp == 0,]
+    net[[2]] <- net[[2]][net$assoc$re == 0,]
+    net$para$org$next_id <- 1
+    net$composition <- matrix(net$composition[net$assoc$sp == 0,], ncol=ncol(net$composition))
+    net$assoc$sp <- net$assoc$sp[net$assoc$sp == 0]
+    net$assoc$re <- net$assoc$re[net$assoc$re == 0]
+
+    return(net)
 }
 
 
@@ -446,96 +440,66 @@ sb_evol_build_results <- function(res) {
 # comparison to above function, this one looks only at the anorganic core of
 # the network. As this is unchanged all the states are using the same network
 # (Edraw = constant). In this case the generation is implicitly contained in
-# Rdraw.
+# Rdraw. (Not quite sure how to handle the case if one makes multiple simulations
+# / evaluations for the same generation, here. For starters just analyze the first
+# simulation.)
 #
 # TODO complete (copy and paste of sb_collect_results_ecol at the moment)
 
 sb_evol_build_results_core <- function(res) {
-    save_wd <- getwd()   # just to be save
+    if(is.null(res$param)) # Old version without param / add standard values that were used
+        res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
+
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical())
-    results_nets <- list() # append all reaction networks in order of Edraw to this list
+    net_l = res$net_list;
+    res_l = res$res_list
+    dyn_l = res$dyn_data
+    param = res$param
+    v <- param$con_hv
+    c <- param$con_a
+    
+    net_a <- sb_get_anorganic_subnet(res$net_list[[1]])
+    N <- jrnf_calculate_stoich_mat(net_a)
+    sel_sp <- 1:nrow(N)
+    sel_re <- 1:ncol(N)    
 
-    Edir_v <- list.dirs(recursive=FALSE)
 
-    for(bp in Edir_v) {
-        setwd(bp)
-        net <- jrnf_read("net_energies.jrnf")
-        results_nets[[length(results_nets)+1]] <- net
-        N <- jrnf_calculate_stoich_mat(net)
-        if(file.exists("net_reduced.jrnf"))
-            net_red <- jrnf_read("net_reduced.jrnf")
-        else 
-            net_red <- NA
+    for(i in 1:length(res_l)) {
+        xres <- res_l[[i]][[1]]
+              
+        cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
+        state_hash <- sb_v_to_hash(xres$flow$flow_effective[sel_sp], 1e-20)
+        con <- data.frame(con=xres$concentration[sel_sp])
 
-        bp <- as.numeric(strsplit(bp,"/")[[1]][2])
+        xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
 
-        vdir_v <- list.dirs(recursive=FALSE)
-        for(vp in vdir_v) {
-            l <- strsplit(vp, "v")[[1]][2]
-            v <- as.numeric(strsplit(l, "_")[[1]][1])
-            c <- as.numeric(strsplit(strsplit(l, "_")[[1]][2], "c")[[1]][2])
-            setwd(vp)
-
-            edir_v <- list.files(recursive=FALSE)
-            for(ep in edir_v) {
-                i <- as.numeric(strsplit(ep,"\\.")[[1]][1])
-                
-                cat("v=", v, "c=", c, "Edraw=", as.numeric(bp), "Rdraw=", i, "\n")
-                run <- read.csv(ep)
-
-                sel_r <- 1:nrow(run)
-                if(!col_dynamics) 
-                    sel_r <- nrow(run)
-
-                for(t in sel_r) {
-                    time_ <- run[t,1]
-                    msd_  <- run[t,2]
-                    is_last_ <- t == nrow(run)
-                    con <- data.frame(con=as.numeric(run[t, 3:ncol(run)]))
-
-                    # v == 0 means simulation is not driven and was done with net_red 
-                    # add concentration of hv==0 for calculation of rates
-                    if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1)
-                        con <- rbind(con, 0)
-
-                    flow <- jrnf_calculate_flow(net, con$con)
-
-                    # set flow for photochemical reactions to zero if v==0
-                    if(v == 0 && nrow(net[[1]]) == nrow(net_red[[1]])+1) 
-                        flow[N[which(net[[1]]$name == "hv"),] != 0,] <- 0
-
-                    cc <- jrnf_calculate_concentration_change(net, flow$flow_effective)
-                    flowb <- -cc[nrow(net[[1]])]
-                    err_cc <- max(abs(cc[-nrow(net[[1]])]))
-                    err_cc_rel <- err_cc/flowb
-                    state_hash <- sb_v_to_hash(flow$flow_effective, 1e-20)
-
-                    df <- rbind(df,
-                                data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                           v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb), state_hash=as.numeric(state_hash),
-                                           relaxing_sim=as.logical(v == 0), 
-                                           err_cc=err_cc, err_cc_rel=err_cc_rel,
-                                           ep_tot=as.numeric(sum(flow$entropy_prod)), 
-                                           sp_df=I(list(con)), re_df=I(list(flow)),
-                                           time=time_, msd=msd_, is_last=is_last_))
-
-                    if(t == nrow(run) && col_dynamics && nrow(run) > 1) {
-                        s <- (nrow(df)-nrow(run)+1):(nrow(df)-1)
-                        df$err_cc[s] <- df$err_cc[t]
-                        df$err_cc_rel[s] <- NA
-                    }
-                }
-            }
-   
-            setwd("..")
-        }
-        setwd("..")
+         df <- rbind(df,
+                     data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
+                                v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
+                                relaxing_sim=as.logical(F), 
+                                err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
+                                ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
+                                sp_df=I(list(con)), re_df=I(list(xres$flow[sel_re,])),
+                                time=xres$time, msd=xres$msd, is_last=as.logical(T)))
     }
 
-    setwd(save_wd)
+    # add columns from dynamical data <dyn>
+    xres$od_worst_id <- dyn$worst_id 
+    xres$od_weight_anorg_f <- dyn$weight_anorg_f
+    xres$od_flux_anorg_f <- dyn$flux_anorg_f
+    xres$od_flux_f_max <- dyn$flux_f_max
+    xres$od_rates_f_max <- dyn$rates_f_max
+    xres$od_weight_f_max <- dyn$weight_f_max 
+    xres$od_cycling_f_max <- dyn$cycling_f_max
+    xres$od_flux_f_mean <- dyn$flux_f_mean
+    xres$od_rates_f_mean <- dyn$rates_f_mean
+    xres$dyn_weight_f_mean <- dyn$weight_f_mean
+    xres$dyn_cycling_f_mean <- dyn$cycling_f_mean
+
     results <- df
-    results_nets <- results_nets[order(unique(results$Edraw))]
-    save(results, results_nets, file="results.Rdata")
+    results_nets=list(net_a)
+    system("mkdir -p core")
+    save(results, results_nets=results_nets, file="core/results.Rdata")
 }
