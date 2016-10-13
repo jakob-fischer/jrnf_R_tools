@@ -848,7 +848,7 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
             em_matrix[[i_net]] <<- rbind(em_matrix[[i_net]], x_em)
 
             x_keep <- !duplicated(matrix(em_matrix[[i_net]],nrow=nrow(em_matrix[[i_net]])))
-            em_matrix[[i_net]] <- matrix(em_matrix[[i_net]][x_keep,], ncol=ncol(em_matrix[[i_net]]))   
+            em_matrix[[i_net]] <<- matrix(em_matrix[[i_net]][x_keep,], ncol=ncol(em_matrix[[i_net]]))   
         }
     }
     
@@ -977,7 +977,10 @@ sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em) {
     for(i in 1:length(res_nets)) {
         cat("i=", i, "\n")
         N <- jrnf_calculate_stoich_mat(res_nets[[i]])
-        em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], 3, ignore_hv=T)
+        if(nrow(em_m[[i]]) != 0)
+            em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], 3, ignore_hv=T)
+        else
+            em_der[[i]] <- c()
     }
 
     # Over all explained fraction of rates (quality of pathway expansion)
