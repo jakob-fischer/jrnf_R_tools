@@ -14,6 +14,149 @@ if(!exists("sourced_simulation_builder"))
     source("simulation_builder.R")
 
 
+#
+#
+#
+
+sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps") { 
+    a <- data.frame(x_data=numeric(), 
+                    exp_r=numeric(),
+                    em=factor())
+ 
+    for(i in 1:ncol(em_cross)) {
+        a <- rbind(a, 
+                   data.frame(x_data=as.numeric(x_data), 
+                              exp_r=as.numeric(em_cross[,i]),
+                              em=as.factor(rep(em_name[i], length(x_data)))))
+    }
+
+    postscript(filename, width=10, height=6)
+    
+    gg<-ggplot(a, aes(x=x_data, y=exp_r, colour=em, group=em, shape=em))  + 
+           scale_y_continuous(limits=c(1e-3,1)) + 
+           ylab("exp. fraction") + 
+           xlab(x_name) +
+           geom_point(size=2.2) + 
+           theme_bw(22) +
+           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+
+    print(gg)
+    
+    dev.off()
+
+    return(gg)
+}
+
+
+
+# function calculates how contribution of different pathways to a steady state
+# changes for different rows in a results_em / results_em_cross object. 
+# Because an entire results object can contain data reffering to different 
+# network objects one has to subset the results first. This function takes
+# the subsetted results object, and selected network and elementary modes
+# objects. One can only consider a subset of all elementary modes by using the
+# parameter <sub_em>. In all cases the matrix for explained fraction is calculated
+# normalized by row as well as non-normalized.
+#
+# parameters:
+# <results> - subetted results object (Edraw has to be identical for all entries)
+# <net>     - associated network object
+# <em>      - associated matrix of elementary modes
+# <sub_em>  - optional, a boolean vector indicating a subset of elementary modes
+
+sb_calc_pw_cross <- function(results, net, em, sub_em=c()) {
+    if(is.null(sub_em))
+        sub_em <- rep(T, nrow(em))
+    x <- n <- r <- matrix(0, nrow(results), sum(sub_em))
+
+    
+    for(i in 1:nrow(results)) {
+        # calculate explained rate and coefficient for full set of pathways
+        exp_r <- rate <- rep(0, nrow(em))
+        exp_r[results$em_ex[[i]]$id] <- results$em_ex[[i]]$exp_r
+        rate[results$em_ex[[i]]$id] <- results$em_ex[[i]]$rate
+        # now take the relevant subset
+        x[i,] <- exp_r[sub_em]
+        n[i,] <- x[i,] / sum(x[i,])
+        r[i,] <- rate[sub_em]
+    }    
+    return(list(x=x, x_norm=n, rates=r))
+}
+
+
+# This function calls sb_calc_pw_cross to calculate how contribution of different 
+# pathways to a steady state changes for different rows in a results_em / 
+# results_em_cross object. The difference of this function is that it subsets 
+# the results object and selects net and em...
+#
+# parameters:
+# <results> - results object 
+# <net>     - associated list of networks
+# <em>      - associated list of matrices of elementary modes
+# <i>       - Which network (Edraw) to analyze
+# <sub_em>  - optional, a boolean vector indicating a subset of elementary modes
+
+sb_calc_pw_cross_i <- function(results, results_net, em, i, sub_em=c()) {
+    sel <- results$Edraw == i
+    return(sb_calc_pw_cross(results[sel,] , results_net[[i]], em[[i]], sub_em))
+}
+
+
+# Given a matrix <m> that indicates contribution / explained fraction of different
+# elementary modes to different simulation runs, the function determines the <N>
+# most important elementary modes.
+
+sb_pw_cross_sub_N <- function(m, N) {
+    a <- apply(m, 2, max)
+    return(tail(order(a), N))
+}
+
+
+# Given a matrix <m> that indicates contribution / explained fraction of different
+# elementary modes to different simulation runs, the function determines the most
+# important elementary nodes that have explained fraction higher than f
+
+
+sb_pw_cross_sub_f <- function(m, f) {
+    a <- apply(m, 2, max)
+    r <- which(a > f)
+    return(r)
+}
+
+
+#
+#
+
+sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), filename="pw_cross_%.eps") {
+    if(length(grep("%", filename)) == 0) {
+        cat("WARNING: sb_pw_cross_plot:\n")
+        cat("filename should contain placeholder '%' - output may be faulty!\n") 
+    }
+
+    if(is.null(sub_s)) 
+        sub_s <- 1:nrow(em)
+
+    if(is.logical(sub_s))
+        sub_s <- which(sub_s)
+
+
+    # First print spectrum of selected / subseted pathways
+    em_name <- 1:ncol(cross)
+    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub("%", "spec", filename))
+
+    # Now plot all (selected) pathways in separate files
+    for(i in sub_s) {
+        postscript(sub("%", as.character(i), filename), width=5, height=5, family="serif")
+        x <- jrnf_plot_pathway(net, em[i,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+        dev.off()
+    }
+
+    return(y)
+}
+
+
+
 
 sb_write_network_pathways <- function(sel=0) {
     jrnf_network_to_ltable("network.tex", net)
@@ -92,46 +235,6 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
 
 #    return(list(gg1, gg2, gg3, gg4)) 
 
-}
-
-
-plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), sel=c(), filename="em_spectre.eps") { 
-    if(is.null(sel))
-        sel <- rep(T, length(x_data))
-
-    if(is.null(em_name))
-       em_name <- 1:ncol(em_cross)
-
-    sel <- which(sel)
-
-    a <- data.frame(x_data=numeric(), 
-                    exp_r=numeric(),
-                    em=factor())
- 
-    for(i in 1:ncol(em_cross)) {
-        a <- rbind(a, 
-                   data.frame(x_data=as.numeric(x_data[sel]), 
-                              exp_r=as.numeric(em_cross[sel,i]),
-                              em=as.factor(rep(em_name[i], length(sel)))))
-    }
-
-    setEPS()
-    postscript(filename, width=10, height=6)
-    
-    gg<-ggplot(a, aes(x=x_data, y=exp_r, colour=em, group=em, shape=em))  + 
-          scale_x_log10() + scale_y_continuous(limits=c(1e-3,1)) + 
-           ylab("exp. fraction") + 
-           xlab(x_name) +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
 }
 
 
