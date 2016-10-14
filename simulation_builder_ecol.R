@@ -903,7 +903,6 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
     }
 
     # MAIN LOOP
-    #
 
     for(i in 1:nrow(res)) {
         cat("============================================================\n")
