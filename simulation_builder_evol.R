@@ -281,6 +281,7 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
     res_list <- list()
     dyn <- list()
     dyn$worst_id <- c()
+    dyn$unique_worst <- c()
     dyn$weight_anorg_f <- c()
     dyn$flux_anorg_f <- c()
     dyn$flux_f_max <- c()
@@ -316,7 +317,7 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
 
         x <- sb_ae_evo_merge(res_eval) 
         dyn$worst_id <- c(dyn$worst_id, eval_worst(res_eval))
-
+        dyn$unique_worst <- c(dyn$unique_worst, x$unique_worst)
         dyn$weight_anorg_f <- c(dyn$weight_anorg_f, x$weight_anorg_f)
         dyn$flux_anorg_f <- c(dyn$flux_anorg_f, x$flux_anorg_f)
         dyn$flux_f_max <- c(dyn$flux_f_max, x$flux_f_max)
