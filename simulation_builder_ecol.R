@@ -1086,11 +1086,14 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
                 s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
                            res$c == res$c[i])[1]
 
+            if(length(s) == 0)
+                s <- 0
+
             res$equilibrium_ref[i] <- s
         }
     }
      
-    for(i in which(!res$relaxing_sim)) { 
+    for(i in which(!res$relaxing_sim & res$equilibrium_ref != 0)) { 
         cat(".")
         if(i %% 1000 == 0) cat("\n", i/nrow(res))
         dmu_cross[i,] <- res$sp_df[[i]]$mu %*% N
