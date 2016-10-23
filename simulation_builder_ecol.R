@@ -813,13 +813,6 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
     err <- rep(0,nrow(res))
     em_no <- rep(0, nrow(res))
 
-
-
-    # which reactions of network are linear
-    is_linear <- (unlist(lapply(res_nets[[1]][[2]]$educts_mul, sum)) == 1) 
-    # species degree
-    deg <- as.vector(degree(jrnf_to_undirected_network(res_nets[[1]])))    
-
  
     # helper function one, 
     add_em <- function(rev, cutoff, i_net) {
@@ -912,6 +905,11 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T) {
         gc()
         g <- jrnf_to_directed_network_d(net, res$re_df[[i]]$flow_effective)
         cat(".")         
+
+        # which reactions of network are linear
+        is_linear <- (unlist(lapply(net[[2]]$educts_mul, sum)) == 1) 
+        # species degree
+        deg <- as.vector(degree(jrnf_to_undirected_network(net)))    
         
         # build data frame refering to expansion of simulation's rate by elementary modes
         if(!res$relaxing_sim[i] & (res$err_cc_rel[i] < 0.1 | is.na(res$err_cc_rel[i])))
