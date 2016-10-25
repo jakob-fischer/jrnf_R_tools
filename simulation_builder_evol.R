@@ -236,6 +236,7 @@ sb_ae_evo_merge <- function(res_eval) {
     return( data.frame(weight_anorg_f=mean(weight_anorg_f), flux_anorg_f=mean(flux_anorg_f),
                        flux_f_max=max(flux_f), rates_f_max=max(rates_f), 
                        weight_f_max=max(weight_f), cycling_f_max=max(cycling_f), 
+                       cycling_f_mean=mean(cycling_f),
                        flux_f_mean=mean(flux_f), rates_f_mean=mean(rates_f),
                        weight_f_mean=mean(weight_f), rates_f_mean=mean(rates_f), 
                        unique_worst=(length(unique(worst_id)) == 1) ) )
@@ -487,17 +488,17 @@ sb_evol_build_results_core <- function(res) {
     }
 
     # add columns from dynamical data <dyn>
-    xres$od_worst_id <- dyn$worst_id 
-    xres$od_weight_anorg_f <- dyn$weight_anorg_f
-    xres$od_flux_anorg_f <- dyn$flux_anorg_f
-    xres$od_flux_f_max <- dyn$flux_f_max
-    xres$od_rates_f_max <- dyn$rates_f_max
-    xres$od_weight_f_max <- dyn$weight_f_max 
-    xres$od_cycling_f_max <- dyn$cycling_f_max
-    xres$od_flux_f_mean <- dyn$flux_f_mean
-    xres$od_rates_f_mean <- dyn$rates_f_mean
-    xres$dyn_weight_f_mean <- dyn$weight_f_mean
-    xres$dyn_cycling_f_mean <- dyn$cycling_f_mean
+    xres$od_worst_id <- dyn_l$worst_id 
+    xres$od_weight_anorg_f <- dyn_l$weight_anorg_f
+    xres$od_flux_anorg_f <- dyn_l$flux_anorg_f
+    xres$od_flux_f_max <- dyn_l$flux_f_max
+    xres$od_rates_f_max <- dyn_l$rates_f_max
+    xres$od_weight_f_max <- dyn_l$weight_f_max 
+    xres$od_cycling_f_max <- dyn_l$cycling_f_max
+    xres$od_flux_f_mean <- dyn_l$flux_f_mean
+    xres$od_rates_f_mean <- dyn_l$rates_f_mean
+    xres$dyn_weight_f_mean <- dyn_l$weight_f_mean
+    xres$dyn_cycling_f_mean <- dyn_l$cycling_f_mean
 
     results <- df
     results_nets=list(net_a)
