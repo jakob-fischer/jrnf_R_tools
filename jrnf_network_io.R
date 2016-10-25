@@ -824,6 +824,9 @@ jrnf_plot_network <- function(net, prep=c(), layout_f=layout.auto, rate_v=c(), m
 # the one that will be returned, 'prep_p' the one used to plot.
 
 jrnf_plot_pathway <- function(net, pw, prep=c(), layout_f=layout.auto, lim_plot=F, mark_pseudor=T) {
+    # pathway is cut to size of network!
+    pw <- pw[1:nrow(net[[2]])]   
+
     # If it is not given "prepared" (including a fixed layout) as parameter
     # the prepare function is used
     if(is.null(prep)) 
