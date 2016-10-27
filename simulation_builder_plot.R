@@ -14,6 +14,99 @@ if(!exists("sourced_simulation_builder"))
     source("simulation_builder.R")
 
 
+
+sb_plot_evol_pw <- function() {
+    # need_em_90
+
+    # exp_r_max
+
+    # cycles_r
+
+    # species_r
+
+    # reactions_r
+
+
+    # em_steadystate_r  (as it is for core steadystate means pathways inside anorganic part)
+
+    # em_con_ch_r (as it is for core this means pathways that contain boundary flow - to organisms)
+
+    # informationE
+
+
+
+}
+
+
+# 
+#
+#
+
+sb_plot_evol_core <- function() {
+    # plot evolution off general parameters (not limited to core)
+    # weight_f_mean
+
+    # weight_f_max
+
+    # weight_f_anorg
+
+    # rates_f_mean
+ 
+    # rates_f_max
+    
+    # flux_f_mean
+
+    # flux_f_max
+
+    # flux_anorg_f
+
+    # cycling_f_mean
+
+    # cycling_f_max
+
+    # weight_f_mean*rates_f_mean
+
+    # weight_f_mean*flux_f_mean
+
+    # worst_id
+
+    # unique_worst
+
+    # flow
+
+    # plot change of important parameters in main directory:
+    sb_plot_evol_pw()
+
+
+    # calculate pathway evolution of core in subdirectory
+    # plot diagramms of 10 most important pathways
+
+
+    # plot pathway spectre
+
+}
+
+
+# 
+#
+#
+
+sb_plot_evol_reduced <- function() {
+    # create a directory for each network / state 
+    # plot the ten most important pathways
+    # put information on explained fraction and explained dissipation in filename
+
+    # explained fraction (decreasing for all pathways)
+
+    # explained dissipation (decreasing for all wathways)
+   
+
+    # plot change of important parameters in main directory:
+    sb_plot_evol_pw()
+}
+
+
+
 #
 #
 #
