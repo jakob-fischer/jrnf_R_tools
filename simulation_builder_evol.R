@@ -397,17 +397,18 @@ sb_evol_build_results <- function(res) {
     }
    
     # add columns from dynamical data <dyn>
-    xres$od_worst_id <- dyn$worst_id 
-    xres$od_weight_anorg_f <- dyn$weight_anorg_f
-    xres$od_flux_anorg_f <- dyn$flux_anorg_f
-    xres$od_flux_f_max <- dyn$flux_f_max
-    xres$od_rates_f_max <- dyn$rates_f_max
-    xres$od_weight_f_max <- dyn$weight_f_max 
-    xres$od_cycling_f_max <- dyn$cycling_f_max
-    xres$od_flux_f_mean <- dyn$flux_f_mean
-    xres$od_rates_f_mean <- dyn$rates_f_mean
-    xres$dyn_weight_f_mean <- dyn$weight_f_mean
-    xres$dyn_cycling_f_mean <- dyn$cycling_f_mean
+    df$od_worst_id <- dyn$worst_id 
+    df$od_unique_worst <- dyn$unique_worst
+    df$od_weight_anorg_f <- dyn$weight_anorg_f
+    df$od_flux_anorg_f <- dyn$flux_anorg_f
+    df$od_flux_f_max <- dyn$flux_f_max
+    df$od_rates_f_max <- dyn$rates_f_max
+    df$od_weight_f_max <- dyn$weight_f_max 
+    df$od_cycling_f_max <- dyn$cycling_f_max
+    df$od_flux_f_mean <- dyn$flux_f_mean
+    df$od_rates_f_mean <- dyn$rates_f_mean
+    df$od_weight_f_mean <- dyn$weight_f_mean
+    df$od_cycling_f_mean <- dyn$cycling_f_mean
 
     results <- df
     results_nets <- net_l
@@ -488,17 +489,18 @@ sb_evol_build_results_core <- function(res) {
     }
 
     # add columns from dynamical data <dyn>
-    xres$od_worst_id <- dyn_l$worst_id 
-    xres$od_weight_anorg_f <- dyn_l$weight_anorg_f
-    xres$od_flux_anorg_f <- dyn_l$flux_anorg_f
-    xres$od_flux_f_max <- dyn_l$flux_f_max
-    xres$od_rates_f_max <- dyn_l$rates_f_max
-    xres$od_weight_f_max <- dyn_l$weight_f_max 
-    xres$od_cycling_f_max <- dyn_l$cycling_f_max
-    xres$od_flux_f_mean <- dyn_l$flux_f_mean
-    xres$od_rates_f_mean <- dyn_l$rates_f_mean
-    xres$dyn_weight_f_mean <- dyn_l$weight_f_mean
-    xres$dyn_cycling_f_mean <- dyn_l$cycling_f_mean
+    df$od_worst_id <- dyn_l$worst_id 
+    df$od_unique_worst <- dyn_l$unique_worst
+    df$od_weight_anorg_f <- dyn_l$weight_anorg_f
+    df$od_flux_anorg_f <- dyn_l$flux_anorg_f
+    df$od_flux_f_max <- dyn_l$flux_f_max
+    df$od_rates_f_max <- dyn_l$rates_f_max
+    df$od_weight_f_max <- dyn_l$weight_f_max 
+    df$od_cycling_f_max <- dyn_l$cycling_f_max
+    df$od_flux_f_mean <- dyn_l$flux_f_mean
+    df$od_rates_f_mean <- dyn_l$rates_f_mean
+    df$od_weight_f_mean <- dyn_l$weight_f_mean
+    df$od_cycling_f_mean <- dyn_l$cycling_f_mean
 
     results <- df
     results_nets=list(net_a)
