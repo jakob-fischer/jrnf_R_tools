@@ -15,26 +15,43 @@ if(!exists("sourced_simulation_builder"))
 
 
 
-sb_plot_evol_pw <- function() {
+sb_plot_evol_pw <- function(Edyn=T) {
+    plt <- function(fn, yname, ydata, width=7, height=5, logY=F) {
+        if(Edyn)
+            a <- data.frame(b=results_em_cross$Edraw, c=ydata)
+        else
+            a <- data.frame(b=results_em_cross$Rdraw, c=ydata)
+        postscript(fn, width=width, height=height)
+
+        scale <- scale_y_continuous()
+        if(logY) 
+            scale <- scale_y_log10()
+
+
+        gg <- ggplot(a, aes(x=b, y=c))  + 
+            scale_x_continuous() +
+            scale +
+            ylab(yname) + 
+            xlab("generation") +
+            geom_point(size=2.2) + 
+            theme_bw(22) +
+            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+         print(gg)
+         dev.off()
+    }
+
+    rec <- results_em_cross
     # need_em_90
-
-    # exp_r_max
-
-    # cycles_r
-
-    # species_r
-
-    # reactions_r
-
-
-    # em_steadystate_r  (as it is for core steadystate means pathways inside anorganic part)
-
-    # em_con_ch_r (as it is for core this means pathways that contain boundary flow - to organisms)
-
-    # informationE
-
-
-
+    plt("evol_need_em_90.eps", "pw for 90%", rec$need_em_90, logY=T)
+    plt("evol_exp_r_max.eps", "max exp. r",  rec$exp_r_max)
+    plt("evol_cycles_r.eps", "cycle number", rec$cycles_r)
+    plt("evol_species_r.eps", "species number", rec$species_r)
+    plt("evol_reactions_r.eps", "reaction number", rec$reactions_r)
+    plt("evol_em_steadystate_r.eps", "steady state fraction", rec$em_steadystate_r)
+    plt("evol_em_con_ch_r.eps", "concentration change fraction", rec$em_con_ch_r)
+    plt("evol_informationE.eps", "inf. E. of pw dist.", rec$informationE)
 }
 
 
@@ -43,47 +60,79 @@ sb_plot_evol_pw <- function() {
 #
 
 sb_plot_evol_core <- function() {
-    # plot evolution off general parameters (not limited to core)
-    # weight_f_mean
+    plt <- function(fn, yname, ydata, width=7, height=5, logY=F) {
+        a <- data.frame(b=results_em_cross$Rdraw, c=ydata)
+        postscript(fn, width=width, height=height)
 
-    # weight_f_max
+        scale <- scale_y_continuous()
+        if(logY) 
+            scale <- scale_y_log10()
 
-    # weight_f_anorg
 
-    # rates_f_mean
- 
-    # rates_f_max
-    
-    # flux_f_mean
+        gg <- ggplot(a, aes(x=b, y=c))  + 
+            scale_x_continuous() +
+            scale +
+            ylab(yname) + 
+            xlab("generation") +
+            geom_point(size=2.2) + 
+            theme_bw(22) +
+            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+         print(gg)
+         dev.off()
+    }
 
-    # flux_f_max
+    rec <- results_em_cross
 
-    # flux_anorg_f
 
-    # cycling_f_mean
+    plt("evol_weight_f_mean.eps", "mean weight fraction", rec$od_weight_f_mean)
+    plt("evol_weight_f_max.eps", "max weight fraction", rec$od_weight_f_max)
+    plt("evol_weight_f_anorg.eps", "anorg. weight fraction", rec$od_weight_anorg_f)
+    plt("evol_rates_f_mean.eps", "mean rates fraction", rec$od_rates_f_mean)
+    plt("evol_rates_f_max.eps", "max rates fraction", rec$od_rates_f_max)
+    plt("evol_flux_f_mean.eps", "mean flux fraction", rec$od_flux_f_mean)
+    plt("evol_flux_f_max.eps", "max flux fraction", rec$od_flux_f_max)
 
-    # cycling_f_max
+    plt("evol_flux_anorg_f.eps", "anorg. flux fraction", rec$od_flux_anorg_f)
+    plt("evol_cycling_f_mean.eps", "mean cycling", rec$od_cycling_f_mean)
+    plt("evol_cycling_f_max.eps", "max cycling", rec$od_cycling_f_max)
 
-    # weight_f_mean*rates_f_mean
+    plt("evol_weight_rates_f_mean.eps", "mean weight*rates", rec$od_weight_f_mean*rec$od_rates_f_mean)
+    plt("evol_weight_flux_f_mean.eps", "mean weight*flux", rec$od_weight_f_mean*rec$od_flux_f_mean)
 
-    # weight_f_mean*flux_f_mean
-
-    # worst_id
-
-    # unique_worst
-
-    # flow
+    plt("evol_worst_id.eps", "worst id", rec$od_worst_id)
+    plt("evol_unique_worst.eps", "unique worst", as.numeric(rec$od_unique_worst))
+    plt("evol_flow.eps", "flow (hv)", rec$flow, logY=T)
 
     # plot change of important parameters in main directory:
-    sb_plot_evol_pw()
+    sb_plot_evol_pw(F)
 
+    system("mkdir -p pw_evol")
+    setwd("pw_evol")
+    for(Edraw in unique(rec$Edraw)) {
+        # calculate pathway evolution of core in subdirectory
+        # plot diagramms of 10 most important pathways
+        fn <- paste("E", as.character(Edraw), "_pw_cross_%.eps", sep="")
+        net <- results_nets[[Edraw]]
+        em <- em_m[[Edraw]]
+        a <- sb_calc_pw_cross(results_em_cross, results_nets[[Edraw]], em_m[[Edraw]])
+       
+        sub_x <- sb_pw_cross_sub_N(a$x_norm, 5)
+        sub_y <- sb_pw_cross_sub_N(a$x_norm, 10)[-(1:5)]
 
-    # calculate pathway evolution of core in subdirectory
-    # plot diagramms of 10 most important pathways
-
-
-    # plot pathway spectre
-
+        # plot pathway spectre
+        sb_pw_cross_plot(net, em, a$x_norm, rec$Rdraw, x_name="generation", sub_s=sub_x, filename=fn)
+  
+        # plot pw 6-10 (that are not plotted with the spectre)
+        for(i in sub_y) {
+            fn_ <- sub("%", as.character(i), fn)
+            postscript(fn_, width=5, height=5, family="serif")
+            x <- jrnf_plot_pathway(net, em[i,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+            dev.off()
+        }
+    }
+    setwd("..")
 }
 
 
@@ -92,17 +141,76 @@ sb_plot_evol_core <- function() {
 #
 
 sb_plot_evol_reduced <- function() {
+    rec <- results_em_cross
+
     # create a directory for each network / state 
-    # plot the ten most important pathways
-    # put information on explained fraction and explained dissipation in filename
+    for(i in 1:nrow(rec)) { 
+        dir = paste("pw_details_E", as.character(results_em_cross$Edraw[i]), "_R", results_em_cross$Rdraw[i], sep="")
+        system(paste("mkdir -p", dir))
+        setwd(dir)
 
-    # explained fraction (decreasing for all pathways)
+        Edraw <- rec$Edraw[i]
+        net <- results_nets[[Edraw]]
 
-    # explained dissipation (decreasing for all wathways)
-   
+        # plot the ten most important pathways
+        # put information on explained fraction and explained dissipation in filename
+        for(k in 1:min(10,nrow(rec$em_ex[[i]]))) {
+            id <- rec$em_ex[[i]]$id[k]
+            fn = paste("pw", as.character(k), "_id", as.character(id), "_er", rec$em_ex[[i]]$exp_r[k],
+                       "_ed", rec$em_ex[[i]]$exp_d[k], ".eps", sep="")
+
+            postscript(fn, width=5, height=5, family="serif")
+            x <- jrnf_plot_pathway(net, em_m[[Edraw]][id,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+            dev.off()
+        }
+
+        # explained fraction (decreasing for all pathways)
+        # explained dissipation (decreasing for all wathways)
+        # plot first 50 pathways (y-log)
+
+        K <- rec$em_ex[[i]]
+        J <- data.frame(x=rep(1:nrow(K), 2),
+                        f=c(K$exp_r, K$exp_d),
+                        type=as.factor(c(rep("rates", nrow(K)), rep("dissipation", nrow(K))))) 
+
+        J <- J[J$x<51,]
+
+        postscript("exp_f_linlog.eps", width=7, height=5)
+        gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
+            scale_x_continuous() +
+            scale_y_log10() +
+            ylab("fraction") + 
+            xlab("pathway no") +
+            geom_point(size=3) + 
+            theme_bw(22) +
+            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+         print(gg)
+         dev.off()
+
+ 
+        # plot first 50 pathways (x-log, y-log)
+        postscript("exp_f_loglog.eps", width=7, height=5)
+        gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
+            scale_x_log10() +
+            scale_y_log10() +
+            ylab("fraction") + 
+            xlab("pathway no") +
+            geom_point(size=3) + 
+            theme_bw(22) +
+            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+         print(gg)
+         dev.off()
+        
+
+        setwd("..")
+    }
 
     # plot change of important parameters in main directory:
-    sb_plot_evol_pw()
+    sb_plot_evol_pw(T)
 }
 
 
@@ -111,7 +219,7 @@ sb_plot_evol_reduced <- function() {
 #
 #
 
-sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps") { 
+sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps", log=F) { 
     a <- data.frame(x_data=numeric(), 
                     exp_r=numeric(),
                     em=factor())
@@ -124,9 +232,14 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
     }
 
     postscript(filename, width=10, height=6)
-    
+    scale <- scale_y_continuous(limits=c(1e-3,1))
+           
+    if(log)
+        scale <- scale_y_log10(limits=c(1e-8,1)) 
+
+
     gg<-ggplot(a, aes(x=x_data, y=exp_r, colour=em, group=em, shape=em))  + 
-           scale_y_continuous(limits=c(1e-3,1)) + 
+           scale +
            ylab("exp. fraction") + 
            xlab(x_name) +
            geom_point(size=2.2) + 
@@ -164,16 +277,21 @@ sb_calc_pw_cross <- function(results, net, em, sub_em=c()) {
     x <- n <- r <- matrix(0, nrow(results), sum(sub_em))
 
     
-    for(i in 1:nrow(results)) {
-        # calculate explained rate and coefficient for full set of pathways
-        exp_r <- rate <- rep(0, nrow(em))
-        exp_r[results$em_ex[[i]]$id] <- results$em_ex[[i]]$exp_r
-        rate[results$em_ex[[i]]$id] <- results$em_ex[[i]]$rate
-        # now take the relevant subset
-        x[i,] <- exp_r[sub_em]
-        n[i,] <- x[i,] / sum(x[i,])
-        r[i,] <- rate[sub_em]
-    }    
+    for(i in 1:nrow(results)) 
+        if(is.list(results$em_ex[[i]])) {
+            # calculate explained rate and coefficient for full set of pathways
+            exp_r <- rate <- rep(0, nrow(em))
+            exp_r[results$em_ex[[i]]$id] <- results$em_ex[[i]]$exp_r
+            rate[results$em_ex[[i]]$id] <- results$em_ex[[i]]$rate
+            # now take the relevant subset
+            x[i,] <- exp_r[sub_em]
+            n[i,] <- x[i,] / sum(x[i,])
+            r[i,] <- rate[sub_em]
+        } else {
+            x[i,] <- NA
+            n[i,] <- NA
+            r[i,] <- NA      
+        }    
     return(list(x=x, x_norm=n, rates=r))
 }
 
@@ -201,8 +319,8 @@ sb_calc_pw_cross_i <- function(results, results_net, em, i, sub_em=c()) {
 # most important elementary modes.
 
 sb_pw_cross_sub_N <- function(m, N) {
-    a <- apply(m, 2, max)
-    return(tail(order(a), N))
+    a <- apply(m, 2, function(x) max(x, na.rm=T))
+    return(head(order(a, decreasing=T), N))
 }
 
 
@@ -212,7 +330,7 @@ sb_pw_cross_sub_N <- function(m, N) {
 
 
 sb_pw_cross_sub_f <- function(m, f) {
-    a <- apply(m, 2, max)
+    a <- apply(m, 2, function(x) max(x, na.rm=T))
     r <- which(a > f)
     return(r)
 }
@@ -236,7 +354,9 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
 
     # First print spectrum of selected / subseted pathways
     em_name <- 1:ncol(cross)
-    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub("%", "spec", filename))
+    fn <- sub("%", "spec", filename)
+    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_log.eps", fn), log=T) 
+    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_lin.eps", fn), log=F)
 
     # Now plot all (selected) pathways in separate files
     for(i in sub_s) {
