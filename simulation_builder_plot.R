@@ -144,70 +144,69 @@ sb_plot_evol_reduced <- function() {
     rec <- results_em_cross
 
     # create a directory for each network / state 
-    for(i in 1:nrow(rec)) { 
-        dir = paste("pw_details_E", as.character(results_em_cross$Edraw[i]), "_R", results_em_cross$Rdraw[i], sep="")
-        system(paste("mkdir -p", dir))
-        setwd(dir)
+    for(i in 1:nrow(rec)) 
+        if(is.list(rec$em_ex[[i]])) { 
+            dir = paste("pw_details_E", as.character(results_em_cross$Edraw[i]), "_R", results_em_cross$Rdraw[i], sep="")
+            system(paste("mkdir -p", dir))
+            setwd(dir)
 
-        Edraw <- rec$Edraw[i]
-        net <- results_nets[[Edraw]]
+            Edraw <- rec$Edraw[i]
+            net <- results_nets[[Edraw]]
 
-        # plot the ten most important pathways
-        # put information on explained fraction and explained dissipation in filename
-        for(k in 1:min(10,nrow(rec$em_ex[[i]]))) {
-            id <- rec$em_ex[[i]]$id[k]
-            fn = paste("pw", as.character(k), "_id", as.character(id), "_er", rec$em_ex[[i]]$exp_r[k],
-                       "_ed", rec$em_ex[[i]]$exp_d[k], ".eps", sep="")
+            # plot the ten most important pathways
+            # put information on explained fraction and explained dissipation in filename
+            for(k in 1:min(10,nrow(rec$em_ex[[i]]))) {
+                id <- rec$em_ex[[i]]$id[k]
+                fn = paste("pw", as.character(k), "_id", as.character(id), "_er", rec$em_ex[[i]]$exp_r[k],
+                           "_ed", rec$em_ex[[i]]$exp_d[k], ".eps", sep="")
 
-            postscript(fn, width=5, height=5, family="serif")
-            x <- jrnf_plot_pathway(net, em_m[[Edraw]][id,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+                postscript(fn, width=5, height=5, family="serif")
+                x <- jrnf_plot_pathway(net, em_m[[Edraw]][id,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+                dev.off()
+            }
+
+            # explained fraction (decreasing for all pathways)
+            # explained dissipation (decreasing for all wathways)
+            # plot first 50 pathways (y-log)
+
+            K <- rec$em_ex[[i]]
+            J <- data.frame(x=rep(1:nrow(K), 2),
+                            f=c(K$exp_r, K$exp_d),
+                            type=as.factor(c(rep("rates", nrow(K)), rep("dissipation", nrow(K))))) 
+
+            J <- J[J$x<51,]
+
+            postscript("exp_f_linlog.eps", width=7, height=5)
+            gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
+                scale_x_continuous() +
+                scale_y_log10() +
+                ylab("fraction") + 
+                xlab("pathway no") +
+                geom_point(size=3) + 
+                theme_bw(22) +
+                theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                     legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+             print(gg)
+             dev.off()
+
+            # plot first 50 pathways (x-log, y-log)
+            postscript("exp_f_loglog.eps", width=7, height=5)
+            gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
+                scale_x_log10() +
+                scale_y_log10() +
+                ylab("fraction") + 
+                xlab("pathway no") +
+                geom_point(size=3) + 
+                theme_bw(22) +
+                theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                     legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+        
+            print(gg)
             dev.off()
+        
+            setwd("..")
         }
-
-        # explained fraction (decreasing for all pathways)
-        # explained dissipation (decreasing for all wathways)
-        # plot first 50 pathways (y-log)
-
-        K <- rec$em_ex[[i]]
-        J <- data.frame(x=rep(1:nrow(K), 2),
-                        f=c(K$exp_r, K$exp_d),
-                        type=as.factor(c(rep("rates", nrow(K)), rep("dissipation", nrow(K))))) 
-
-        J <- J[J$x<51,]
-
-        postscript("exp_f_linlog.eps", width=7, height=5)
-        gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
-            scale_x_continuous() +
-            scale_y_log10() +
-            ylab("fraction") + 
-            xlab("pathway no") +
-            geom_point(size=3) + 
-            theme_bw(22) +
-            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-        
-         print(gg)
-         dev.off()
-
- 
-        # plot first 50 pathways (x-log, y-log)
-        postscript("exp_f_loglog.eps", width=7, height=5)
-        gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
-            scale_x_log10() +
-            scale_y_log10() +
-            ylab("fraction") + 
-            xlab("pathway no") +
-            geom_point(size=3) + 
-            theme_bw(22) +
-            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-        
-         print(gg)
-         dev.off()
-        
-
-        setwd("..")
-    }
 
     # plot change of important parameters in main directory:
     sb_plot_evol_pw(T)
