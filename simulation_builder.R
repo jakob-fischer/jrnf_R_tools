@@ -161,5 +161,12 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 
 
 
+#
+#
+
+sb_reduce_last_save <- function() {
+    results <<- results[results$is_last,]
+    save(results, results_nets, file="results_red.Rdata")
+}
 
 
