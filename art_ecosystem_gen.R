@@ -31,26 +31,28 @@ jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     }
   
     if(any(net[[1]]$name == "hv")) {
-        if(!flat_energies) {   # If having hv-species and no flat energies have
-                               # to maintain property of photochemical reactions
-                               # only increasing energy levels
-            hv_id <- which(net[[1]]$name == "hv")
-            N <- jrnf_calculate_stoich_mat(net)
+        # removed because of problems of finding potentials at all for systems with many photoreactions
+        # 
+        #if(!flat_energies) {   # If having hv-species and no flat energies have
+        #                       # to maintain property of photochemical reactions
+        #                       # only increasing energy levels
+        #    hv_id <- which(net[[1]]$name == "hv")
+        #    N <- jrnf_calculate_stoich_mat(net)
 
-            hv_lhs <- which(N[hv_id,] < 0)
-            hv_rhs <- which(N[hv_id,] > 0)
-            N[,hv_id] <- 0
+        #    hv_lhs <- which(N[hv_id,] < 0)
+        #    hv_rhs <- which(N[hv_id,] > 0)
+        #    N[,hv_id] <- 0
 
-            is_v <- function() {
-                energy <- net[[1]]$energy
-                energy[hv_id] <- 0
-                d_E <- as.numeric(t(N) %*% matrix(energy, ncol=1))
-                return(all(d_E[hv_lhs] > 0) && all(d_E[hv_rhs] < 0))
-            }
+        #    is_v <- function() {
+        #        energy <- net[[1]]$energy
+        #        energy[hv_id] <- 0
+        #        d_E <- as.numeric(t(N) %*% matrix(energy, ncol=1))
+        #        return(all(d_E[hv_lhs] > 0) && all(d_E[hv_rhs] < 0))
+        #    }
  
-            while(!is_v()) 
-                net[[1]]$energy <- rnorm(nrow(net[[1]])) 
-        }
+        #    while(!is_v()) 
+        #        net[[1]]$energy <- rnorm(nrow(net[[1]])) 
+        #}
 
         net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
     }
@@ -414,7 +416,7 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F, 
-                                             type_spec_dup=T, allow_direct_backflow=T, rm_dup=T) { 
+                           type_spec_dup=T, allow_direct_backflow=T, rm_dup=T) { 
     hv_name <- "hv"
 
      if(is.numeric(comp)) {
@@ -706,11 +708,6 @@ jrnf_ae_add_organism <- function(net,
     # create subnet for organism
     net_ <- jrnf_ae_create(net$para$org$i_N+net$para$org$N, net$para$org$M, net$para$org$no_2fold, 
                            net$para$org$no_hv, c)
-
-    # FOR DIAGNOSTICS TODO REMOVE
-    #net$net_old <- net
-    #net$net_new <- net_
-    #net$c_new <- c
 
     # join new organism subnet with existing network
     net <- jrnf_merge_net(net, net_)
