@@ -410,8 +410,8 @@ sb_evol_build_results <- function(res) {
     df$od_weight_f_mean <- dyn$weight_f_mean
     df$od_cycling_f_mean <- dyn$cycling_f_mean
 
-    results <- df
-    results_nets <- net_l
+    results <<- df
+    results_nets <<- net_l
     system("mkdir -p joint")
     save(results, results_nets, file="joint/results.Rdata")
 }
@@ -502,8 +502,8 @@ sb_evol_build_results_core <- function(res) {
     df$od_weight_f_mean <- dyn_l$weight_f_mean
     df$od_cycling_f_mean <- dyn_l$cycling_f_mean
 
-    results <- df
-    results_nets=list(net_a)
+    results <<- df
+    results_nets <<- list(net_a)
     system("mkdir -p core")
     save(results, results_nets=results_nets, file="core/results.Rdata")
 }
