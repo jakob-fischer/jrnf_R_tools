@@ -445,7 +445,7 @@ pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
         em_bilance[ex_exclude_f] <- 0
 
         # find cycles
-        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
+        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev[sel])
         for(k in 1:c_max) {
             C[i,k] <- get_n_cycles_directed(g_tmp,k)[[1]]
             C_s[i,k] <- get_n_cycles_directed_V(g_tmp,k)[[1]]
