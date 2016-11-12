@@ -116,7 +116,7 @@ sb_plot_evol_core <- function() {
         fn <- paste("E", as.character(Edraw), "_pw_cross_%.eps", sep="")
         net <- results_nets[[Edraw]]
         em <- em_m[[Edraw]]
-        a <- sb_calc_pw_cross(results_em_cross, results_nets[[Edraw]], em_m[[Edraw]])
+        a <- sb_calc_pw_cross(rec, results_nets[[Edraw]], em_m[[Edraw]])
        
         sub_x <- sb_pw_cross_sub_N(a$x_norm, 5)
         sub_y <- sb_pw_cross_sub_N(a$x_norm, 10)[-(1:5)]
@@ -218,7 +218,7 @@ sb_plot_evol_reduced <- function() {
 #
 #
 
-sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps", log=F) { 
+sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps", logY=F, logX=F) { 
     a <- data.frame(x_data=numeric(), 
                     exp_r=numeric(),
                     em=factor())
@@ -230,15 +230,21 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
                               em=as.factor(rep(em_name[i], length(x_data)))))
     }
 
-    postscript(filename, width=10, height=6)
-    scale <- scale_y_continuous(limits=c(1e-3,1))
+    postscript(filename, width=7, height=5)
+    #scaleY <- scale_y_continuous(limits=c(1e-3,1))
+    scaleY <- scale_y_continuous()
+            
+    if(logY)
+        scaleY <- scale_y_log10(limits=c(1e-8,1)) 
+
+    scaleX <- scale_x_continuous()
            
-    if(log)
-        scale <- scale_y_log10(limits=c(1e-8,1)) 
+    if(logX)
+        scaleX <- scale_x_log10() 
 
 
     gg<-ggplot(a, aes(x=x_data, y=exp_r, colour=em, group=em, shape=em))  + 
-           scale +
+           scaleY + scaleX +
            ylab("exp. fraction") + 
            xlab(x_name) +
            geom_point(size=2.2) + 
@@ -338,11 +344,15 @@ sb_pw_cross_sub_f <- function(m, f) {
 #
 #
 
-sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), filename="pw_cross_%.eps") {
+sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), filename="pw_cross_%.eps", logX=F) {
     if(length(grep("%", filename)) == 0) {
         cat("WARNING: sb_pw_cross_plot:\n")
         cat("filename should contain placeholder '%' - output may be faulty!\n") 
     }
+
+    # Extend net?
+    y <- pa_extend_net(net, em[1,1:nrow(net[[2]])], unique_dir=T)
+    net_x <- y[[1]] 
 
     if(is.null(sub_s)) 
         sub_s <- 1:nrow(em)
@@ -354,13 +364,14 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
     # First print spectrum of selected / subseted pathways
     em_name <- 1:ncol(cross)
     fn <- sub("%", "spec", filename)
-    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_log.eps", fn), log=T) 
-    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_lin.eps", fn), log=F)
+    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_log.eps", fn), logY=T, logX=logX) 
+    y <- sb_plot_em_spectre(cross[,sub_s], x_data, x_name, em_name[sub_s], filename=sub(".eps", "_lin.eps", fn), logY=F, logX=logX)
 
     # Now plot all (selected) pathways in separate files
     for(i in sub_s) {
         postscript(sub("%", as.character(i), filename), width=5, height=5, family="serif")
-        x <- jrnf_plot_pathway(net, em[i,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+        #x <- jrnf_plot_pathway(net, em[i,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
+        x <- jrnf_plot_pathway(net_x, em[i,], layout_f=layout.lgl, lim_plot=T)
         dev.off()
     }
 
@@ -453,7 +464,7 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
 
 plot_core_sp <- function(res_cross, filename="core_sp.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v, y=core_sp_no, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
           scale_x_log10() + scale_y_continuous() + 
@@ -474,7 +485,7 @@ plot_core_sp <- function(res_cross, filename="core_sp.eps") {
 
 plot_flow_v <- function(res_cross, filename="flow_v.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v, y=flow, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
           scale_x_log10() + scale_y_log10() + 
@@ -496,7 +507,7 @@ plot_flow_v <- function(res_cross, filename="flow_v.eps") {
 
 plot_flow_v2 <- function(res_cross, filename="flow_v2.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v2, y=flow, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
           scale_x_log10() + scale_y_log10() + 
@@ -518,7 +529,7 @@ plot_flow_v2 <- function(res_cross, filename="flow_v2.eps") {
 
 plot_cycles_v <- function(res_cross, filename="cycles_v.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v, y=cycles_r, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
           scale_x_log10() + scale_y_continuous() + 
@@ -539,7 +550,7 @@ plot_cycles_v <- function(res_cross, filename="cycles_v.eps") {
 
 plot_cycles_v2 <- function(res_cross, filename="cycles_v2.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v2, y=cycles_r, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
           scale_x_log10() + scale_y_continuous() + 
@@ -561,7 +572,7 @@ plot_cycles_v2 <- function(res_cross, filename="cycles_v2.eps") {
 
 plot_shannon_v <- function(res_cross, filename="shannon_v.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v, y=informationE, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
           scale_x_log10() + scale_y_continuous() + 
@@ -582,7 +593,7 @@ plot_shannon_v <- function(res_cross, filename="shannon_v.eps") {
 
 plot_shannon_v2 <- function(res_cross, filename="shannon_v2.eps") { 
     setEPS()
-    postscript(filename, width=10, height=6)
+    postscript(filename, width=7, height=5)
     
     gg<-ggplot(res_cross, aes(x=v2, y=informationE, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
           scale_x_log10() + scale_y_continuous() + 
