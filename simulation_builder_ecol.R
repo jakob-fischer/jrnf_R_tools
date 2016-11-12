@@ -709,14 +709,14 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list
 # deleted em_exp_r_cross because it is not compatible with having different networks data inside 
 # one results object (res_nets). One has to subset res_nets for a certain network / Edraw first.
 
-sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em) {
+sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em, c_max=4) {
     em_der <- list()           # 
 
     for(i in 1:length(res_nets)) {
         cat("i=", i, "\n")
         N <- jrnf_calculate_stoich_mat(res_nets[[i]])
         if(nrow(em_m[[i]]) != 0)
-            em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], 3, ignore_hv=T)
+            em_der[[i]] <- pa_em_derive(em_m[[i]][,1:ncol(N)], res_nets[[i]], c_max, ignore_hv=T)
         else
             em_der[[i]] <- c()
     }
