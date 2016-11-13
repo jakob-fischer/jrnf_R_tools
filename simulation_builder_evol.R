@@ -329,7 +329,6 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
             old_worst <- 1      
         new_worst <- eval_worst(res_eval)
 
-        cat("new_worst=", new_worst, "\n")
         if(is.na(new_worst))
             new_worst <- old_worst
 
