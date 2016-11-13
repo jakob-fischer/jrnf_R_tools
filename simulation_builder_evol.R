@@ -83,7 +83,8 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     err_cc_flow[net[[1]]$name == "hv"] <- 0
 
     return(list(concentration=con, flow=flow, err_cc=max(err_cc), err_cc_con=max(err_cc_con), 
-                err_cc_flow=max(err_cc_flow), flow_b=flow_b, msd=msd, time=time))
+                err_cc_flow=max(err_cc_flow), flow_b=flow_b, 
+                converged_proper=as.logical(max(err_cc_con) < 0.1), msd=msd, time=time))
 }
 
 
@@ -215,6 +216,7 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
 #
 
 sb_ae_evo_merge <- function(res_eval) {
+    converged_proper <- c()
     weight_anorg_f <- c()
     flux_anorg_f <- c()
     flux_f <- c()
@@ -224,6 +226,7 @@ sb_ae_evo_merge <- function(res_eval) {
     worst_id <- c()
 
     for(x in res_eval) {
+        converged_proper <- c(converged_proper, x$converged_proper)
         weight_anorg_f <- c(weight_anorg_f, x$eval_weight$anorg_f)
         flux_anorg_f <- c(flux_anorg_f, x$eval_rates$flux_anorg_f)
         flux_f <- c(flux_f, x$eval_rates$flux_org_f)
@@ -239,7 +242,8 @@ sb_ae_evo_merge <- function(res_eval) {
                        cycling_f_mean=mean(cycling_f),
                        flux_f_mean=mean(flux_f), rates_f_mean=mean(rates_f),
                        weight_f_mean=mean(weight_f), rates_f_mean=mean(rates_f), 
-                       unique_worst=(length(unique(worst_id)) == 1) ) )
+                       converged_proper=any(converged_proper),
+                       unique_worst=(length(unique(worst_id)) == 1) && any(converged_proper)) )
 }
 
 
@@ -281,6 +285,8 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
     net_list <- list()
     res_list <- list()
     dyn <- list()
+    dyn$innovated <- c()
+    dyn$converged_proper <- c()
     dyn$worst_id <- c()
     dyn$unique_worst <- c()
     dyn$weight_anorg_f <- c()
@@ -317,7 +323,19 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
         }
 
         x <- sb_ae_evo_merge(res_eval) 
-        dyn$worst_id <- c(dyn$worst_id, eval_worst(res_eval))
+
+        old_worst <- dyn$worst_id[length(dyn$worst_id)]
+        if(is.null(old_worst))
+            old_worst <- 1      
+        new_worst <- eval_worst(res_eval)
+
+        cat("new_worst=", new_worst, "\n")
+        if(is.na(new_worst))
+            new_worst <- old_worst
+
+        dyn$worst_id <- c(dyn$worst_id, new_worst)
+        dyn$innovated <- c(dyn$innovated, new_worst != old_worst)
+        dyn$converged_proper <- c(dyn$converged_proper, x$converged_proper)
         dyn$unique_worst <- c(dyn$unique_worst, x$unique_worst)
         dyn$weight_anorg_f <- c(dyn$weight_anorg_f, x$weight_anorg_f)
         dyn$flux_anorg_f <- c(dyn$flux_anorg_f, x$flux_anorg_f)
@@ -341,6 +359,8 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
             return(ext)
         }
     } 
+
+    dyn$innovated[1] = T
 
     return(list(net_list=net_list, res_list=res_list, dyn_data=dyn, param=param))
 }
@@ -397,6 +417,8 @@ sb_evol_build_results <- function(res) {
     }
    
     # add columns from dynamical data <dyn>
+    df$od_innovated <- dyn$innovated
+    df$od_converged_proper <- dyn$converged_proper
     df$od_worst_id <- dyn$worst_id 
     df$od_unique_worst <- dyn$unique_worst
     df$od_weight_anorg_f <- dyn$weight_anorg_f
@@ -481,7 +503,7 @@ sb_evol_build_results_core <- function(res) {
          df <- rbind(df,
                      data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
                                 v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
-                                relaxing_sim=as.logical(F), 
+                                relaxing_sim=as.log$		ical(F), 
                                 err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                 ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
                                 sp_df=I(list(con)), re_df=I(list(xres$flow[sel_re,])),
@@ -489,6 +511,8 @@ sb_evol_build_results_core <- function(res) {
     }
 
     # add columns from dynamical data <dyn>
+    df$od_innovated <- dyn$innovated
+    df$od_converged_proper <- dyn$converged_proper
     df$od_worst_id <- dyn_l$worst_id 
     df$od_unique_worst <- dyn_l$unique_worst
     df$od_weight_anorg_f <- dyn_l$weight_anorg_f
