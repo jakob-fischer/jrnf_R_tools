@@ -383,7 +383,14 @@ sb_evol_build_results <- function(res) {
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
-                     od_run_worst_id=numeric())
+                     od_run_worst_id=numeric(), od_innovated=logical(), 
+                     od_converged_proper=logical(), od_worst_id=numeric(),
+                     od_unique_worst=logical(), od_weight_anorg_f=numeric(),
+                     od_flux_anorg_f=numeric(), od_flux_f_max=numeric(),
+                     od_rates_f_max=numeric(), od_weight_f_max=numeric(),
+                     od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
+                     od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
+                     od_cycling_f_mean=numeric())
 
     net_l = res$net_list;
     res_l = res$res_list
@@ -413,25 +420,23 @@ sb_evol_build_results <- function(res) {
                                    ep_tot=as.numeric(sum(xres$flow$entropy_prod)), 
                                    sp_df=I(list(con)), re_df=I(list(xres$flow)),
                                    time=xres$time, msd=xres$msd, is_last=as.logical(T),
-                                   od_run_worst_id=as.numeric(xres$eval_worst_id)))
+                                   od_run_worst_id=as.numeric(xres$eval_worst_id),
+                                   od_innovated=as.logical(dyn$innovated[bp]), 
+                                   od_converged_proper=as.logical(dyn$converged_proper[bp]), 
+                                   od_worst_id=as.numeric(dyn$worst_id[bp]),
+                                   od_unique_worst=as.logical(dyn$unique_worst[bp]), 
+                                   od_weight_anorg_f=as.numeric(dyn$weight_anorg_f[bp]),
+                                   od_flux_anorg_f=as.numeric(dyn$flux_anorg_f[bp]), 
+                                   od_flux_f_max=as.numeric(dyn$flux_f_max[bp]),
+                                   od_rates_f_max=as.numeric(dyn$rates_f_max[bp]), 
+                                   od_weight_f_max=as.numeric(dyn$weight_f_max[bp]),
+                                   od_cycling_f_max=as.numeric(dyn$cycling_f_max[bp]), 
+                                   od_flux_f_mean=as.numeric(dyn$flux_f_mean[bp]),
+                                   od_rates_f_mean=as.numeric(dyn$rates_f_mean[bp]),  
+                                   od_weight_f_mean=as.numeric(dyn$weight_f_mean[bp]),
+                                   od_cycling_f_mean=as.numeric(dyn$cycling_f_mean[bp])))
         }
     }
-   
-    # add columns from dynamical data <dyn>
-    df$od_innovated <- dyn$innovated
-    df$od_converged_proper <- dyn$converged_proper
-    df$od_worst_id <- dyn$worst_id 
-    df$od_unique_worst <- dyn$unique_worst
-    df$od_weight_anorg_f <- dyn$weight_anorg_f
-    df$od_flux_anorg_f <- dyn$flux_anorg_f
-    df$od_flux_f_max <- dyn$flux_f_max
-    df$od_rates_f_max <- dyn$rates_f_max
-    df$od_weight_f_max <- dyn$weight_f_max 
-    df$od_cycling_f_max <- dyn$cycling_f_max
-    df$od_flux_f_mean <- dyn$flux_f_mean
-    df$od_rates_f_mean <- dyn$rates_f_mean
-    df$od_weight_f_mean <- dyn$weight_f_mean
-    df$od_cycling_f_mean <- dyn$cycling_f_mean
 
     results <<- df
     results <<- results[!duplicated(results$Edraw),]
@@ -480,7 +485,14 @@ sb_evol_build_results_core <- function(res) {
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
-                     od_run_worst_id=numeric())
+                     od_run_worst_id=numeric(), od_innovated=logical(), 
+                     od_converged_proper=logical(), od_worst_id=numeric(),
+                     od_unique_worst=logical(), od_weight_anorg_f=numeric(),
+                     od_flux_anorg_f=numeric(), od_flux_f_max=numeric(),
+                     od_rates_f_max=numeric(), od_weight_f_max=numeric(),
+                     od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
+                     od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
+                     od_cycling_f_mean=numeric())
     net_l = res$net_list;
     res_l = res$res_list
     dyn_l = res$dyn_data
@@ -495,8 +507,11 @@ sb_evol_build_results_core <- function(res) {
 
 
     for(i in 1:length(res_l)) 
-        for(xres in res_l[[i]])
-            if(xres$eval_worst_id == dyn_l$worst_id[i]) {
+        for(xres in res_l[[i]]) {
+           # cat("xres$eval_worst_id=", xres$eval_worst_id, "\n")
+           # cat("dyn_l$worst_id[i]= ", dyn_l$worst_id[i], "\n")
+
+            if(!is.na(xres$eval_worst_id) && xres$eval_worst_id == dyn_l$worst_id[i]) {
                 cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
                 state_hash <- sb_v_to_hash(xres$flow$flow_effective[sel_sp], 1e-20)
                 con <- data.frame(con=xres$concentration[sel_sp])
@@ -511,24 +526,23 @@ sb_evol_build_results_core <- function(res) {
                                         ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
                                         sp_df=I(list(con)), re_df=I(list(xres$flow[sel_re,])),
                                         time=xres$time, msd=xres$msd, is_last=as.logical(T),
-                                        od_run_worst_id=as.numeric(xres$eval_worst_id)))
+                                        od_run_worst_id=as.numeric(xres$eval_worst_id),
+                                        od_innovated=as.logical(dyn_l$innovated[i]), 
+                                        od_converged_proper=as.logical(dyn_l$converged_proper[i]), 
+                                        od_worst_id=as.numeric(dyn_l$worst_id[i]),
+                                        od_unique_worst=as.logical(dyn_l$unique_worst[i]), 
+                                        od_weight_anorg_f=as.numeric(dyn_l$weight_anorg_f[i]),
+                                        od_flux_anorg_f=as.numeric(dyn_l$flux_anorg_f[i]), 
+                                        od_flux_f_max=as.numeric(dyn_l$flux_f_max[i]),
+                                        od_rates_f_max=as.numeric(dyn_l$rates_f_max[i]), 
+                                        od_weight_f_max=as.numeric(dyn_l$weight_f_max[i]),
+                                        od_cycling_f_max=as.numeric(dyn_l$cycling_f_max[i]), 
+                                        od_flux_f_mean=as.numeric(dyn_l$flux_f_mean[i]),
+                                        od_rates_f_mean=as.numeric(dyn_l$rates_f_mean[i]),  
+                                        od_weight_f_mean=as.numeric(dyn_l$weight_f_mean[i]),
+                                        od_cycling_f_mean=as.numeric(dyn_l$cycling_f_mean[i])))
              }
-
-    # add columns from dynamical data <dyn>
-    df$od_innovated <- dyn_l$innovated
-    df$od_converged_proper <- dyn_l$converged_proper
-    df$od_worst_id <- dyn_l$worst_id 
-    df$od_unique_worst <- dyn_l$unique_worst
-    df$od_weight_anorg_f <- dyn_l$weight_anorg_f
-    df$od_flux_anorg_f <- dyn_l$flux_anorg_f
-    df$od_flux_f_max <- dyn_l$flux_f_max
-    df$od_rates_f_max <- dyn_l$rates_f_max
-    df$od_weight_f_max <- dyn_l$weight_f_max 
-    df$od_cycling_f_max <- dyn_l$cycling_f_max
-    df$od_flux_f_mean <- dyn_l$flux_f_mean
-    df$od_rates_f_mean <- dyn_l$rates_f_mean
-    df$od_weight_f_mean <- dyn_l$weight_f_mean
-    df$od_cycling_f_mean <- dyn_l$cycling_f_mean
+         }
 
     results <<- df
     results <<- results[!duplicated(results$Rdraw),]
