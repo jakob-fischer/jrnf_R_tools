@@ -382,7 +382,8 @@ sb_evol_build_results <- function(res) {
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
-                     re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical())
+                     re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
+                     od_run_worst_id=numeric())
 
     net_l = res$net_list;
     res_l = res$res_list
@@ -411,7 +412,8 @@ sb_evol_build_results <- function(res) {
                                    err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                    ep_tot=as.numeric(sum(xres$flow$entropy_prod)), 
                                    sp_df=I(list(con)), re_df=I(list(xres$flow)),
-                                   time=xres$time, msd=xres$msd, is_last=as.logical(T)))
+                                   time=xres$time, msd=xres$msd, is_last=as.logical(T),
+                                   od_run_worst_id=as.numeric(xres$eval_worst_id)))
         }
     }
    
@@ -432,6 +434,7 @@ sb_evol_build_results <- function(res) {
     df$od_cycling_f_mean <- dyn$cycling_f_mean
 
     results <<- df
+    results <<- results[!duplicated(results$Edraw),]
     results_nets <<- net_l
     system("mkdir -p joint")
     save(results, results_nets, file="joint/results.Rdata")
@@ -476,7 +479,8 @@ sb_evol_build_results_core <- function(res) {
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
-                     re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical())
+                     re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
+                     od_run_worst_id=numeric())
     net_l = res$net_list;
     res_l = res$res_list
     dyn_l = res$dyn_data
@@ -490,28 +494,29 @@ sb_evol_build_results_core <- function(res) {
     sel_re <- 1:ncol(N)    
 
 
-    for(i in 1:length(res_l)) {
-        xres <- res_l[[i]][[1]]
-              
-        cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
-        state_hash <- sb_v_to_hash(xres$flow$flow_effective[sel_sp], 1e-20)
-        con <- data.frame(con=xres$concentration[sel_sp])
+    for(i in 1:length(res_l)) 
+        for(xres in res_l[[i]])
+            if(xres$eval_worst_id == dyn_l$worst_id[i]) {
+                cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
+                state_hash <- sb_v_to_hash(xres$flow$flow_effective[sel_sp], 1e-20)
+                con <- data.frame(con=xres$concentration[sel_sp])
 
-        xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
+                xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
 
-         df <- rbind(df,
-                     data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
-                                v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
-                                relaxing_sim=as.log$		ical(F), 
-                                err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
-                                ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
-                                sp_df=I(list(con)), re_df=I(list(xres$flow[sel_re,])),
-                                time=xres$time, msd=xres$msd, is_last=as.logical(T)))
-    }
+                df <- rbind(df,
+                             data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
+                                        v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
+                                        relaxing_sim=as.logical(F), 
+                                        err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
+                                        ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
+                                        sp_df=I(list(con)), re_df=I(list(xres$flow[sel_re,])),
+                                        time=xres$time, msd=xres$msd, is_last=as.logical(T),
+                                        od_run_worst_id=as.numeric(xres$eval_worst_id)))
+             }
 
     # add columns from dynamical data <dyn>
-    df$od_innovated <- dyn$innovated
-    df$od_converged_proper <- dyn$converged_proper
+    df$od_innovated <- dyn_l$innovated
+    df$od_converged_proper <- dyn_l$converged_proper
     df$od_worst_id <- dyn_l$worst_id 
     df$od_unique_worst <- dyn_l$unique_worst
     df$od_weight_anorg_f <- dyn_l$weight_anorg_f
@@ -526,6 +531,7 @@ sb_evol_build_results_core <- function(res) {
     df$od_cycling_f_mean <- dyn_l$cycling_f_mean
 
     results <<- df
+    results <<- results[!duplicated(results$Rdraw),]
     results_nets <<- list(net_a)
     system("mkdir -p core")
     save(results, results_nets=results_nets, file="core/results.Rdata")
