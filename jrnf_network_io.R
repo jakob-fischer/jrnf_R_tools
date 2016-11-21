@@ -455,7 +455,7 @@ jrnf_species_name_to_latex_rep <- function(sp_n) {
     y1 <- paste("\\mathrm{", y1, "}", sep="")
     y2 <- regexp(sp_n, "[[:digit:]]+")$match
     if(!is.null(y2))
-        y2_ <- paste("_", y2, " ", sep="")
+        y2_ <- paste("_{", y2, "} ", sep="")
     else 
         y2_ <- y2
 
@@ -464,7 +464,7 @@ jrnf_species_name_to_latex_rep <- function(sp_n) {
     y <- c(rbind(y1,y2_))
  
     if(!is.na(h))
-        y <- c("_", h, " ", y)
+        y <- c("_{", h, "} ", y)
 
     return(paste(y, collapse=""))
 }
