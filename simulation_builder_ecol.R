@@ -820,7 +820,8 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
             res$core_mass_f[i] <- 1
         } else {
             s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
-                       res$Rdraw == res$Rdraw[i] & res$c == res$c[i])
+                       res$Rdraw == res$Rdraw[i] & res$c == res$c[i] &
+                       res$is_last)
             if(length(s) == 0)
                 s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
                            res$c == res$c[i])[1]
