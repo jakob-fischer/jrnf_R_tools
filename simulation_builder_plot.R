@@ -33,7 +33,8 @@ sb_plot_evol_pw <- function(Edyn=T) {
             scale +
             ylab(yname) + 
             xlab("generation") +
-            geom_point(size=2.2) + 
+            geom_point(size=2.2, color="grey") + 
+            geom_point(data=a[results_em_cross$od_innovated,], aes(x=b, y=c), size=2.3, color="blue") +
             theme_bw(22) +
             theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
                  legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
@@ -74,7 +75,8 @@ sb_plot_evol_core <- function() {
             scale +
             ylab(yname) + 
             xlab("generation") +
-            geom_point(size=2.2) + 
+            geom_point(size=2.2, color="grey") + 
+            geom_point(data=a[results_em_cross$od_innovated,], aes(x=b, y=c), size=2.3, color="blue") +
             theme_bw(22) +
             theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
                  legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
