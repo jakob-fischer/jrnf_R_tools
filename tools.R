@@ -1,12 +1,12 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
 # little helper functions that implement general functions that are not sufficiently
-# available through the language
+# available through the language.
 
 sourced_tools <- T
 
 library(pracma)   # for gcd function
-library(igraph)
+library(igraph)   # graph library
 
 # 'acc' was a self implemented version with the functionality of cumsum before
 # TODO If all code using "acc" has been changed to "cumsum", remove
@@ -28,10 +28,10 @@ invwhich <- function(x, N)  {  a <- rep(F, N);  a[x] <- T;  return(a)  }
 
 # Removes all flags that indicate that files have been sourced into the current
 # session by removing variables starting with "sourced_"
-# TODO check
 
 clear_sourced_flags <- function() {
-    rm(list= ls()[grepl("sourced_", ls())])
+    objs <- ls(pos =".GlobalEnv")
+    rm(list= objs[grepl("^sourced_", objs)], pos=".GlobalEnv")
 }
 
 
@@ -50,7 +50,10 @@ subisomorphism_rm_permutation <- function(si) {
 
 
 # Function that samples species energies from normal distribution and 
-# activation energies from a distribution of the form p(E) = 6/(pi^2*(exp(1/x)-1))
+# activation energies from a distribution of the form p(E) = 6/(pi^2*(exp(1/x)-1)).
+# The distribution is sampled in the area [0, 100]. Each sample is found by
+# sampling a x uniformly between [0,100] and comparing the value of the distribution 
+# at x with a uniformly sampled value y between [0,1] and keeping it if y < P(x).
 
 rplancklike <- function(N) {
     r <- c()    
@@ -64,7 +67,7 @@ rplancklike <- function(N) {
             y <- (6/pi^2)/(x^3*(exp(1/x)-1))
         }
         
-        r <- c(r, x)
+        r <- c(r, x) # add found sample
     }
 
     return(r)
@@ -156,12 +159,17 @@ b_mdim_transf <- function(v) {
 
 
 # Function for generating matrices in which each element is it's respective row-id or column-id.
-# This is useful if one want's to transform from selected parts of a matix to their indices)
+# This is useful if one want's to transform from selected parts of a matix to their indices).
 rowid_m <- function(nrow, ncol)  { return(matrix(rep(1:nrow, ncol), ncol=ncol) )  }
 colid_m <- function(nrow, ncol)  { return(t(matrix(rep(1:ncol, nrow), ncol=nrow)) )  }
 
+# Given a id (<x>) and matrix dimension (<nrow>, <ncol>) the functions return the 
+# row and column indices necessary to access the <x>th element in the matrixs linear
+# representation.
 mat_lin_to_rowid <- function(x, nrow, ncol)  {  return(as.vector(rowid_m(nrow, ncol))[x])  }
 mat_lin_to_colid <- function(x, nrow, ncol)  {  return(as.vector(colid_m(nrow, ncol))[x])  }
 
+# Given a boolean matrix <x> the functions return the row and column indices (vectors)
+# to access all those matrix elements that are logical TRUE.
 mat_sel_to_rowid <- function(x) {  return(as.vector(rowid_m(nrow=nrow(x), ncol=ncol(x)))[as.vector(x)])  }
 mat_sel_to_colid <- function(x) {  return(as.vector(colid_m(nrow=nrow(x), ncol=ncol(x)))[as.vector(x)])  }
