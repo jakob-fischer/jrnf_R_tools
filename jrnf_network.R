@@ -35,9 +35,8 @@ if(!exists("sourced_jrnf_network_io"))
 
 
 # Transform all reactions to extended form where all multiplicities are 1
-# TODO rename to expand?
 
-jrnf_transform_extended <- function(net) {
+jrnf_expand <- function(net) {
     # separate species and reactions dataframe (easier to access)
     species <- net[[1]]
     reactions <- net[[2]]    
@@ -80,11 +79,10 @@ jrnf_transform_extended <- function(net) {
 }
 
 
-# Reverse of jrnf_transform_extended. If some reactions are internally formulated
+# Reverse of jrnf_expand. If some reactions are internally formulated
 # like "A + A -> B + C + C" they are collapsed to "2 A -> B + 2 C". 
-# TODO: implement + check
 
-jrnf_transform_collapse <- function(net) {   
+jrnf_collapse <- function(net) {   
     if(nrow(net[[2]]) > 0)
     for(i in 1:nrow(net[[2]])) { 
         educts <- unique(net[[2]]$educts[[i]])
@@ -155,7 +153,7 @@ jrnf_simplify_multiplicity_rep <- function(net) {
 # "A + B -> A + C".
 
 jrnf_simplify_multiplicity <- function(net) {
-    net <- jrnf_transform_collapse(net)
+    net <- jrnf_collapse(net)
     return(jrnf_simplify_multiplicity_rep(net))
 }
 
@@ -163,7 +161,7 @@ jrnf_simplify_multiplicity <- function(net) {
 # Randomize the reaction network by replacing each species id in each
 # reaction with a randomly choosen chemical species (uniformly)
 jrnf_randomize_species <- function(net) {
-    net <- jrnf_transform_extended(net)
+    net <- jrnf_expand(net)
 
     species <- net[[1]]
     reactions <- net[[2]]    
@@ -257,7 +255,7 @@ jrnf_calculate_concentration_change <- function(network, rates) {
 
 
 # Calculates the flow / reaction rates for a given concentration vector
-# TODO: calculate energy dif, check
+# 
 
 jrnf_calculate_flow <- function(network, concentrations) {
     cf_a <- function(reaction) {
@@ -285,7 +283,7 @@ jrnf_calculate_flow <- function(network, concentrations) {
         f_effective <- f_forward - f_backward
         energy_f <- energy_dif*f_effective
         if(is.finite(f_forward/f_backward) && f_forward != 0)
-            entrop_p <- (f_forward-f_backward)*log(abs(f_forward/f_backward))    # TODO check if abs is right
+            entrop_p <- (f_forward-f_backward)*log(abs(f_forward/f_backward))   
         else
             entrop_p <- 0
 

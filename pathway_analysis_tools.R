@@ -130,6 +130,8 @@ pa_find_elementary_pw <- function(mat) {
 # Function extends the pathway representation to one that does not only contain
 # the (positive integer) coefficients of all the reactions but also integer 
 # coefficients for the change of all species concentration by applying the pathway.
+#
+# 
 
 pa_extend_pathway_representation <- function(pw, N) {
     if(is.list(pw)) # if <pw> is not a matrix of pathways but a list of pathways
@@ -181,13 +183,15 @@ pa_extend_net <- function(net, rates, bound=0, unique_dir=F) {
             rates <- c(rates, -cdif_r[i])
         }
 
-    return(list(net, rates))
+    return(list(net=net, rates=rates))
 }
 
 
 # Function checks the reachability of individual species from a set of paths.
-# The species that can not be produced and those who can not be consumed are 
-# printed out...
+# The species that are not produced or consumed by any pathway are printed out.
+# This is of interest if one has a list of pathways and wants to 
+# "eliminate" a chemical species by connecting all producing with all consuming
+# pathways. 
 
 pa_check_reachability <- function(N, path_M) { 
     x <- N %*% t(path_M)
@@ -238,7 +242,7 @@ pa_reconstruct_rates <- function(path_M, path_rates) {
 
 # Helper function for pa_subpath_decompostion
 # The function checks in which rows of the matrix <path_M> the same elements
-# are non-zero than in the vector <v> and returns a boolean vector of length
+# are non-zero as in the vector <v> and returns a boolean vector of length
 # nrow(path_M)
 
 pa_is_row_contained <- function(v, path_M) {

@@ -742,7 +742,7 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
 jrnf_plot_network_prep <- function(net, layout_f=layout.auto, mark_pseudor=T) {
     # Extended mean all pultiplicities in network representation are 1 
     # (species occur multiple times if necessary)
-    net <- jrnf_transform_extended(net)
+    net <- jrnf_expand(net)
     N <- nrow(net[[1]])
     M <- nrow(net[[2]])
 

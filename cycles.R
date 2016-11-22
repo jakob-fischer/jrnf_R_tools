@@ -7,6 +7,11 @@ sourced_cycles <- T
 library(igraph)
 
 
+if(!exists("sourced_tools"))
+    source("tools.R")    # general helper function
+                         # necessary for "subisomorphism_rm_permutation"
+
+
 # Example-graph for testing
 cycles.R_x <- data.frame( V1 = c(1,1,2,3,3,2,4,4,5,6), V2 = c(2,2,3,2,1,4,3,5,6,6) )
 cycles.R_g_x <- graph(t(as.matrix(cycles.R_x)))
@@ -18,8 +23,14 @@ cycles.R_g_x <- graph(t(as.matrix(cycles.R_x)))
 # defined in terms of nodes, multiple edges between two nodes don't imply the
 # cycle being counted multiple times. The suffix "_V" indicates thus that the
 # cycles are identified in respect to the vertices. If <list_cycles> is set
-# then the third part of the returned list is a matrix containing for which 
-# each row indicates the vertices taking part in one cycle.
+# then the third part of the returned list is a matrix for which each row 
+# indicates the vertices taking part in one cycle.
+#
+# This function returns the results in a list: 
+# The first element is the <count> of cycles followed by a incidence vector <v_incidence>
+# that describes how many cycles the corresponding nodes are part of. If <list_cycles> is
+# used a matrix <cycles> (each row corresponding to one cycle) and a vector <cycles_m>
+# describing how often the respective cycles occur are also returned.
 
 get_n_cycles_directed_V <- function(g, n, list_cycles=F) { 
     gc()                              # Try using garbace gollector because function tends to segfault (igraph)
@@ -67,14 +78,11 @@ get_n_cycles_directed_V <- function(g, n, list_cycles=F) {
 }
 
 
-# get_n_cycles_directed_B fixes the problem of not counting cycles with multiple
-# edges multiple times by replacing each edge by two edges with one "virtual" 
-# node and using get_n_cycles_directed_A with n=2*n
+# get_n_cycles_directed_E fixes the problem of not counting cycles with multiple
+# edges multiple times by calculating their effect on the number of cycles after 
+# the subisomorphism algorithm has been invoked.
 #
-# This is a version of "get_n_cycles_directed_B" that is optimized for speed. For this,
-# instead of introducing additional "in between" nodes to avoid multiple edges all the
-# multiple edges are removed and their effect on the number of cycles is just calculated
-# (multiplied) after the subisomorphism algorithm has been invoked.
+# The return format is equivalent to get_n_cycles_directed_V
 
 get_n_cycles_directed_E <- function(g, n, list_cycles=F) {
     gc()                              # Try using garbace gollector because function tends to segfault (igraph)
