@@ -53,7 +53,7 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     # TODO check if linear steps are necessary or if the tool odeint_p has to be
     # adapted.
     call_cmd(paste(odeint_p, " simulate solve_implicit  net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(5), " Tmax=", as.character(1e-8), sep=""))
-    call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep=""))
+    call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep="")) 
 
     # load the dynamics / final concentrations / rates
     run <- read.csv("X34tmp_ini.con")

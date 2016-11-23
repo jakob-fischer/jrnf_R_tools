@@ -416,7 +416,7 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F, 
-                           type_spec_dup=T, allow_direct_backflow=T, rm_dup=T) { 
+                           type_spec_dup=T, allow_direct_backflow=T, rm_dup=T, AE_max=3) { 
     hv_name <- "hv"
 
      if(is.numeric(comp)) {
@@ -642,7 +642,7 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
                                 c=as.numeric(rep(0, M_)), 
                                 k=as.numeric(rep(0, M_)),
                                 k_b=as.numeric(rep(0,M_)), 
-                                activation=as.numeric(rplancklike(M_)), 
+                                activation=as.numeric(rplancklike(M_, AE_max)), 
                                 educts=I(e), educts_mul=I(em),
                                 products=I(p), products_mul=I(pm))
 
@@ -671,11 +671,12 @@ jrnf_create_artificial_ecosystem <- jrnf_ae_create
 
 jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
                                           oi_N=c(), o_N=c(), o_M=c(), 
-                                          o_no_2fold=c(), o_no_hv=c()) {
-    net <- jrnf_ae_create(N, M, no_2fold, no_hv, comp_no) 
+                                          o_no_2fold=c(), o_no_hv=c(), AE_max=3) {
+    net <- jrnf_ae_create(N, M, no_2fold, no_hv, comp_no, AE_max=AE_max) 
     net$para <- list(an = list(N=N, M=M, no_2fold=no_2fold, no_hv=no_hv, comp_no=comp_no),
                      org = list(i_N=oi_N, N=o_N, M=o_M, no_2fold=o_no_2fold, 
-                                no_hv=o_no_hv, next_id=1))
+                                no_hv=o_no_hv, next_id=1),
+                     AE_max=AE_max)
     net$assoc <- list(sp=rep(0,nrow(net[[1]])), re=rep(0,nrow(net[[2]])))
 
     return(net)   
@@ -707,7 +708,7 @@ jrnf_ae_add_organism <- function(net,
 
     # create subnet for organism
     net_ <- jrnf_ae_create(net$para$org$i_N+net$para$org$N, net$para$org$M, net$para$org$no_2fold, 
-                           net$para$org$no_hv, c)
+                           net$para$org$no_hv, c, AE_max=net$para$AE_max)
 
     # join new organism subnet with existing network
     net <- jrnf_merge_net(net, net_)
