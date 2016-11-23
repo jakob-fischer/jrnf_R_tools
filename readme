@@ -1,8 +1,63 @@
-The code works with the current version of R (3.1.1)
+The code was tested with the current version of R (3.1.1) and current versions for the following packages:
+pracma, igraph,
 
-   
+
 Please note: The functionality to calculate elementary modes (function
              calculate_elementary_modes in file interface_topana.R) needs
              metatool (fasttool) to be set up in subdirectory metatool.
 
+
+
+
+Content of different files (updated 23rd November 2016):
+  TEXT:
+  =====
+ - jrnf_description:
+   Description of the network file format used (files ending with jrnf).
+
+
+  CODE: (header of R-files might be more detailed + up to date)
+  =====
+   GENERAL TOOLS:
+   -------------
+ - tools.R:
+   Some usefull functions extending the standard library.
+ - cycles.R:
+   Methods for counting the number of cycles in igraph graphs.
+
+   NETWORK SPECIFIC:
+   ----------------
+
+   ANALYSIS:
+   --------
+ - composition_analysis.R:
+   Some early prototypes for code that analyses influence of elementary components
+   of chemical species on reaction network properties.
+
+   SIMULATIONS:
+   -----------
+
+
+
+ 
+
+
+  DATA:
+  =====
+ - elementary_composition_db.csv:
+   For analysis of elementary composition this list (comma separated file) contains
+   the elementary composition of some common elements in the form: "species","element","c"
+
+ - species_latex_names.csv: 
+   For species whose name can not be transformed into a latex (formula) equivalent
+   representation automatically this file contains specific overrides.
+
+ - nasa_polynomials_200_1000.csv:
+   Contains coefficients from the following publication (for calculation of 
+   thermodynamic quantities of gas phase chemistry species):
+   -> McBride et al. Coefficients for calculating thermodynamic and transport 
+      properties of individual species, NASA Technical Memorandum 4513, 1993.
+   A current description of their usage might be found here:
+   -> Venot et al. A chemical model for the atmosphere of hot Jupiters, 
+      Astronomy & Astrophysics, 546, A43, doi:10.1051/0004-6361/201219310, 2012.
 
