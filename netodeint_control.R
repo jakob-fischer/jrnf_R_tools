@@ -239,10 +239,10 @@ netodeint_collect_results <- function() {
                 last_msd_  <- run[nrow(run),2]
                 last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
                 
-                last_flow <- calculate_flow(net, last_con$con)
+                last_flow <- jrnf_calculate_flow(net, last_con$con)
 
-                flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
-                flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
+                flowb1 <- jrnf_calculate_flow_dif(b1, net, last_flow$flow_effective)
+                flowb2 <- jrnf_calculate_flow_dif(b2, net, last_flow$flow_effective)
 
                 #cat("flowb1 = ", flowb1, "\n")
                 #cat("flowb2 = ", flowb2, "\n")

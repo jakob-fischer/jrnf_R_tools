@@ -27,6 +27,10 @@ Content of different files (updated 23rd November 2016):
 
    NETWORK SPECIFIC:
    ----------------
+ - jrnf_network.R:
+
+ - jrnf_network_io.R:
+   
 
    ANALYSIS:
    --------

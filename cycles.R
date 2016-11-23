@@ -105,7 +105,7 @@ get_n_cycles_directed_E <- function(g, n, list_cycles=F) {
             cycles_m <- rep(1, length(u_loops_s))
         }
     } else {
-        m <- jrnf_graph_to_amatrix(g)                          # calculate graph adjacency matrix
+        m <- graph_to_amatrix(g)                               # calculate graph adjacency matrix
         g_s <- simplify(g, remove.multiple=T, remove.loops=T)  # remove multiple edges and loops
 
         # find subisomorphisms and count occurence of nodes

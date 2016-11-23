@@ -7,6 +7,8 @@
 
 sourced_jrnf_network_io <- T
 
+library(igraph)
+
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")          
 
@@ -279,7 +281,7 @@ jrnf_write_to_text <- function(filename, data) {
 # Write the topologic part of the network structure to rea-format.
 # "Topologic" here means that all thermodynamic information is not saved 
 # (but only stoichiometric information / reaction equations).
-# TODO add reference to rea-format
+# TODO add reference for rea-format
 
 jrnf_write_to_rea <- function(filename, data) {
     # open file and write header
@@ -336,7 +338,7 @@ jrnf_write_to_rea <- function(filename, data) {
 
 
 # Function loads network data from rea-file format.
-# TODO add link to rea specification
+# TODO add reference for rea-format
  
 jrnf_read_rea <- function(filename) {
     # Open file, read all lines and close file object.
@@ -612,11 +614,6 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
 }
 
 
-# Legacy references / can be removed if no longer needed
-load_jrnf <- jrnf_read
-write_jrnf <- jrnf_write
-
-
 # Function that takes a reaction network and initial concentration and writes 
 # it to an ODE file that can be simulated by xpp (http://www.math.pitt.edu/~bard/xpp/xpp.html)
 # The parameter 'energy_sp' describes if the differential equation is written
@@ -734,6 +731,8 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
 
 
 
+#
+#
 # TODO Adapt layout in a way that first layouts the species-vertices and considers 
 #      reaction-vertices in an easier second step
 #      - Maybe just layout species-vertices (from substrate graph) and put reaction

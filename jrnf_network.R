@@ -12,8 +12,8 @@
 # 'activation' energy (numeric), lists on 'products' and 'educts' and 
 # their multiplicity in the reaction ('educts_mul' and 'products_mul')
 #
-# TODO: For some specific cases additional entries might be added to the list.
-#       This is of course not saved in the official file format but only when
+# NOTE/ For some specific cases additional entries might be added to the list.
+# TODO: This is of course not saved in the official file format but only when
 #       object is saved ad R-object. For artificial ecosystems for example the
 #       species composition is saved in the $composition field as matrix. 
 #       Unresolved issue is how methods that transform the network handle this.
@@ -858,8 +858,7 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv", "O2
 
 
 
-# new version of function above (should be faster through using apply...)
-# TODO CHECK!
+# TODO document
 
 jrnf_calc_reaction_r <- function(network, kB_T=1) {
     calc_kkb <- function(x) {
@@ -1034,7 +1033,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
         jrnf_network <- jrnf_calc_reaction_r(jrnf_network, kB_T)
     }
 
-    write_jrnf(network_file, jrnf_network)
+    jrnf_write(network_file, jrnf_network)
 }
 
 
@@ -1153,9 +1152,6 @@ jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TR
 
     write.csv(df_1, pfile, row.names=FALSE)
 }
-
-
-
 
 
 
@@ -1334,13 +1330,3 @@ jrnf_merge_net <- function(net1, net2) {
     net1[[2]] <- rbind(net1[[2]], new_reactions)
     return(net1)
 }
-
-
-
-# Legacy references / can be removed if no longer needed
-
-jrnf_simplify_X <- jrnf_simplify_multiplicity
-jrnf_randomize <- jrnf_randomize_species
-calculate_flow <- jrnf_calculate_flow
-jrnf_graph_to_amatrix <- graph_to_amatrix
-
