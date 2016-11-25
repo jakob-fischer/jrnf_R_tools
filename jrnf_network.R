@@ -258,7 +258,6 @@ jrnf_calculate_concentration_change <- function(network, rates) {
 
 
 # Calculates the flow / reaction rates for a given concentration vector
-# 
 
 jrnf_calculate_flow <- function(network, concentrations) {
     cf_a <- function(reaction) {
@@ -303,7 +302,7 @@ jrnf_calculate_flow <- function(network, concentrations) {
 }
 
 
-#
+# 
 #
 #
 
@@ -350,7 +349,8 @@ jrnf_reverse_reactions <- function(net, rev) {
 }
 
 
-# randomizes the reaction direction...
+# Randomizes the reaction direction by simply caling jrnf_reverse_directions
+# with a numeric vector that is drawn uniformly between -1 and 1
 
 jrnf_randomize_dir <- function(net) {
     N <- nrow(net[[2]])
@@ -1194,7 +1194,7 @@ jrnf_copy_linearize <- function(infile, outfile, C) {
 
 # Function samples energies (activation energies and chemical standard potential)
 # for the reaction network 'net' and calculates the assoziated rate constants.
-# The function allows tu set all energies to zero instead of using the standard 
+# The function allows to set all energies to zero instead of using the standard 
 # distributions (zero = TRUE). Also if only 1-1 and 2-2 reactions are present
 # the parameter v can be used to virtually increase the density of the system
 # and increase the rates of the 2-2 reactions.
