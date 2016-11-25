@@ -73,24 +73,26 @@ pa_print_em <- function(net, em, discard_s=T) {
 
 # This function writes a list of <N> most relevant elementary modes /
 # pathways to the file with filename <filename>.
-#
-# TODO: cleanup? Right place for this function?   
+# Additional parameters:
+# <em>    - elementary modes in a matrix
+# <coef>  - coefficients of elementary modes
+# <exp_f> - explained fraction of elementary modes (calculated if not given) 
 
-pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
+pa_write_em_set <- function(filename, net, em, coef, exp_f=c(), N=100) {
     # Don't have to do anything if no em's present
     if(nrow(em) == 0)
         return()
 
-    N <- min(N, nrow(em))
-        
-    em <- em[1:N,]
-    exp_f <- exp_f[1:N]
-    rates <- rates[1:N]
+    if(is.null(exp_f)) {
+       exp_f <- apply(abs(scale_mat_rows(em, coef)), 1, sum)
+       exp_f <- exp_f / sum(exp_f)
+    }
 
+    N <- min(N, nrow(em))
     x <- c()
 
-    for(i in 1:nrow(em)) {
-        x <- c(x, capture.output(cat(i, ": coefficient is", rates[i], "   explained fraction", exp_f[i])))
+    for(i in 1:N) {
+        x <- c(x, capture.output(cat(i, ": coefficient is", coef[i], "   explained fraction", exp_f[i])))
         x <- c(x, capture.output(cat("============================================================")))
         x <- c(x, capture.output(pa_print_em(net, em[i,])))
         x <- c(x, capture.output(cat("\n")))
@@ -100,9 +102,14 @@ pa_write_em_set <- function(filename, net, em, exp_f, rates, N=100) {
 }
 
 
+# Calculates a set of coefficients for a given set of pathways and a steady 
+# state flux vector by "distributing" the steady state flux to as many pathways
+# as possible.
 #
-#
-#
+# Parameters:
+# <M>       - Matrix of elementary modes / pathways
+# <v>       - Steady state flux vector
+# <con_fb>  - Give console feedback on pathway / decomposition quality.
 
 pa_calc_coefficients <- function(M, v, con_fb=F) {
     coef <- rep(0, nrow(M))
