@@ -5,156 +5,17 @@
 sourced_simulation_builder_ecol <- T
 
 
-# Generator loads network from <netfile> and generates <N_energies> sets of energies 
-# defining dynamics. For each of these networks (with energies) and each of the boundary
-# value sets <bvalues_l> between the boundary species <bids> initial condition for 
-# <N_runs> runs are generated and a line for calculation added in the script file <run.sh>
+if(!exists("sourced_jrnf_network"))
+    source("jrnf_network.R")
+
+
 #
-# parameters:
-# <netfile>     - path to network file
-# <bvalues_l>   - list of two element vectors containing the boundary values 
-# <bids>        - two element vector with ids of the boundary species
-# <N_energies>  - number of energy sets that are drawn for the network
-# <N_runs>      - number of runs done for every energy set + boundary value set
 #
-# TODO: - Add parameter for generation of multiple script-files  
-#
-# TODO: Maybe this method can be written in terms of the next one (sb_generator_ecol_mul) 
-#       with little code / effort? This would remove redundancies...
 
-
-sb_generator_ecol <- function(netfile, bvalues, cvalues, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, flat_energies=F, write_log=T, N_runs_eq=c()) {
-    if(is.null(N_runs_eq)) N_runs_eq <- N_runs
-
-    # Save old and set new working directory
-    scripts <- as.character()        # Vector of script entries / odeint_rnet calls
-    path_old <- getwd()              # Save to restore properly
-    path <- unlist(strsplit(netfile, "/", fixed=TRUE))
-    cat("path=", path, "\n")
-    cat("newpath=", paste(path[-length(path)], collapse="/"), "\n")
-    if(length(path) > 1)
-        setwd(paste(path[-length(path)], collapse="/"))
-
-    wlog_s <- "write_log"
-    if(!write_log)
-        wlog_s <- ""
-
-    cat("loading network\n")
-
-    # load network / calculate topologic properties
-    net <- jrnf_read(path[length(path)])
-    con <- jrnf_analyze_ecosystem_constituents(net)
-  
-    # make net reversible
-    net[[2]]$reversible <- rep(T, nrow(net[[2]]))
-
-    cat("topological analysis \n")
-    jrnf_create_pnn_file(net, "pfile.csv", "nfile.csv")
-    pfile <- read.csv("pfile.csv")
-    
-    # Calculate stoichiometric matrix            
-    N <- jrnf_calculate_stoich_mat(net)
-
-    # sample <N_energies> different sets of energies
-    for(i in 1:N_energies) {
-        # create new directory and enter
-        system(paste("mkdir ", i, sep=""))
-        setwd(as.character(i))
-        if(!(!flat_energies && i == 1 && N_energies == 1)) 
-            net <- jrnf_ae_draw_energies(net, i==1 && flat_energies)
-        net <- jrnf_calc_reaction_r(net, 1)
-     
-        cat("writing energies in netfile.\n")
-        jrnf_write("net_energies.jrnf", net)
-
-        # Generate simulations without driving force (hv) by removing all photochemical reactions first
-        for(c in cvalues) {
-            net_red <- list(net[[1]][-nrow(N),], net[[2]][ N[nrow(N),]==0, ])
-            N_red <- N[-nrow(N), N[nrow(N),]==0] 
-            jrnf_write("net_reduced.jrnf", net_red)
-            ff <- paste(c("v0_", "c", as.character(c)), collapse="")
-            system(paste("mkdir", ff)) 
-            setwd(ff) 
-            if(N_runs_eq != 0)
-            for(j in 1:N_runs_eq) {
-                s_sample <- sample(ncol(N_red))
-                s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
-                initial_con <- rep(c, length(net[[1]]$name)-1)
-
-                for(k in 1:length(s_sign)) {
-                    rea <- N_red[,s_sample[k]]*s_sign[k]
-
-                    l <- min(-((initial_con - c/100)/rea)[rea < 0])
-                    initial_con <- pmax(0, initial_con + rea*l)
-                }
-
-                df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
-                df[as.vector(net_red[[1]]$name)] <- initial_con
-                write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
-
-                scripts <- c(scripts, 
-                             paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", i, "/net_reduced.jrnf con=", i, "/", ff, "/", j, 
-                                   ".con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep=""))
-            }
-
-            setwd("..")
-        }
-
-        # Inner loop (create simulations with different boundary values and differenc initial concentrations
-        for(v in bvalues) for(c in cvalues) {
-            ff <- paste(c("v", as.character(v), "_", "c", as.character(c)), collapse="")
-            system(paste("mkdir", ff)) 
-            setwd(ff) 
-
-            for(j in 1:N_runs) {
-                # It is not (trivially) possible to just preset the elementary components 
-                # concentrations and derive species concentrations by that. 
-                # To have random (but consistent) initial conditions all species' concentrations
-                # are initialized with value c and afterwards randomly choosen reactions are 
-                # applied as far as possible (no concentration should be below c/100).
-
-                s_sample <- sample(ncol(N_red))
-                s_sign <- sample(c(-1,1), size=ncol(N_red), replace=T)
-                initial_con <- rep(c, length(net[[1]]$name)-1)
-
-                for(k in 1:length(s_sign)) {
-                    rea <- N_red[,s_sample[k]]*s_sign[k]
-
-                    l <- min(-((initial_con - c/100)/rea)[rea < 0])
-                    initial_con <- pmax(0, initial_con + rea*l)
-
-                    # now apply reaction "rea" until one species has concentration of c/100
-                }
-
-                df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
-                df[as.vector(net[[1]]$name)] <- c(initial_con, v)
-                write.csv(df, paste(j, ".con", sep=""), row.names=FALSE)
-
-                scripts <- c(scripts, 
-                             paste(odeint_p, " simulate solve_implicit ", wlog_s, " net=", i, "/net_energies.jrnf con=", i, "/", ff, "/", j, 
-                                   ".con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep=""))  
-            }
-            setwd("..")
-        }
-
-        setwd("..")
-    }
-
-    # write script file (file doing all the simulation when executed)
-    cat("create batch-script-files\n")    
-    con <- file("run.sh", "w")
-    writeLines("#!/bin/sh",con)
-    writeLines("#$ -N run.sh", con)
-    writeLines("#$ -j y", con)
-    writeLines("#$ -cwd", con)
-    writeLines(scripts, con)
-    close(con)
-    cat("done\n")
-    
-    # Restore working directory
-    setwd(path_old)
-}
+sb_build_generator <- function(netfile) {
+    net <- jrnf_read(netfile)
+    return(function()  {  return(net)  })
+} 
 
 
 # Variant of sb_generator_ecol that does not load one network and assign <N_energies> 
@@ -325,11 +186,6 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
     # Restore working directory
     setwd(path_old)
 }
-
-
-
-
-
 
 
 
