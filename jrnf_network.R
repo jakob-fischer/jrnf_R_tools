@@ -35,6 +35,8 @@ if(!exists("sourced_jrnf_network_io"))
 
 
 # Transform all reactions to extended form where all multiplicities are 1
+# (For example the internal representation changes from "2 A -> X + Y" to
+#  "A + A -> X + Y")
 
 jrnf_expand <- function(net) {
     # separate species and reactions dataframe (easier to access)
@@ -160,6 +162,7 @@ jrnf_simplify_multiplicity <- function(net) {
 
 # Randomize the reaction network by replacing each species id in each
 # reaction with a randomly choosen chemical species (uniformly)
+
 jrnf_randomize_species <- function(net) {
     net <- jrnf_expand(net)
 
@@ -300,47 +303,6 @@ jrnf_calculate_flow <- function(network, concentrations) {
 }
 
 
-
-
-
-
-calculate_flow_dif <- function(x, network, flow_effective) {
-    dif <- 0
-
-    for(i in 1:nrow(network[[2]])) {
-        # Iterate educts
-        for(j in 1:length(network[[2]]$educts[[i]])) {
-            id <- network[[2]]$educts[[i]][j]
-            if(id == x) {
-                mul <- network[[2]]$educts_mul[[i]][j]
-                dif <- dif + flow_effective[i]*mul  
-                if(length(dif) != 1) {
-                    cat("BADERROR\n")
-                    cat("i=", i, "j=", j, "id=", id, "\n")
-                }
-            }
-        }
-
-        # Iterate products
-        for(j in 1:length(network[[2]]$products[[i]])) {
-            id <- network[[2]]$products[[i]][j]
-            if(id == x) {
-                mul <- network[[2]]$products_mul[[i]][j]
-                dif <- dif - flow_effective[i]*mul
-                if(length(dif) != 1) {
-                    cat("BADERROR\n")
-                    cat("i=", i, "j=", j, "id=", id, "\n")
-                }
-            }     
-        }
-    }
-
-    return(dif)
-}
-
-
-
-
 #
 #
 #
@@ -412,8 +374,7 @@ jrnf_find_duplicate_reactions <- function(net) {
 }
 
 
-# Function returns a list of 2-element vectors of reactions that are the 
-# reverse of each other 
+
  
 jrnf_find_duplicate_reactions <- function(net) {
     if(nrow(net[[2]]) < 2)

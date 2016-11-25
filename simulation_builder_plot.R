@@ -90,7 +90,7 @@ sb_plot_evol_core <- function() {
 
     plt("evol_weight_f_mean.eps", "mean weight fraction", rec$od_weight_f_mean)
     plt("evol_weight_f_max.eps", "max weight fraction", rec$od_weight_f_max)
-    plt("evol_weight_f_anorg.eps", "anorg. weight fraction", rec$od_weight_anorg_f)
+    plt("evol_weight_f_anorg.eps", "anorg. weight fraction", rec$od_weight_anorg_f, logY=T)
     plt("evol_rates_f_mean.eps", "mean rates fraction", rec$od_rates_f_mean)
     plt("evol_rates_f_max.eps", "max rates fraction", rec$od_rates_f_max)
     plt("evol_flux_f_mean.eps", "mean flux fraction", rec$od_flux_f_mean)

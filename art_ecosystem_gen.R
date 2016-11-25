@@ -655,12 +655,8 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 }
 
 
-# legace name  // TODO remove when not needed any more
-jrnf_create_artificial_ecosystem <- jrnf_ae_create
-
-
 #
-# NEW CODE FOR ARTIFICIAL ECOSYSTEM EVOLUTION
+# CODE FOR ARTIFICIAL ECOSYSTEM EVOLUTION
 #
 
 
@@ -683,6 +679,8 @@ jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
 }
 
 
+#- Function that adds an additional organism to an network out of environment + organisms
+#  Parameters are: number of interacting species, number of additional species, number of reactions, number of linear reactions, number of photochemical ones
 
 jrnf_ae_add_organism <- function(net, 
                                  oi_N=c(), o_N=c(), o_M=c(), 
@@ -760,8 +758,6 @@ jrnf_ae_replace_organism <- function(net, id,
 
 
 
-#- Function that adds an additional organism to an network out of environment + organisms
-#  Parameters are: number of interacting species, number of additional species, number of reactions, number of linear reactions, number of photochemical ones
 
 
 

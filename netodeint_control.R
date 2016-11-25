@@ -241,11 +241,8 @@ netodeint_collect_results <- function() {
                 
                 last_flow <- jrnf_calculate_flow(net, last_con$con)
 
-                flowb1 <- jrnf_calculate_flow_dif(b1, net, last_flow$flow_effective)
-                flowb2 <- jrnf_calculate_flow_dif(b2, net, last_flow$flow_effective)
-
-                #cat("flowb1 = ", flowb1, "\n")
-                #cat("flowb2 = ", flowb2, "\n")
+                flowb1 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective))[b1]
+                flowb2 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective))[b2]
 
                 df <- rbind(df,
                               data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
@@ -322,11 +319,8 @@ netodeint_recollect_results <- function() {
                 
                     last_flow <- calculate_flow(net, last_con$con)
 
-                    flowb1 <- calculate_flow_dif(b1, net, last_flow$flow_effective)
-                    flowb2 <- calculate_flow_dif(b2, net, last_flow$flow_effective)
-
-                    #cat("flowb1 = ", flowb1, "\n")
-                    #cat("flowb2 = ", flowb2, "\n")
+                    flowb1 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b1]
+                    flowb2 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b2]
 
                     df <- rbind(df,
                                 data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),

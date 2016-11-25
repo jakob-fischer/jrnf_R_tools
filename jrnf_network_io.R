@@ -104,7 +104,6 @@ jrnf_read <- function(filename) {
                           activation=as.numeric(last_line[5]), 
                           educts=I(list(e)), educts_mul=I(list(em)),
                           products=I(list(p)), products_mul=I(list(pm))))
-
     }
 
     # Input species data
@@ -731,7 +730,8 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
 
 
 
-#
+# Helper function creates prep object for plotting networks and pathways.
+# (see methods below)
 #
 # TODO Adapt layout in a way that first layouts the species-vertices and considers 
 #      reaction-vertices in an easier second step
@@ -785,6 +785,14 @@ jrnf_plot_network_prep <- function(net, layout_f=layout.auto, mark_pseudor=T) {
 }
 
 
+# Function plots a pathway using the igraph plot function.
+# net - the network 
+# prep - prepare object if the network was already layoutet and the same
+#        layout is to be used.
+# layout_f - igraph layout method (for graph layout)
+# rate_v - reaction direction are adapted to this rate vector (this implies an
+#          existing layout can not be used)
+# mark_pseudor - mark in- and outflow reactions
 #
 # To giving a consistent return value for different parameters a naming scheme 
 # for the prepare objects is used. 'prep' is the original parameter, 'prep_r' is
@@ -815,6 +823,16 @@ jrnf_plot_network <- function(net, prep=c(), layout_f=layout.auto, rate_v=c(), m
 }
 
 
+# Function plots a pathway using the igraph plot function.
+# net - the network to that the pathway belongs
+# pw  - vector describing the pathway (integer coefficients of reactions)
+# prep - prepare object if the network was already layoutet and the same
+#        layout is to be used.
+# layout_f - igraph layout method (for graph layout)
+# lim_plot - only plot the reactions that are associated with the pathway
+#            (means graph has to be layouted again)
+# mark_pseudor - mark in- and outflow reactions
+#  
 # TODO How to mark multiplicity of reactions? By text or by size?
 # TODO Plot colored pathway last (order of edges in graph has to be changed)
 #
@@ -879,14 +897,16 @@ jrnf_plot_pathway <- function(net, pw, prep=c(), layout_f=layout.auto, lim_plot=
     if(mark_pseudor)   
         prep_p$color[i_pr & prep_p$color == "green"] <- "purple"        
 
-    # Highlight pathway part (edges) 
+    # The "inactive" network (if plotted) is drawn with width 1 and in grey
     e_width <- rep(1, length(E(prep_p$g)))
     e_color <- rep("darkgrey", length(E(prep_p$g)))
 
+    # Highlight pathway part (edges) by making it thicker and in red  
     e_sel <- prep_p$re_ref %in% rea
     e_width[e_sel] <- 1.5
     e_color[e_sel] <- "red"
 
+    # plot using igraph plot function
     plot.igraph(prep_p$g, vertex.shape=prep_p$shape, vertex.label=prep_p$name, 
                 vertex.color=prep_p$color, vertex.size=prep_p$size, edge.width=e_width, 
                 edge.color=e_color, layout=prep_p$la)

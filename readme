@@ -1,5 +1,5 @@
-The code was tested with the current version of R (3.1.1) and current versions for the following packages:
-pracma, igraph,
+The code was tested with the current version of R (3.1.1) and current versions for the following packages / libraries:
+pracma, igraph, ggplot2, gridExtra
 
 
 Please note: The functionality to calculate elementary modes (function
@@ -30,13 +30,20 @@ Content of different files (updated 23rd November 2016):
  - jrnf_network.R:
 
  - jrnf_network_io.R:
-   
+   Functions for in and output of reaction networks (to files, latex tables, plot)
 
    ANALYSIS:
    --------
  - composition_analysis.R:
    Some early prototypes for code that analyses influence of elementary components
    of chemical species on reaction network properties.
+
+ - pathway_analysis.R:
+
+ - pathway_analysis_tools.R:
+   Helper function for pathway analysis that are generally useful.
+
+ - pathway_analysis_eval.R:
 
    SIMULATIONS:
    -----------
