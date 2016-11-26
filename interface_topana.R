@@ -4,15 +4,15 @@
 # metatool and handle import of results. Most of this is redundant as the 
 # "pathway_analysis" codeset contains a simple implementation of the elementary
 # modes algorithm and the code below is not able to interact with the newer (matlab)
-# version of metatool. 
+# version of metatool. The code requires metatool to be locatet in the subdirectory 
+# "metatool" of the current directory if used.
+# see: http://pinguin.biologie.uni-jena.de/bioinformatik/networks/metatool/metatool.html
 # This is still here out of legacy reasons, but please consider it as DEPRECATED.
-# TODO: cleanup, unify identifier names, remove if possible?
-#       Input- and output-functions might be moved to jrnf_network_io.R
 
 sourced_interface_topana <- T
 
 
-# helper for 'write_jrnf_to_metatool' (used by 'wjtm_m_reaction_to_string'):
+# helper for 'write_jrnf_to_metatool' (used by 'jwtm_m_reaction_to_string'):
 # Transforms a vector of products or educts id and a vector
 # of asocciated multiplicities to an string that can be read
 # from metatool. 
@@ -20,7 +20,7 @@ sourced_interface_topana <- T
 # 'co_mul' - vector of multiplicites (same size!)
 # 'species' - species data frame (species$name contains species names)
 
-wjtm_m_rpart_to_string <- function(co, co_mul, species) {
+jwtm_m_rpart_to_string <- function(co, co_mul, species) {
     bla <- ""
 
     if(length(co))
@@ -41,11 +41,11 @@ wjtm_m_rpart_to_string <- function(co, co_mul, species) {
 # Transforms a reaction row out of the jrnf 'reaction' data-frame to a string 
 # readable by metatool. The second argument is the species data-frame 'species'.
 
-wjtm_m_reaction_to_string <- function(reaction, species) {
+jwtm_m_reaction_to_string <- function(reaction, species) {
     bla <- ""
 
     bla <- paste(bla,
-                 wjtm_m_rpart_to_string(reaction$educts[[1]],
+                 jwtm_m_rpart_to_string(reaction$educts[[1]],
                                         reaction$educts_mul[[1]],
                                         species), 
                  sep="")
@@ -53,7 +53,7 @@ wjtm_m_reaction_to_string <- function(reaction, species) {
     bla <- paste(bla, " = ", sep="")
 
     bla <- paste(bla,
-                 wjtm_m_rpart_to_string(reaction$products[[1]],
+                 jwtm_m_rpart_to_string(reaction$products[[1]],
                                         reaction$products_mul[[1]],
                                         species), 
                  sep="")
@@ -66,7 +66,7 @@ wjtm_m_reaction_to_string <- function(reaction, species) {
 # 'input' and 'output' contain the id's of those species that metatool will consider
 # to be input / output. 
 
-write_jrnf_to_metatool <- function(network, filename, input, output) {
+jrnf_write_to_metatool <- function(network, filename, input, output) {
     sp <- network[[1]]
     re <- network[[2]]
 
@@ -94,7 +94,7 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
 
     writeLines("-CAT", con=con)
     for(i in 1:nrow(re))
-        writeLines(paste("R", as.character(i), " : ", wjtm_m_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
+        writeLines(paste("R", as.character(i), " : ", jwtm_m_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
 
     nxt <- nrow(re)+1
     for(i in input) {
@@ -111,12 +111,12 @@ write_jrnf_to_metatool <- function(network, filename, input, output) {
 }
 
 
-# helper for 'write_jrnf_to_expa' (used by 'wjtm_m_reaction_to_string'):
+# helper for 'jrnf_write_to_expa' (used by 'jwtm_m_reaction_to_string'):
 # Transforms a number of species 'co' including their multiplier 'co_mul' 
 # into a string compatible with expa-format. 
 #
 
-wjte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
+jwte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
     bla <- ""
 
     if(length(co))
@@ -134,22 +134,22 @@ wjte_e_rpart_to_string <- function(co, co_mul, sgn, species) {
 }
 
 
-# helper for 'write_jrnf_to_expa':
+# helper for 'jrnf_write_to_expa':
 # Transforms one row of reaction data frame in the reaction string compatible with 
 # expa-file format.
 
-wjte_e_reaction_to_string <- function(reaction, species) {
+jwte_e_reaction_to_string <- function(reaction, species) {
     bla <- ""
 
     bla <- paste(bla,
-                 wjte_e_rpart_to_string(reaction$educts[[1]],
+                 jwte_e_rpart_to_string(reaction$educts[[1]],
                                         reaction$educts_mul[[1]],
                                         FALSE,
                                         species), 
                  sep="")
 
     bla <- paste(bla,
-                 wjte_e_rpart_to_string(reaction$products[[1]],
+                 jwte_e_rpart_to_string(reaction$products[[1]],
                                         reaction$products_mul[[1]],
                                         TRUE,
                                         species), 
@@ -164,7 +164,7 @@ wjte_e_reaction_to_string <- function(reaction, species) {
 # format. For a definition of expa format, please look here:
 # http://www.ce4csb.org/applications/jexpa/expa.html
 
-write_jrnf_to_expa <- function(network, filename, input, output) {
+jrnf_write_to_expa <- function(network, filename, input, output) {
     sp <- network[[1]]
     re <- network[[2]]
 
@@ -173,7 +173,7 @@ write_jrnf_to_expa <- function(network, filename, input, output) {
     writeLines("(Internal fluxes)", con=con)
 
     for(i in 1:nrow(re))
-        writeLines(paste("R", as.character(i), "  I  ", wjte_e_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
+        writeLines(paste("R", as.character(i), "  I  ", jwte_e_reaction_to_string(re[i,], sp), " ", sep=""), con=con)
 
     nxt <- nrow(re)+1
 
@@ -234,10 +234,11 @@ read_elementary_modes <- function(filename) {
 
 # Function invokes metatool to calculate all elementary modes. Parameters are the 
 # network 'network' in jrnf-format, and names of species that are input, output or
-# both (external species).
+# both (external species). The function expects metatool to be locatet at
+# "metatool/fasttool" (from the current directory).
 # TODO: Simplify name-to-id transformation with one function that centralizes error handling!
 
-calculate_elementary_modes <- function(network, in_names=c(), out_names=c(), ext_names=c()) {
+jrnf_calculate_em_metatool <- function(network, in_names=c(), out_names=c(), ext_names=c()) {
     in_vector <- logical(length=nrow(network[[1]]))
     out_vector <- logical(length=nrow(network[[1]]))
     
@@ -271,7 +272,7 @@ calculate_elementary_modes <- function(network, in_names=c(), out_names=c(), ext
 
 
     # write network in metatool format to temporary file 'tmp.dat'
-    write_jrnf_to_metatool(network, "tmp.dat", which(in_vector), which(out_vector))
+    jrnf_write_to_metatool(network, "tmp.dat", which(in_vector), which(out_vector))
 
     # invoke metatool
     system("./metatool/fasttool tmp.dat tmp_out.dat")

@@ -50,8 +50,6 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
 
     odeint_p <- "~/apps/jrnf_int"
     # first make 5 small linear steps and then <wint> logarithmic spaced steps
-    # TODO check if linear steps are necessary or if the tool odeint_p has to be
-    # adapted.
     call_cmd(paste(odeint_p, " simulate solve_implicit  net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(5), " Tmax=", as.character(1e-8), sep=""))
     call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep="")) 
 
@@ -66,7 +64,7 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     time <- as.numeric(as.matrix(run)[nrow(run), 1])
     msd <- as.numeric(as.matrix(run)[nrow(run), 2])
     con <- as.numeric(as.matrix(run)[nrow(run), -(1:2)])
-    flow <- jrnf_calculate_flow(jrnf_calc_reaction_r(net), con)
+    flow <- jrnf_calculate_flow(jrnf_calculate_rconst(net), con)
     cc <- jrnf_calculate_concentration_change(net, flow$flow_effective)
     # To estimate the error / closenes to steady state the change of 
     # concentration is calculated with the last rate vector. As hv is kept 
@@ -373,8 +371,6 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
 #
 # Time reffers to the time of the last timestep of the respective simulation in
 # this case. The evolution generation i implicitly contained in Edraw.
-#
-# TODO complete (copy and paste of sb_collect_results_ecol at the moment)s
 
 sb_evol_build_results <- function(res) {
     if(is.null(res$param)) # Old version without param / add standard values that were used
@@ -449,9 +445,6 @@ sb_evol_build_results <- function(res) {
 # Function extracts the anorganic subnet identified by assoc$re and assoc$sp.
 # This is nontrivial because the function maintains all the metainformation
 # and updates it. 
-#
-# TODO Generalize this (subnet maintaining metainformation)? Also, make it work
-#      if anorganic network is not at the start?
 
 sb_get_anorganic_subnet <- function(net) {
     net[[1]] <- net[[1]][net$assoc$sp == 0,]

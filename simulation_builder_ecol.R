@@ -67,7 +67,7 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
             setwd(as.character(next_dir))
 
             net <- jrnf_ae_draw_energies(net, i==1 && flat_energies, limit_AE)
-            net <- jrnf_calc_reaction_r(net, 1)  
+            net <- jrnf_calculate_rconst(net, 1)  
 
             cat("writing energies in netfile.\n")
             jrnf_write("net_energies.jrnf", net)

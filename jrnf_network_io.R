@@ -264,6 +264,63 @@ jrnf_read_krome <- function(filename) {
 }
 
 
+# Transforms a vector of reactants <r> and a vecto of multiplicies <r_m> into
+# a string as it would look on the left or right side of a reaction equation.
+# The Function <f> can be given as a parameter to transform the representation 
+# of each species' name. <sum_c> defines the text string that is put between 
+# species names.
+
+jrnf_side_to_string <- function(r, r_m, net, f=function(x) {  x  }, sum_c=" + ") {
+    a <- ""
+
+    if(!is.null(r) && length(r) != 0)
+        for(i in 1:length(r)) {
+            if(r_m[i] != 1)
+                a <- paste(a, as.numeric(r_m[i]), " ", sep="")
+
+            a <- paste(a, f(net[[1]]$name[r[i]]), sep="")
+
+            if(i < length(r))
+                a <- paste(a, sum_c, sep="")
+        }
+
+    return(a)
+}
+
+
+# Calculates the string representation for the educt side of reaction <re_id> 
+# in reaction network <net>. (see meaning of <f> and <sum_c> above) 
+
+jrnf_educts_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
+    return(jrnf_side_to_string(net[[2]]$educts[re_id][[1]],
+                               net[[2]]$educts_mul[re_id][[1]],
+                               net, f, sum_c))
+}
+
+
+# Calculates the string representation for the products side of reaction <re_id> 
+# in reaction network <net>. (see meaning of <f> and <sum_c> above)
+
+jrnf_products_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
+    return(jrnf_side_to_string(net[[2]]$products[re_id][[1]],
+                               net[[2]]$products_mul[re_id][[1]],
+                               net, f, sum_c))
+}
+
+
+# Function creates a string representation of the reaction 're_id' from the 
+# network 'net'. Function <f> can be given as a parameter to transform the
+# representation of each species' name. <sum_c> is a text string that is put
+# between species names. 
+
+jrnf_reaction_to_string <- function(net, re_id, f=function(x) {  x  }, sum_c=" + ") {
+    educts <- jrnf_educts_to_string(net, re_id, f, sum_c)
+    products <- jrnf_products_to_string(net, re_id, f, sum_c)
+
+    return(paste(educts, " => ", products, sep=""))
+}
+
+
 # Writes jrnf-network ('data') in a human readable format to file 'filename'.
 # For exact description of text representation of reactions look into
 # 'jrnf_reaction_to_string'.
@@ -618,6 +675,8 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
 # The parameter 'energy_sp' describes if the differential equation is written
 # in terms of standard chemical potentials and activation energies or in terms
 # of reaction constants (that are derived from te former)
+#
+# TODO This is not tested!
 
 jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
     if(length(x) != nrow(net[[1]])) {
@@ -626,7 +685,7 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
     }
 
     if(recalc_r)
-        net <- jrnf_calc_reaction_r(net)
+        net <- jrnf_calculate_rconst(net)
 
 
     con <- file(filename, "w")
@@ -636,10 +695,10 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
     if(energy_sp)
         i("#jrnf_network_to_ODE - energy specified equations")
     else 
-        i("#jrnf_network_to_ODE - energy specified equations")
+        i("#jrnf_network_to_ODE - rate specified equations")
 
     # precalculate constants that may be needed nultiple times
-    net <- jrnf_calc_reaction_r(net)
+    net <- jrnf_calculate_rconst(net)
     kf <- net[[2]]$k
     kb <- net[[2]]$k_b
     N_in <- jrnf_calculate_stoich_mat_in(net)

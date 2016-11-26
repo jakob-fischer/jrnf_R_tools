@@ -57,7 +57,7 @@ sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs, odeint_p=
 
         net[[1]]$energy[bids[[1]]] <- 0
         net[[1]]$energy[bids[[2]]] <- 0
-        net <- jrnf_calc_reaction_r(net, 1)
+        net <- jrnf_calculate_rconst(net, 1)
      
         cat("writing energies in netfile.\n")
         jrnf_write("net_energies.jrnf", net)

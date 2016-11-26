@@ -1,3 +1,5 @@
+author: jakob fischer (jakob@automorph.info)               date: 25th November 2016
+
 The code was tested with the current version of R (3.1.1) and current versions for the following packages / libraries:
 pracma, igraph, ggplot2, gridExtra
 
@@ -7,9 +9,7 @@ Please note: The functionality to calculate elementary modes (function
              metatool (fasttool) to be set up in subdirectory metatool.
 
 
-
-
-Content of different files (updated 23rd November 2016):
+Content of different files (updated 26th November 2016):
   TEXT:
   =====
  - jrnf_description:
@@ -22,6 +22,7 @@ Content of different files (updated 23rd November 2016):
    -------------
  - tools.R:
    Some usefull functions extending the standard library.
+
  - cycles.R:
    Methods for counting the number of cycles in igraph graphs.
 
@@ -38,6 +39,9 @@ Content of different files (updated 23rd November 2016):
    Some early prototypes for code that analyses influence of elementary components
    of chemical species on reaction network properties.
 
+ - interface_topana.R:
+   Tools for calculating elementary modes using (external) "metatool".
+
  - pathway_analysis.R:
 
  - pathway_analysis_tools.R:
@@ -45,12 +49,23 @@ Content of different files (updated 23rd November 2016):
 
  - pathway_analysis_eval.R:
 
+ - potential_analysis.R:
+
    SIMULATIONS:
    -----------
+ - art_ecosystem_gen.R:
 
+ - netodeint_control.R:
 
+ - simulation_builder.R
 
- 
+ - simulation_builder_ecol.R:
+
+ - simulation_builder_evol.R:
+
+ - simulation_builder_flow.R:
+
+ - simulation_builder_plot.R:
 
 
   DATA:

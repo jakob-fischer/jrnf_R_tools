@@ -724,6 +724,8 @@ jrnf_ae_add_organism <- function(net,
 }
 
 
+#- Function for removing an organism
+
 jrnf_ae_remove_organism <- function(net, id) {
     # first remove all associated reactions
     keep_re <- net$assoc$re != id
@@ -761,7 +763,7 @@ jrnf_ae_replace_organism <- function(net, id,
 
 
 
-#- Function for removing an organism
+
 
 
 

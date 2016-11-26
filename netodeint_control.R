@@ -20,6 +20,176 @@ if(!exists("sourced_jrnf_network_io"))
     source("jrnf_network_io.R")
 
 
+
+
+
+# Create a initial file for a certain jrnf network which can 
+# then be used as a starting point for solving an ode. In default every 
+# concentration is initialized with random values drawn from a gaussian
+# distribution, added to one. 
+# Additional 'bc_id' can be given a vector of species id names or a vector
+# of (1-indexed) ids. If this is done, then 'bc_v' should be set to a 
+# numeric vector of the same size indicating the respective concentrations.
+#
+# setBCE0  -  setting the boundary condition species energy to zero
+
+jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=TRUE) {
+    jrnf_species <- jrnf_network[[1]]
+    jrnf_reactions <- jrnf_network[[2]]    
+
+    # ensure bc_id (if given) is numeric
+    if(!is.na(bc_id) && !is.numeric(bc_id)) 
+        for(i in 1:length(bc_id)) 
+            bc_id[i] <- which(jrnf_species$name == bc_id[i])
+
+    df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
+    df[as.vector(jrnf_species$name)] <- abs(rnorm(length(jrnf_species$name), mean=mean(bc_v), sd=sqrt(mean((bc_v- mean(bc_v))^2))))
+
+    if(!is.na(bc_id) && !is.na(bc_v)) {
+        if(length(bc_id) != length(bc_v)) {
+            cat("Error in jrnf_create_initial; bc_id,bc_v length missmatch!")
+            return() 
+        }
+
+        df[1,bc_id+2] <- bc_v 
+    } 
+
+    # and write 
+    write.csv(df, init_file, row.names=FALSE)
+
+    if(is.na(network_file)) 
+        return()
+
+    # Writing a network with the boundary species set constant
+    if(!is.na(network_file) && !is.na(bc_id))
+        jrnf_network[[1]]$constant[bc_id] <- TRUE;
+
+    if(!is.na(network_file) && !is.na(bc_id) && setBCE0) {
+        jrnf_network[[1]]$energy[bc_id] <- 0
+        jrnf_network <- jrnf_calculate_rconst(jrnf_network, kB_T)
+    }
+
+    jrnf_write(network_file, jrnf_network)
+}
+
+
+# This function calculates information on the network topology using igraph and 
+# writes it to two files. 
+# - One file (pfile) contains information specific to pairs of nodes
+# shortest path, number of different shortest paths, ...
+# - The second file (nfile) contains information specific to nodes, like degree,
+# betweenness and whether the node belongs to the biggest cluster of the network.
+# This two outputs can be enabled separately. The topological analysis is done
+# on the directed graph one gets from 'jrnf_to_directed_network'
+# TODO implement
+
+jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
+    N <- nrow(jrnf_network[[1]])
+    g <- jrnf_to_undirected_network(jrnf_network)
+    g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
+
+    sps_g <- shortest.paths(g)
+
+    if(!is.na(pfile)) {
+        df_1 <- data.frame(from=as.numeric(rep(0, N*N)), to=as.numeric(rep(0, N*N)), 
+                           shortest_path=as.numeric(rep(0, N*N)), sp_multiplicity=as.numeric(rep(0, N*N)), 
+                           sp_multiplicity_s=as.numeric(rep(0, N*N)),
+                           stringsAsFactors=FALSE)
+        df_1$from <- floor((1:(N*N)-1)/N) + 1
+        df_1$to <- (1:(N*N)-1) %% N + 1
+            
+        df_1$shortest_path <- as.vector(sps_g)
+        #for(i in 1:(N*N)) {
+        #    df_1$shortest_path[i] <- sps_g[floor((i-1)/N) + 1, (i-1) %% N + 1]
+        #}
+        df_1$sp_multiplicity <- 0
+        df_1$sp_multiplicity_s <- 0
+
+
+        for(k in 1:N) {
+            if(k %% 10 == 1)
+                cat(".")
+            sp <- get.all.shortest.paths(g, from=k, mode="out")$res
+            sp_s <- get.all.shortest.paths(g_s, from=k, mode="out")$res                     
+
+            sp_x <- c()
+            for(x in sp)
+                sp_x <- c(sp_x, x[length(x)])
+
+            adf <- as.data.frame(table(sp_x))
+            df_1$sp_multiplicity[(k-1)*N+as.numeric(as.vector(adf$sp_x))] <- adf$Freq
+
+
+            sp_s_x <- c()
+            for(x in sp_s)
+                sp_s_x <- c(sp_s_x, x[length(x)])
+
+            adf <- as.data.frame(table(sp_s_x))
+            df_1$sp_multiplicity_s[(k-1)*N+as.numeric(as.vector(adf$sp_s_x))] <- adf$Freq
+        }
+        cat("\n")
+
+        write.csv(df_1, pfile, row.names=FALSE)
+    }
+
+
+    if(!is.na(nfile)) {
+        df_2 <- data.frame(node=as.numeric(1:N), deg_in=as.numeric(rep(NA,N)), deg_out=as.numeric(rep(NA,N)), deg_all=as.numeric(rep(NA,N)),
+                           deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_all=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
+
+        df_2$deg_in <- as.numeric(degree(g, mode="in"))
+        df_2$deg_out <- as.numeric(degree(g, mode="out"))
+        df_2$deg_all <- as.numeric(degree(g, mode="all"))
+        df_2$deg_s_in <- as.numeric(degree(g_s, mode="in"))
+        df_2$deg_s_out <- as.numeric(degree(g_s, mode="out"))
+        df_2$deg_s_all <- as.numeric(degree(g_s, mode="all"))
+        df_2$betweenness <- as.numeric(betweenness(g))
+        df_2$betweenness_s <- as.numeric(betweenness(g_s))
+
+        strong_clusters <- clusters(g, mode="strong")
+        weak_clusters <- clusters(g, mode="weak")
+        df_2$main <- (strong_clusters$membership == which.max(strong_clusters$csize))
+        df_2$main_w <- (weak_clusters$membership == which.max(weak_clusters$csize))
+
+        write.csv(df_2, nfile, row.names=FALSE)
+    }
+
+}
+
+
+
+# a faster variant of pfile generation. Only calculates thes pairs that are given in 
+# b_list structure...
+# TODO
+
+jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TRUE) {
+    L <- length(b_list)
+    g <- jrnf_to_undirected_network(jrnf_network)
+    g_s <- simplify(g, remove.multiple=TRUE, remove.loops=FALSE)
+
+    df_1 <- data.frame(from=as.numeric(rep(0, L)), to=as.numeric(rep(0, L)), 
+                       shortest_path=as.numeric(rep(0, L)), sp_multiplicity=as.numeric(rep(0, L)), 
+                       sp_multiplicity_s=as.numeric(rep(0, L)),
+                       stringsAsFactors=FALSE)
+
+    for(x in 1:length(b_list)) {
+        from <- b_list[[x]][1]
+        to <- b_list[[x]][2]
+        df_1$from[x] <- from
+        df_1$to[x] <- to
+            
+        cat(".")
+
+        df_1$shortest_path[x] <- as.numeric(shortest.paths(g, from, to))
+        df_1$sp_multiplicity[x] <- length(get.all.shortest.paths(g, from=from, to=to, mode="all")$res)        
+        df_1$sp_multiplicity_s[x] <- length(get.all.shortest.paths(g_s, from=from, to=to, mode="all")$res)
+    }        
+    cat("\n")
+
+    write.csv(df_1, pfile, row.names=FALSE)
+}
+
+
 # The file first analyses the netfile with jrnf_create_pnn_file. The results
 # ("pfile.dat", "nfile.dat") are written to the same directory in which the
 # <netfile> (jrnf-format) is in. After that for some (ordered) pairs of 
