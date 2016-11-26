@@ -8,7 +8,7 @@
 # simulation_builder_evol.R - Evolving Ecosystem (containing organisms)
 # simulaiton_builder_plot.R - Plot methods for different types of simulations
 #
-# Parts of this this file / modules functionality are shared with "netodeint_control.R", this
+# Parts of this this files / modules functionality are shared with "netodeint_control.R", this
 # could be unified in future.
 
 sourced_simulation_builder <- T
@@ -60,7 +60,7 @@ sb_v_to_hash <- function(v, zero_range) {
 # This function can be used instead of <sb_v_to_hash> if the number of reactions
 # exceeds 60. It uses a string as hash instead of a long integer. This implies 
 # that it needs one byte for each reaction of memory. 
-# TODO: Check usage pattern (especially in this file. Maybe it is better to 
+# TODO: Check usage pattern in other files. Maybe it is better to 
 #       use sb_v_to_hash_s as standard case to avoid problems if somone uses
 #       the toolkit with bigger networks.
 
@@ -73,7 +73,7 @@ sb_v_to_hash_s <- function(v, zero_range) {
 # This function probably only has legacy function.
 # TODO: Check an remove if save
 
-assemble_em_from_flow <- function(results_ss, em, net) {
+sb_assemble_em_from_flow <- function(results_ss, em, net) {
     df <- data.frame(delta_b=numeric(), flow=numeric(), C_sum=numeric(), em_id=numeric(), em_exp_r=numeric(), 
                      em_exp_d=numeric(), C_f_r=numeric(), C_f_d=numeric(), ep_lin=numeric(), ep_nonl=numeric())
 

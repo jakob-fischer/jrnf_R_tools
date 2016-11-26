@@ -408,7 +408,7 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
     my_results_X <- sb_extend_results(my_results)
     my_results_X <- my_results_X[my_results_X$Edraw == Edraw,]
 
-    x <- assemble_em_from_flow(my_results_X, my_em, my_net)
+    x <- sb_assemble_em_from_flow(my_results_X, my_em, my_net)
     
 
     gg1 <- ggplot(x, aes(x=flow, y=em_exp_r, colour=as.factor(em_id), group=as.factor(em_id), lty=as.factor(em_id), size=2)) + 

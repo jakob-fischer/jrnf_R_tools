@@ -2,7 +2,7 @@
 # description: 
 # Scripts for automating the solving of reaction networks with the odeint_rnet
 # tool. The functions in this file allow to generate scripts which then can 
-# be submitted to the "biosys" batch system and solve a big ensemble of reaction
+# be submitted to a batch system and solve a big ensemble of reaction
 # equation at once.
 #
 # Parts of this this file / modules functionality are shared with "simulation_builder.R" 
@@ -18,8 +18,6 @@ if(!exists("sourced_jrnf_network"))
 
 if(!exists("sourced_jrnf_network_io"))
     source("jrnf_network_io.R")
-
-
 
 
 
@@ -411,8 +409,8 @@ netodeint_collect_results <- function() {
                 
                 last_flow <- jrnf_calculate_flow(net, last_con$con)
 
-                flowb1 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective))[b1]
-                flowb2 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective))[b2]
+                flowb1 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b1]
+                flowb2 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b2]
 
                 df <- rbind(df,
                               data.frame(b1=as.numeric(b1), b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),

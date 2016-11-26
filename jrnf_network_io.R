@@ -704,7 +704,7 @@ jrnf_network_to_ODE <- function(filename, net, x, energy_sp=T, recalc_r=T) {
     N_in <- jrnf_calculate_stoich_mat_in(net)
     N_out <- jrnf_calculate_stoich_mat_out(net)
     N <- N_out - N_in 
-    EA <- jrnf_Ea_rel_to_abs(net, net[[2]]$activation)
+    EA <- jrnf_Ea_rel_to_abs(net)
     mu0 <- net[[1]]$energy
     e_mBEA <- exp(-EA)
     e_Bsmu_in <- exp(t(N_in) %*% mu0)

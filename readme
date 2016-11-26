@@ -29,6 +29,7 @@ Content of different files (updated 26th November 2016):
    NETWORK SPECIFIC:
    ----------------
  - jrnf_network.R:
+   The most generic functions for handling reaction networks (except file operations)
 
  - jrnf_network_io.R:
    Functions for in and output of reaction networks (to files, latex tables, plot)

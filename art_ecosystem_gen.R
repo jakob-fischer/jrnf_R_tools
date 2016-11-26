@@ -23,39 +23,15 @@ jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     if(is.numeric(limit_AE)) lAE <- limit_AE
 
     net[[1]]$energy <- rnorm(nrow(net[[1]]))    
-    net[[2]]$activation <- pmin(rplancklike(nrow(net[[2]])), lAE, na.rm=T)
+    net[[2]]$activation <- rplancklike(nrow(net[[2]]), lAE)
 
     if(flat_energies) {
         net[[1]]$energy <- rep(0, nrow(net[[1]]))    
         net[[2]]$activation <- rep(1, nrow(net[[2]]))    
     }
   
-    if(any(net[[1]]$name == "hv")) {
-        # removed because of problems of finding potentials at all for systems with many photoreactions
-        # 
-        #if(!flat_energies) {   # If having hv-species and no flat energies have
-        #                       # to maintain property of photochemical reactions
-        #                       # only increasing energy levels
-        #    hv_id <- which(net[[1]]$name == "hv")
-        #    N <- jrnf_calculate_stoich_mat(net)
-
-        #    hv_lhs <- which(N[hv_id,] < 0)
-        #    hv_rhs <- which(N[hv_id,] > 0)
-        #    N[,hv_id] <- 0
-
-        #    is_v <- function() {
-        #        energy <- net[[1]]$energy
-        #        energy[hv_id] <- 0
-        #        d_E <- as.numeric(t(N) %*% matrix(energy, ncol=1))
-        #        return(all(d_E[hv_lhs] > 0) && all(d_E[hv_rhs] < 0))
-        #    }
- 
-        #    while(!is_v()) 
-        #        net[[1]]$energy <- rnorm(nrow(net[[1]])) 
-        #}
-
+    if(any(net[[1]]$name == "hv"))
         net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
-    }
 
     return(net)
 }
@@ -83,7 +59,7 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="")
         name <- paste(name, "_", i, sep="")
     }
 
-    return(name)   # TODO implement ;)
+    return(name)  
 }
 
 # Checks if a reaction is possible from elementary constituents
@@ -656,14 +632,11 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 
 
 #
-# CODE FOR ARTIFICIAL ECOSYSTEM EVOLUTION
+# CODE FOR GENERATING ARTIFICIAL ECOSYSTEMS THAT CAN BE EVOLVED
 #
-
 
 # Function creates an anorganic core. In principle this corresponds to creating
-# an artificial ecosystem with jrnf_ae_create.
-#
-#
+# an artificial ecosystem with jrnf_ae_create. 
 
 jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
                                           oi_N=c(), o_N=c(), o_M=c(), 
@@ -724,7 +697,7 @@ jrnf_ae_add_organism <- function(net,
 }
 
 
-#- Function for removing an organism
+# Function for removing the organism with id <id> 
 
 jrnf_ae_remove_organism <- function(net, id) {
     # first remove all associated reactions
@@ -743,6 +716,8 @@ jrnf_ae_remove_organism <- function(net, id) {
     net$para$org$next_id <- min(which(!(1:(max(x)+1) %in% x)))
     return(net)
 }
+
+
 
 
 jrnf_ae_replace_organism <- function(net, id, 

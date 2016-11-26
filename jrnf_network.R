@@ -258,8 +258,10 @@ jrnf_calculate_concentration_change <- function(network, rates) {
 
 
 # Calculates the flow / reaction rates for a given concentration vector.
-# The functione needs 
-# 
+# The functione needs the reaction constants ("k", "k_b") to calculate
+# rates and species' chemical potentials ("energy") to calculate dissipation.
+# If "k" and "k_b" are not set before they can be calculated by using
+# jrnf_calculate_rconstant.
 
 jrnf_calculate_flow <- function(network, concentrations) {
     cf_a <- function(reaction) {
@@ -267,7 +269,6 @@ jrnf_calculate_flow <- function(network, concentrations) {
         f_backward <- reaction$k_b
         energy_dif <- 0 
  
-
         # Iterate educts
         for(j in 1:length(reaction$educts)) {
             id <- reaction$educts[j]
@@ -304,9 +305,9 @@ jrnf_calculate_flow <- function(network, concentrations) {
 }
 
 
-# 
-#
-#
+# The function reverses the reactions of <net> that are selected by the logical
+# vector <rev>. If numeric vector (for example effective rates) are given for
+# <rev> those are inverted that have negative values.
 
 jrnf_reverse_reactions <- function(net, rev) {
     if(!is.logical(rev))
@@ -361,7 +362,8 @@ jrnf_randomize_dir <- function(net) {
 }
 
 
-
+# Function looks for duplicated reactions (same on both sides of reaction
+# equation) and returns a logical vector that marks them (not 1st occurance).
 
 jrnf_find_duplicate_reactions <- function(net) {
     if(nrow(net[[2]]) < 2)
@@ -372,13 +374,15 @@ jrnf_find_duplicate_reactions <- function(net) {
     N_out <- jrnf_calculate_stoich_mat_out(net)
     N <- N_out - N_in
 
-    return(duplicated(N_in) & duplicated(N_out) & duplicated(N))
+    return(duplicated(cbind(N_in, N_out)))
 }
 
 
-
+# Finds reverse pairs in network <net>, that is reactions that are equal but
+# havving different reaction directions. A list of 2-element vectors 
+# containing the pair reactions id's is returned.
  
-jrnf_find_duplicate_reactions <- function(net) {
+jrnf_find_reverse_pairs <- function(net) {
     if(nrow(net[[2]]) < 2)
         return(list())
 
@@ -395,30 +399,13 @@ jrnf_find_duplicate_reactions <- function(net) {
     }
 
     return(p)
-
-
 }
 
 
-jrnf_find_reverse_pairs <- function(net) {
-    if(nrow(net[[2]]) < 2)
-        return(list())
-
-    p <- list()
-    N <- jrnf_calculate_stoich_mat(net)
-
-    for(i in 1:(nrow(net[[2]])-1)) {
-        for(j in (i+1):(nrow(net[[2]]))) {
-            if(all(N[,i] == -N[,j]))
-                p[[length(p)+1]] <- c(i,j)             
-        }
-    }
-
-    return(p)
-}
-
-
-#
+# Remove all reverse pairs (see above) and replace them by the effective reaction
+# direction and also return the effective reaction rate. The function might 
+# create problems if there are duplicates (multiple occurance of same reaction)
+# in the network. If uncertain one should check with jrnf_find_duplicate_reactions.
  
 jrnf_remove_reverse_pairs <- function(net, rates) {
     sel <- rep(T, nrow(net[[2]]))        # flag of those reactions which are selected
@@ -439,7 +426,10 @@ jrnf_remove_reverse_pairs <- function(net, rates) {
 }
 
 
-associate_reaction_to_species <- function(network, sp_prop) {
+# 
+#
+
+jrnf_associate_reaction_to_species <- function(network, sp_prop) {
     t <- list()
     for(i in 1:nrow(network[[1]]))
         t[[i]] <- as.numeric(c())
@@ -472,27 +462,18 @@ associate_reaction_to_species <- function(network, sp_prop) {
 }
 
 
+# Calculate multiplicity / degree of input of reactions
 
 jrnf_get_educts_mul <- function(net) {
-    e <- c()
-
-    for(i in 1:nrow(net[[2]])) {
-        e <- c(e, sum(net[[2]]$educts_mul[[i]]))
-    }
-    
-    return(e)
+    return(apply(jrnf_calculate_stoich_mat_in(net), 2, sum))
 }
+
+
+# Calculate multiplicity / degree of output of reactions
 
 jrnf_get_products_mul <- function(net) {
-    p <- c()
-
-    for(i in 1:nrow(net[[2]])) {
-        p <- c(p, sum(net[[2]]$products_mul[[i]]))
-    }
-    
-    return(p)
+    return(apply(jrnf_calculate_stoich_mat_out(net), 2, sum))
 }
-
 
 
 # This function transforms a jrnf-network to a directed network by connecting
@@ -538,40 +519,20 @@ jrnf_to_directed_network <- function(jrnf_data, rnd=F) {
 
 
 
-#
-#
-#
+# Transform reaction network into substrate graph (igraph) with the direction
+# derived from the vector <dir>.
 
-jrnf_to_directed_network_d <- function(jrnf_data, direction) {
-    jrnf_species <- jrnf_data[[1]]
-    jrnf_reactions <- jrnf_data[[2]]    
-    g <- graph.empty()
-    g <- add.vertices(g, nrow(jrnf_species), 
-                          name=as.vector(jrnf_species$name))   
-
-    for(i in 1:nrow(jrnf_reactions)) {
-        for(ed in jrnf_reactions$educts[[i]]) {
-            for(prod in jrnf_reactions$products[[i]]) {
-                if(direction[i] > 0)
-                    g <- add.edges(g, c(ed, prod))
-                else
-                    g <- add.edges(g, c(prod, ed))
-            }
-        } 
-    }
-
-    V(g)$label <- V(g)$name
-
-    return(g)    
+jrnf_to_directed_network_d <- function(net, dir) {
+    return(jrnf_to_directed_network( jrnf_reverse_reactions(net, dir)))
 }
 
 
-# TODO comment
+# Calculate undirected substrate graph by calculating the directed one and
+# then transforming it into an undirected igraph graph.
 
 jrnf_to_undirected_network <- function(jrnf_network) {
     return(as.undirected(jrnf_to_directed_network(jrnf_network), mode="each"))
 }
-
 
 
 # Transforms a jrnf-network (pair of data frames) to an undirected 
@@ -796,7 +757,7 @@ jrnf_simplify_AC_RN <- function(jrnf_network, recursive=TRUE, inflow=c("hv", "O2
     kp[id_external] <- TRUE
     jrnf_sn <- jrnf_subnet(jrnf_network, kp, rm_reaction="r", list_changes=FALSE)
 
-    # 
+    # If network got small for this step call function recursive (if active)
     if(sum(kp) < length(kp) && recursive)
         return(jrnf_simplify_AC_RN(jrnf_sn, TRUE, c(), c(), c(inflow, outflow, keep), remove_M))
     else
@@ -841,8 +802,9 @@ jrnf_calculate_rconst <- function(network, kB_T=1) {
 }
 
 
-# TODO document
-#
+# Function calculates activation energy in absolute values. 
+# (normally it is saved relative to the higher chemical energy mu0 of either
+# all input or all output species)
 
 jrnf_Ea_rel_to_abs <- function(network, Ea_rel) {
     calc_abs <- function(x) {
@@ -853,68 +815,46 @@ jrnf_Ea_rel_to_abs <- function(network, Ea_rel) {
 
         E_e <- sum(network[[1]]$energy[e]*e_m)
         E_p <- sum(network[[1]]$energy[p]*p_m)
-        E_a <- max(E_e, E_p) + x$activation_rel
+        E_a <- max(E_e, E_p) + x$activation
 
         return(E_a)
    }
 
-   network[[2]]$activation_rel <- Ea_rel
-   sp <- as.numeric(apply(network[[2]], 1, calc_abs))
-   return(sp)
+   return(as.numeric(apply(network[[2]], 1, calc_abs)))
 }
 
 
-jrnf_Ea_abs_to_rel <- function(network, Ea_abs) {
-    calc_abs <- function(x) {
-        e <- unlist(x$educts)
-        e_m <- unlist(x$educts_mul)
-        p <- unlist(x$products)
-        p_m <- unlist(x$products_mul)
+# Function takes a network consisting of 1-1 (A -> B) and 2-2 (X+Y -> U+V) type 
+# reactions and transforms all 2-2 type reactions up to <C> into linearized 
+# reactions meaning they are transformed into four reactions (X -> U; X ->V; 
+# Y -> U; Y -> V).
 
-        E_e <- sum(network[[1]]$energy[e]*e_m)
-        E_p <- sum(network[[1]]$energy[p]*p_m)
-        E_a <- x$activation - max(E_e, E_p)
-
-        return(E_a)
-   }
-
-   network[[2]]$activation <- Ea_abs
-   sp <- as.numeric(apply(network[[2]], 1, calc_abs))
-   return(sp)
-}
-
-
-#
-# TODO implement + comment
-# copy parameters from original reactions, even if it doesnt make sense
-
-jrnf_copy_linearize <- function(infile, outfile, C) {
-    net_in <- jrnf_read(infile)
-
+jrnf_copy_linearize <- function(net_in, C) {
     s_in <- net_in[[1]]
     r_in <- net_in[[2]]
+    em <- jrnf_get_educts_mul(net_in)
+    pm <- jrnf_get_products_mul(net_in)
 
-    flag_11 <- logical()
-    flag_22 <- logical()
-
-    for(i in 1:nrow(r_in)) {
-        flag_11 <- c(flag_11, sum(unlist(r_in$educts_mul[i])) == 1 & sum(unlist(r_in$products_mul[i])) == 1)
-        flag_22 <- c(flag_22, sum(unlist(r_in$educts_mul[i])) == 2 & sum(unlist(r_in$products_mul[i])) == 2)
-    }
+    flag_11 <- em == 1 & pm == 1
+    flag_22 <- em == 2 & pm == 2
     
+    # Abort if there are reactions of other types
     if(sum(!xor(flag_11, flag_22)) != 0) {
         cat("jrnf_copy_linearize - found non 1-1 / 2-2 reaction. Aborting!\n")
         return()
     }
 
+    # Also abort if there aren't enough 2-2 type reactions
     if(sum(flag_22) < C) {
         cat("Less 2-2 reactions than desired C!\n")
         return()
     }
 
+    # select C 2-2 reactions to keep
     flag_keep <- logical(nrow(r_in)) 
     flag_keep[sample(which(flag_22), C)] <- TRUE
 
+    # copy / keep all 2-2 reactions that where sampled and all 1-1 reactions
     r_out <- rbind(r_in[flag_keep,], r_in[flag_11,])
 
     # Transform and add linear version of substrate graph representation
@@ -950,7 +890,7 @@ jrnf_copy_linearize <- function(infile, outfile, C) {
 
     } 
  
-    jrnf_write(outfile, list(s_in, r_out))
+    return(list(s_in, r_out))
 }
 
 
@@ -965,11 +905,8 @@ jrnf_sample_energies <- function(net, kB_T=1, v=1, zero=FALSE) {
     N <- nrow(net[[1]])
     M <- nrow(net[[2]])
 
-    rea_is_1on1 <- (as.numeric(lapply(net[[2]]$educts, FUN=length)) == 1) &&
-                   (as.numeric(lapply(net[[2]]$educts_mul, FUN=length)) == 1) &&
-                   (as.numeric(lapply(net[[2]]$products, FUN=length)) == 1) &&
-                   (as.numeric(lapply(net[[2]]$products_mul, FUN=length)) == 1) 
-
+    rea_is_1on1 <- jrnf_get_educts_mul(net) == 1 &
+                   jrnf_get_products_mul(net) == 1
 
     # Draw numbers for species energy and activation energy   
     if(zero) {
@@ -985,8 +922,8 @@ jrnf_sample_energies <- function(net, kB_T=1, v=1, zero=FALSE) {
 
 
 # Function builds an object that can be used to calculate the Jacobi-Matrix 
-# if given a concentration vector. The list object returned contains a 
-# function calculate that simply has to be called with the concentration vector
+# if given a concentration vector. The list object returned contains the
+# function 'calculate' that simply has to be called with the concentration vector
 # as parameter.
 
 jrnf_build_linear_stability_analyzer <- function(net, beta=1) {

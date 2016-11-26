@@ -521,7 +521,7 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list
         # species specific data
         sp[[i]]$degree <- deg
         sp[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
-        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
+        sp[[i]]$mean_ep <- jrnf_associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
 
         # build data frame refering to expansion of simulation's rate by elementary modes
         if(!res$relaxing_sim[i] & (res$err_cc_rel[i] < 0.1 | is.na(res$err_cc_rel[i])))
@@ -659,7 +659,7 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
         res$sp_df[[i]]$degree <- deg
         res$sp_df[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
         res$sp_df[[i]]$mu[!is.finite(res$sp_df[[i]]$mu)] <- 0
-        res$sp_df[[i]]$mean_ep <- associate_reaction_to_species(net, res$re_df[[i]]$entropy_prod)
+        res$sp_df[[i]]$mean_ep <- jrnf_associate_reaction_to_species(net, res$re_df[[i]]$entropy_prod)
 
         con <- res$sp_df[[i]]$con
         mu <- res$sp_df[[i]]$mu

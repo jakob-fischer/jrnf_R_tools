@@ -333,7 +333,7 @@ sb_em_analysis <- function(res, net, c_max=4) {
         # species specific data
         sp[[i]]$degree <- deg
         sp[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
-        sp[[i]]$mean_ep <- associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
+        sp[[i]]$mean_ep <- jrnf_associate_reaction_to_species(net, res$sp_df[[i]]$entropy_prod)
     }
 
     
