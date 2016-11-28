@@ -277,7 +277,6 @@ hcae_check_rea_conditions <- function(rea, N, comp) {
 # (has to be divisor of species number) and then tries to maximize the modularity
 # (weight of edges inside the modules) by randomly reordering the species ids.
 
-
 gmr_get_inner_density <- function(M_adj, N_mod) {
     s <- 0
     N <- ncol(M_adj)    

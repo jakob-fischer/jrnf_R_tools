@@ -202,8 +202,8 @@ jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TR
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=c(), sampling_sym=TRUE,
-                            odeint_p="~/apps/odeint_rnet", Tmax=100000, deltaT=0.1, v=1, 
-                            wint=1000, b_seed=c(), script_lead="bscript_", zero_E=FALSE, bignet=FALSE) {
+                            odeint_p="~/apps/jrnf_int", Tmax=1000, deltaT=0.1, v=1, 
+                            wint=100, b_seed=c(), script_lead="bscript_", zero_E=FALSE, bignet=FALSE) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     scripts_level <- as.integer()    # difficulty of each scripts call
@@ -211,7 +211,9 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     path <- unlist(strsplit(netfile, "/", fixed=TRUE))
     cat("path=", path, "\n")
     cat("newpath=", paste(path[-length(path)], collapse="/"), "\n")
-    setwd(paste(path[-length(path)], collapse="/"))
+
+    if(length(path) != 1)
+        setwd(paste(path[-length(path)], collapse="/"))
 
     cat("loading network\n")
 
