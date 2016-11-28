@@ -14,6 +14,34 @@ library(igraph)   # graph library
 acc <- cumsum
 
 
+# Sum function. All NA values are removed. If all values of the vector are NA
+# the function returns NA instead of 0 (standard behaviour)
+msum <- function(x) {
+    if(all(is.na(x)))
+        return(NA)
+
+    return(sum(x, na.rm=T))
+}
+
+
+# Multiplicates the matrix 'm' with the vector 'v' 
+# If a zero entry in the matrix is multiplied with a NA entry in the vector a 
+# value of 0 is taken in the corresponding part of the sum 
+mmul <- function(m, v) {
+    if(ncol(m) != length(v)) {
+        cat("mmul: dimension mismatch!\n")
+        return(0)
+    }
+
+    res <- rep(0, nrow(m))
+
+    for(i in 1:nrow(m))
+        res[i] <- sum((m[i,]*v)[m[i,] != 0])
+    
+    return(res)
+}
+
+
 # Simple helper function to normalize a vector...
 
 mt_norm <- function(x) {

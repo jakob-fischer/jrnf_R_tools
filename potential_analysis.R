@@ -1,7 +1,12 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
+#
+#
 
 sourced_potential_analysis <- T
+
+if(!exists("sourced_tools"))
+    source("jrnf_tools.R")
 
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
@@ -18,34 +23,6 @@ N_A <- 6.02214129E23  # Avogadro constant (1/mol)
 
 # Load coefficients of nasa polynomials
 nasa_polys <- read.csv("nasa_polynomials_200_1000.csv", header=F)
-
-
-# Sum function. All NA values are removed. If all values of the vector are NA
-# the function returns NA instead of 0 (standard behaviour)
-msum <- function(x) {
-    if(all(is.na(x)))
-        return(NA)
-
-    return(sum(x, na.rm=T))
-}
-
-
-# Multiplicates the matrix 'm' with the vector 'v' 
-# If a zero entry in the matrix is multiplied with a NA entry in the vector a 
-# value of 0 is taken in the corresponding part of the sum 
-mmul <- function(m, v) {
-    if(ncol(m) != length(v)) {
-        cat("mmul: dimension mismatch!\n")
-        return(0)
-    }
-
-    res <- rep(0, nrow(m))
-
-    for(i in 1:nrow(m))
-        res[i] <- sum((m[i,]*v)[m[i,] != 0])
-    
-    return(res)
-}
 
 
 # Calculates the chemical potential "mu" for the species named "sp_name" at
@@ -404,69 +381,3 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
                        delta_mu_D, dis_D, eff_D, match_interactions, match_n_quantified, interacting_species_present,
                        Sp_no, Re, Re_s, In, In_s, Out, Out_s, Hv))
 }
-
-
-
-# This function creates 
-#
-#  * The data layout of genomes / fitness cases is like this 
-#  * (N is the number of chemical species and M the number of reactions):
-#  * - The first N values (floats) contains the chemical potential of the chemical species.
-#  * - The next M values are the activation energies of the species.
-#  * - The last M values are the effective reaction rates of the reactions.
-#  
-# In this case the reaction directions + the priors of the chemical potentials are taken
-# to calculate the fitness. This means the actual rates, the activation energies and the 
-# temperature of the system are not significant.
-
-create_energy_evolver_initial <- function(net, rates, mu_in, net_file, mutate_f_file, fitness_f_file, sample_file, initial_file, mutate_all=T) {
-
-    hv_id <- which(net[[1]]$name == "hv")
-    if(length(hv_id) != 1) {
-        cat("ERROR: did not find unique hv species!\n")
-        return(0)
-    }
-    
-    N_in <- jrnf_calculate_stoich_mat_in(net)
-    N_out <- jrnf_calculate_stoich_mat_out(net)
-    N <- N_out - N_in
-
-    re_sel <- N_in[hv_id,] == 0  &  N_out[hv_id,] == 0  &  N[hv_id,] == 0
-    net <- list(net[[1]], net[[2]][re_sel,])
-    rates <- rates[re_sel]
-
-    no_sp <- nrow(net[[1]])
-    no_re <- nrow(net[[2]])
-
-    # write reaction network
-    jrnf_write(net_file, net)
-
-    # prepare initial state
-    mu_in_ <- mu_in
-    mu_in_[is.na(mu_in)] <- runif(sum(is.na(mu_in)), mean(mu_in, na.rm=T), sd(mu_in, na.rm=T)) 
-    initial <- c(mu_in_, rep(1, no_re), sign(rates))
-    write.table(initial, file=initial_file, row.names=F, col.names=F)
-
-    # prepare sample state
-    mu_in_ <- mu_in
-    mu_in_[is.na(mu_in)] <- 0 
-    sample <- c(mu_in_, rep(10, no_re), rates)
-    write.table(sample, file=sample_file, row.names=F, col.names=F)
-
-    # prepare the mutate flag ("1" means position is mutated, "0" means it stays unchanged)
-    mutate_f <- c(is.na(mu_in), rep(0,2*no_re))
-
-    if(mutate_all)
-        mutate_f <- c(rep(1,no_sp), rep(0,2*no_re))
-    write.table(mutate_f, file=mutate_f_file, row.names=F, col.names=F)
-
-
-    # the fitness flag indicate which entries are used for evaluating the fitness 
-    # by comparing the sign of the fluxes (="1") and which are used precisely (="2").
-    # Entries not relevant for the fitness are indicated by the value "0".
-
-    fitness_f <- c(rep(2, no_sp), rep(0, no_re), rep(1, no_re))
-    fitness_f[which(is.na(mu_in))] <- 0
-    write.table(fitness_f, file=fitness_f_file, row.names=F, col.names=F)
-}
-
