@@ -426,24 +426,28 @@ jrnf_remove_reverse_pairs <- function(net, rates) {
 }
 
 
-# 
-#
+# The function is given a network and some property (numeric) for every
+# reaction. The property is than "mapped" to every reactions by calculating
+# the mean over all reactions that are connected to the species.
 
-jrnf_associate_reaction_to_species <- function(network, sp_prop) {
-    t <- list()
-    for(i in 1:nrow(network[[1]]))
+jrnf_associate_reaction_to_species <- function(net, re_prop) {
+    # expand first (because multiplier are not considered below)
+    net <- jrnf_expand(net)
+    
+    t <- list()                    # list with connected reactions for each species
+    for(i in 1:nrow(net[[1]]))
         t[[i]] <- as.numeric(c())
 
-    for(i in 1:nrow(network[[2]])) {
+    for(i in 1:nrow(net[[2]])) {
         # Iterate educts
-        for(j in 1:length(network[[2]]$educts[[i]])) {
-            sp <- network[[2]]$educts[[i]][j]
+        for(j in 1:length(net[[2]]$educts[[i]])) {
+            sp <- net[[2]]$educts[[i]][j]
             t[[sp]] <- c(t[[sp]], i)
         }
 
         # Iterate products
-        for(j in 1:length(network[[2]]$products[[i]])) {
-            sp <- network[[2]]$products[[i]][j]
+        for(j in 1:length(net[[2]]$products[[i]])) {
+            sp <- net[[2]]$products[[i]][j]
             t[[sp]] <- c(t[[sp]], i)
 	}
     }
@@ -451,7 +455,7 @@ jrnf_associate_reaction_to_species <- function(network, sp_prop) {
     res <- c()
 
     for(x in t) {
-        m <- sp_prop[x]
+        m <- re_prop[x]
         if(length(m) == 0)
             res <- c(res, 0)
         else
