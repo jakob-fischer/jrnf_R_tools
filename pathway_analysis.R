@@ -580,8 +580,6 @@ pa_step <- function(obj, i=c()) {
     obj$state$rates_active <- as.vector(t(obj$pathways$M[active,nrow(N)+1:ncol(N)]) %*% obj$pathways$coefficients[active])
 
     obj$state$turnover_active <- pa_calculate_turnover( N, obj$state$rates_active)
-#return(obj$state$rates_active)
-  #  return(list(N, obj$pathways$M[active,], obj$pathways$coefficients[active]))
     obj$state$interaction_active <- pa_calculate_interaction( N, obj$pathways$M[active,nrow(N)+1:ncol(N)], 
                                                               obj$pathways$coefficients[active] )
 
