@@ -203,7 +203,7 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
 sb_collect_results_ecol <- function(col_dynamics=T) {
     save_wd <- getwd()   # just to be save
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
-                     flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
+                     flow=numeric(), ep_max=numeric(), state_hash=character(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical())
     results_nets <- list() # append all reaction networks in order of Edraw to this list
 
@@ -260,11 +260,11 @@ sb_collect_results_ecol <- function(col_dynamics=T) {
                     flowb <- -cc[nrow(net[[1]])]
                     err_cc <- max(abs(cc[-nrow(net[[1]])]))
                     err_cc_rel <- err_cc/flowb
-                    state_hash <- sb_v_to_hash(flow$flow_effective, 1e-20)
+                    state_hash <- sb_v_to_hash_s(flow$flow_effective, 1e-20)
 
                     df <- rbind(df,
                                 data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                           v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb), state_hash=as.numeric(state_hash),
+                                           v=as.numeric(v), c=as.numeric(c), flow=as.numeric(flowb), state_hash=as.character(state_hash),
                                            relaxing_sim=as.logical(v == 0), 
                                            err_cc=err_cc, err_cc_rel=err_cc_rel,
                                            ep_tot=as.numeric(sum(flow$entropy_prod)), 
@@ -642,7 +642,7 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
     res$diseq <- rep(0, nrow(res))            # difference between energy of this SS and eq. SS
     res$core_sp_no <- rep(NA, nrow(res))      # number of species in core (species with mu higher 
                                               # than the reference state - eq. SS)
-    res$core_hash <- rep(NA, nrow(res))       # hash of vector indicating core species
+    res$core_hash <- character(nrow(res))     # hash of vector indicating core species
     res$core_diseq_f <- rep(NA, nrow(res))    # fraction of disequilibrium contained in network core
     res$core_mass_f <- rep(NA, nrow(res))     # fraction of mass contained in network core
     res$equilibrium_ref <- rep(NA, nrow(res)) # id of equivalent equilibrium simulation for out of equilibrium sim.
@@ -709,7 +709,7 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
         res$diseq[i] <- res$energy[i] - res$energy[eqref]
         res$core_sp_no[i] <- sum(core_sp) 
                                              # than the reference state - eq. SS)
-        res$core_hash[i] <-  sb_v_to_hash(core_sp, 0.1)
+        res$core_hash[i] <-  sb_v_to_hash_s(core_sp, 0.1)
         res$core_diseq_f[i] <- sum(x[core_sp]-x2[core_sp])/res$diseq[i]
         res$core_mass_f[i] <- sum(con[core_sp])/sum(con[-length(con)])
     }

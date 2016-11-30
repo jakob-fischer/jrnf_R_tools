@@ -51,7 +51,10 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     odeint_p <- "~/apps/jrnf_int"
     # first make 5 small linear steps and then <wint> logarithmic spaced steps
     call_cmd(paste(odeint_p, " simulate solve_implicit  net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(5), " Tmax=", as.character(1e-8), sep=""))
-    call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(Tmax), sep="")) 
+    call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(min(Tmax, 1e7)), sep="")) 
+    # after 1e7 do linear steps 
+    if(Tmax > 1e7)
+        call_cmd(paste(odeint_p, " simulate solve_implicit net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(as.integer(Tmax/1e7)), " Tmax=", as.character(Tmax), sep=""))
 
     # load the dynamics / final concentrations / rates
     run <- read.csv("X34tmp_ini.con")
@@ -377,7 +380,7 @@ sb_evol_build_results <- function(res) {
         res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
-                     flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
+                     flow=numeric(), ep_max=numeric(), state_hash=character(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
                      od_run_worst_id=numeric(), od_innovated=logical(), 
                      od_converged_proper=logical(), od_worst_id=numeric(),
@@ -403,14 +406,14 @@ sb_evol_build_results <- function(res) {
             cat("v=", v, "c=", c, "Edraw=", as.numeric(bp), "Rdraw=", i, "\n")
            
             xres <- res_l[[bp]][[i]]
-            state_hash <- sb_v_to_hash(xres$flow$flow_effective, 1e-20)
+            state_hash <- sb_v_to_hash_s(xres$flow$flow_effective, 1e-20)
             con <- data.frame(con=xres$concentration)
 
             xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
 
             df <- rbind(df,
                         data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                   v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
+                                   v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.character(state_hash),
                                    relaxing_sim=as.logical(F), 
                                    err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                    ep_tot=as.numeric(sum(xres$flow$entropy_prod)), 
@@ -476,7 +479,7 @@ sb_evol_build_results_core <- function(res) {
         res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
-                     flow=numeric(), ep_max=numeric(), state_hash=numeric(), sp_df=I(list()), 
+                     flow=numeric(), ep_max=numeric(), state_hash=character(), sp_df=I(list()), 
                      re_df=I(list()), time=numeric(), msd=numeric(), is_last=logical(), 
                      od_run_worst_id=numeric(), od_innovated=logical(), 
                      od_converged_proper=logical(), od_worst_id=numeric(),
@@ -506,14 +509,14 @@ sb_evol_build_results_core <- function(res) {
 
             if(!is.na(xres$eval_worst_id) && xres$eval_worst_id == dyn_l$worst_id[i]) {
                 cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
-                state_hash <- sb_v_to_hash(xres$flow$flow_effective[sel_sp], 1e-20)
+                state_hash <- sb_v_to_hash_s(xres$flow$flow_effective[sel_sp], 1e-20)
                 con <- data.frame(con=xres$concentration[sel_sp])
 
                 xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
 
                 df <- rbind(df,
                              data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
-                                        v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.numeric(state_hash),
+                                        v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.character(state_hash),
                                         relaxing_sim=as.logical(F), 
                                         err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                         ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 

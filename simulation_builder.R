@@ -111,11 +111,11 @@ sb_assemble_em_from_flow <- function(results_ss, em, net) {
 # TODO check usage and remove if possible
 
 sb_extend_results <- function(results) {
-    state_hash <- rep(0, nrow(results))
+    state_hash <- character(nrow(results))
     no_states <- rep(0, nrow(results))
 
     for(i in 1:nrow(results))
-        state_hash[i] <- sb_v_to_hash(results$re_df[[i]]$flow_effective, results$flow[i]/1e5)
+        state_hash[i] <- sb_v_to_hash_s(results$re_df[[i]]$flow_effective, results$flow[i]/1e5)
 
     for(ed in unique(results$Edraw)) {
         sel <- which(results$Edraw == ed)
@@ -127,7 +127,6 @@ sb_extend_results <- function(results) {
     results$no_states <- no_states
     return(results)
 }
-
 
 
 # Function to estimate the stability of the steady state assuming the system
@@ -161,12 +160,11 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 
 
 
-#
-#
+# Function reduces the results object (in the global environment) to those that 
+# are the last of their simulation (have "is_last" flag) and saves it in the 
+# current directory as "results_red.Rdata".
 
 sb_reduce_last_save <- function() {
     results <<- results[results$is_last,]
     save(results, results_nets, file="results_red.Rdata")
 }
-
-
