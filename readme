@@ -44,29 +44,48 @@ Content of different files (updated 26th November 2016):
    Tools for calculating elementary modes using (external) "metatool".
 
  - pathway_analysis.R:
+   Calculation of reaction pathways. Exactly and also calculation limited to
+   "significant" pathways.
 
  - pathway_analysis_tools.R:
    Helper function for pathway analysis that are generally useful.
 
  - pathway_analysis_eval.R:
+   Methods for calculating derived quantities after having calculated reaction
+   pathways. Also calculates derivative properties of
 
- - potential_analysis.R:
+ - potential_analysis.R: 
+   For calculating effective chemical potentials of chemical column models and 
+   for analysing interaction of chemical potentials with reaction pathways.
 
    SIMULATIONS:
    -----------
  - art_ecosystem_gen.R:
+   Generates artificial ecosystems, that are reaction networks with an elementary 
+   composition of species that are driven thermodynamically by photochemical 
+   reactions.
 
  - netodeint_control.R:
+   Module generates a big range of simulation for a given network (flow system).
+   In contrast to "simulation_builder_flow.R" this module works with biggger 
+   networks and selects a range of boundary species depending on topology.
 
  - simulation_builder.R
+   Script for generating files and directory structure of artificial chemistry
+   simulations with thermodynamic constraints.
 
  - simulation_builder_ecol.R:
+   Scripts for generating ecosystems that are driven by photoreactions.
 
  - simulation_builder_evol.R:
+   Script for evolving artificial ecologies that consist of an anorganic and an 
+   organic part. 
 
  - simulation_builder_flow.R:
+   Automatically generate a big range of flow systems.
 
  - simulation_builder_plot.R:
+   Plot functionality for resalts from "simulation_builder..." methods.
 
 
   DATA:

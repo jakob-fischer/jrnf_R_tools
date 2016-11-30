@@ -1,7 +1,8 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-#
-#
+# Code for calculation of chemical potentials of column models of atmospheric 
+# chemistry as well as the analysis of the interaction of chemical potentials
+# with reaction direction, reaction rates and reaction pathways.
 
 sourced_potential_analysis <- T
 
@@ -28,7 +29,7 @@ nasa_polys <- read.csv("nasa_polynomials_200_1000.csv", header=F)
 # Calculates the chemical potential "mu" for the species named "sp_name" at
 # temperature "T" and number density "N" (the last one given in particles/cm^3) 
 
-get_mu <- function(sp_name, T, N) {
+poa_get_mu <- function(sp_name, T, N) {
     # first find the species in the list of nasa polynomials coefficients 
     sp_id <- which(nasa_polys$V1 == sp_name)
 
@@ -46,12 +47,14 @@ get_mu <- function(sp_name, T, N) {
 
 
     # now calculate h0 and s0 as in paper by Venot
+    # Coefficients are unitless, thus units are J/mol (h0) and J/(mol K) (s0)
     h0 <- a1*R*T + a2/2*R*T**2 + a3/3*R*T**3 + a4/4*R*T**4 + a5/5*R*T**5 + a6*R
     s0 <- a1*R*log(T) + a2*R*T + a3/2*R*T**2 + a4/3*R*T**3 + a5/4*R*T**4 + a7*R
 
     # Calculate (partial) pressure P and from that the chemical potential mu
     p <- N*k_B*T*100**3              # conversion because of different units 'cm' -> 'm' 
     
+    # calculate chemical potential
     mu <- h0 - T*s0 + R*T*log(p/p0)
 
     # If mu is -Inf because p==0 set it to NA
@@ -66,7 +69,7 @@ get_mu <- function(sp_name, T, N) {
 # (especially temperature profile) 'atparam' to calculate the profile of chemical
 # potential for all species.
 
-calculate_mu_profile <- function(profile, atparam) {
+poa_calculate_mu_profile <- function(profile, atparam) {
     # Concentration profile and atmospheric parameters have to match
     if(nrow(profile) != nrow(atparam)) {
         cat("calc_mu_matrix: Number of rows does not match!\n")
@@ -86,7 +89,7 @@ calculate_mu_profile <- function(profile, atparam) {
     for(i in 1:nrow(mu_m)) {
         T <- atparam$T[i]
         for(j in 2:ncol(mu_m))
-            mu_m[i,j] <- get_mu(names(profile)[j], T, profile[i,j])
+            mu_m[i,j] <- poa_get_mu(names(profile)[j], T, profile[i,j])
     }
 
     return(mu_m)
@@ -95,14 +98,17 @@ calculate_mu_profile <- function(profile, atparam) {
 
 # Calculates the density profile of the atmosphere from the profile dataframe 
 # containing the concentration profiles of all species 
-calculate_density_profile <- function(profile) {
+
+poa_calculate_density_profile <- function(profile) {
     return(as.numeric(apply(data.matrix(profile[,-1]),1, sum)))
 }
+
 
 # Integrates the matrix of chemical potentials and returns them as a vector.
 # User can specify whether the specific density of the species is used for weighting ('sp') 
 # or if the density of all species is used.
-integrate_mu <- function(mu_m, profile, atparam, sp=FALSE, Tr=FALSE) {
+
+poa_integrate_mu <- function(mu_m, profile, atparam, sp=FALSE, Tr=FALSE) {
     acc <- c()
 
     if(Tr) {
@@ -135,7 +141,8 @@ integrate_mu <- function(mu_m, profile, atparam, sp=FALSE, Tr=FALSE) {
 # Assigns the chemical potentials (ordered as indicated in the 'mu_names' parameter)
 # to the species in the order of the jrnf reaction network 'net'. If 'hv' and 'M' are
 # not included in 'mu_names' the values of 'v_hv' and 'v_M' are used.
-jrnf_assign_mu <- function(net, mu, mu_names, v_hv=1e20, v_M=0) {
+
+poa_assign_mu <- function(net, mu, mu_names, v_hv=1e20, v_M=0) {
     # All chemical potentials are initialized with NA
     mu_new <- rep(NA, nrow(net[[1]]))
 
@@ -166,10 +173,10 @@ jrnf_assign_mu <- function(net, mu, mu_names, v_hv=1e20, v_M=0) {
 # Function checks if potentials are compatible with the direction of the 
 # reactions.
 # (The function is a legacy function and in principle all functionality containted
-# shoud be also containedin the function "calculate_reaction_energetics" that returns
+# shoud be also containedin the function "poa_calculate_reaction_energetics" that returns
 # on big dataframe with all results.
 
-check_potentials <- function(net, rates, E) {
+poa_check_potentials <- function(net, rates, E) {
     N <- jrnf_calculate_stoich_mat(net)
     se <- c()
  
@@ -185,19 +192,22 @@ check_potentials <- function(net, rates, E) {
 
 
 
-# 
-# Methods test potentials for plausibility with reaction directions
-#
+# Method tests potentials for plausibility with reactions directions. Its results
+# for every reaction is returned in a data frame and also extensive feedback is 
+# given to the user as console output.
 
-calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
+poa_calculate_reaction_energetics <- function(net, mu, re_rates) {
     no_reas <- nrow(net[[2]])
 
+    # Calculate stoichiometric matrix for inflow and outflow.  Careful: If the 
+    # same species occur on both sides they cancel out.
     N <- jrnf_calculate_stoich_mat(net)
     N_in <- abs(-N)
     N_in[N > 0] <- 0
     N_out <- abs(N)
     N_out[N < 0] <- 0
 
+    # identify hv species
     hv_id <- which(net[[1]]$name == "hv")
     if(length(hv_id) != 1) {
         cat("ERROR: did not find unique hv species!\n")
@@ -247,19 +257,16 @@ calculate_reactions_energetics <- function(net, mu, re_rates=c()) {
 }
 
 
-#
-# Methods test potentials for plausibility with pathways directions
-# (in its final version this function should also check the potentials
-#  - give feedback on the potentials quality) 
-#  
-#
+# Method tests potentials for plausibility with pathways directions. Its results
+# for every pathway is returned in a data frame and also extensive feedback is 
+# given to the user as console output.
 
-calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) {
+poa_calculate_pathway_energetics <- function(net, mu, ems, em_rates, re_rates=c()) {
     # first (re)calculate pathway's explained fraction
     x <- apply(abs(ems), 1, sum)*em_rates
     exp_f <- x / sum(x)
 
-    re_en <- calculate_reactions_energetics(net, mu, re_rates)
+    re_en <- poa_calculate_reaction_energetics(net, mu, re_rates)
     N <- jrnf_calculate_stoich_mat(net)
 
     if(ncol(ems) != nrow(re_en)) {
@@ -321,7 +328,6 @@ calculate_pathways_energetics <- function(net, mu, ems, em_rates, re_rates=c()) 
     bilance_sp_hv[,hv_id] <- 0
 
     for(i in 1:nrow(ems)) {
-        #cat(".")
 
         # calculate thermodynamic properties from reaction data
         hv_in[i] <- sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff > 0 & ems[i,] != 0])

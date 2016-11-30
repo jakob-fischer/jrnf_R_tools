@@ -1,18 +1,21 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
+# Generation of artificial ecosystems. That are reaction networks with an 
+# elementary composition of species that are driven thermodynamically by 
+# photochemical reactions. The second part of this module allows to 
+# generate networks that consist of an "anorganic" part and various 
+# organisms that can be replaced separately. This allows to evolve these
+# systems (-> "simulation_builder_evol.R").
 
 sourced_art_ecosystem_gen <- T
 
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
-# Function creates artificial ecosystem with <N> species... 
-#
 
-
-# Function draws energies for artificial ecosystem
-# Activation energies are drawn from "rplancklike" distribution and standard chemical
-# potentials are drawn from a gauß distribution. Except the chemical potential for "hv" 
+# Function draws energies for artificial ecosystems. Activation energies are 
+# drawn from "rplancklike" distribution and standard chemical potentials are 
+# drawn from a gauß distribution. Except the chemical potential for "hv" 
 # which is either 50 or the maximum of all other chemical potentials + 5...
 # If no <flat_energies> (all zero) are drawn additionally the constraint that 
 # photoreactions increase the energy is preserved.
@@ -38,6 +41,7 @@ jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
 
 
 # Helper to create names consistent with elementary constituents
+
 hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="") {
     name <- prefix
 
@@ -62,7 +66,9 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="")
     return(name)  
 }
 
+
 # Checks if a reaction is possible from elementary constituents
+
 hcae_check_rea_constituents <- function(rea, comp, N) {
     comp <- comp$composition
     # Returns composition of <i>th participant in reaction
@@ -173,6 +179,7 @@ hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(),
 
 
 # If reaction is valid (by composition) returns max mass transfer
+
 hcae_calc_rea_transfer <- function(rea, comp, N) {
     comp <- comp$composition
     get_c <- function(i) {
@@ -198,7 +205,9 @@ hcae_calc_rea_transfer <- function(rea, comp, N) {
     return(0)    
 }
 
+
 # Check further conditions on reactions 
+
 hcae_check_rea_conditions <- function(rea, N, comp) {
     hv_id <- which(comp$name == "hv") + 1
     empty_id <- 1
@@ -256,11 +265,13 @@ hcae_check_rea_conditions <- function(rea, N, comp) {
            rea[3] == hv_id && rea[2] == empty_id && rea[4] >= rea[1] ||
            rea[4] == hv_id && rea[2] == empty_id && rea[3] >= rea[1])
             return(F)
+
     # if energy decreases in forward direction the reaction is discarded if the
     # photon occurs on the LHS (independently of the number of components)
     } else if (delta_energy < 0) { 
         if(rea[1] == hv_id || rea[2] == hv_id)
             return(F)
+
     # if energy increases in forward direction the reaction is discarded if the
     # photon occurs on the RHS (independently of the number of components)
     } else if (delta_energy > 0) {
@@ -383,11 +394,7 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 # <rm_dup> - Remove duplicates. Only allow one reaction for each column in the 
 #            stoichiometric matrix. Influenced by <type_spec_dup> and <cat_as_lin>
 #
-# TODO Maybe function can be reengineered #
-#      Sort different reactions in multiple equivalency groups (same effective change) 
-#      and types (linear, photoreaction, rest). 
-#
-#      At the moment <N> does not include the hv-pseudospecies. If a composition is given 
+# TODO At the moment <N> does not include the hv-pseudospecies. If a composition is given 
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F, 
@@ -635,7 +642,26 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 #
 
 # Function creates an anorganic core. In principle this corresponds to creating
-# an artificial ecosystem with jrnf_ae_create. 
+# an artificial ecosystem with jrnf_ae_create. But also parameters for creation
+# of organisms can be appended to the network. And arrays that indicate to which
+# organism (anorganic network) species and reactions belong to are added. In 
+# principle parameter match with "jrnf_ae_create". For those not present here 
+# "jrnf_ae_create" is called with standard values.
+#
+# parameters:
+# <N>           - number of anorganic species 
+# <M>           - total number of (anorganic) reactions (if possible)
+# <no_2fold>    - number of (anorganic) reactions (if possible)
+# <no_hv>       - number of (anorganic) photoreactions (if possible)
+# <comp_no>     - number of elemenetary components
+# <oi_N>        - number of (anorganic) species that will be choosen as interacting
+#                 species for an organism (can take part in organisms reactions)
+# <o_N>         - number of organisms internal species 
+# <o_M>         - total number of reactions (of one organism)
+# <o_no_2fold>  - number of linear reactions (of one organism)
+# <o_no_hv>     - number of photoreactions (if possible / org. has to have "hv" 
+#                 as interacting sp)
+# <AE_max>      - maximum activation energy 
 
 jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
                                           oi_N=c(), o_N=c(), o_M=c(), 
@@ -651,8 +677,9 @@ jrnf_ae_create_anorganic_core <- function(N, M, no_2fold, no_hv, comp_no,
 }
 
 
-#- Function that adds an additional organism to an network out of environment + organisms
-#  Parameters are: number of interacting species, number of additional species, number of reactions, number of linear reactions, number of photochemical ones
+# Function that adds an additional organism to an network out of environment + organisms
+# Parameters are taken from the network object ("net$para$org") if not given directly. 
+# See "jrnf_ae_create_anorganic_core" for a description of the parameter. 
 
 jrnf_ae_add_organism <- function(net, 
                                  oi_N=c(), o_N=c(), o_M=c(), 
@@ -717,7 +744,10 @@ jrnf_ae_remove_organism <- function(net, id) {
 }
 
 
-
+# Simply replace an organism by removing it first and then adding a new one
+# that is randomly generated. If no further parameters besides <id> are given
+# the ones present under "net$para$org" are used. For a description of the 
+# meaning of the parameters se above ("jrnf_ae_create_anorganic_core").
 
 jrnf_ae_replace_organism <- function(net, id, 
                                      oi_N=c(), o_N=c(), o_M=c(), 

@@ -1,5 +1,8 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
+# This file contains code that allows deeper analysis after reaction networks have 
+# been calculated and a decomposition (coefficients) of the steady state has been
+# found.
 
 sourced_pathway_analysis_eval <- T
 
@@ -13,7 +16,6 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
-
 # This function orders the elementary modes and generates a data frame containing information
 # on how much the reordered elementary modes explain the rate vector 'v'. This is done es well
 # cumulative (only those parts not explained by previous modes) as well as individual. It is 
@@ -21,7 +23,7 @@ if(!exists("sourced_jrnf_network"))
 # Here 'individual' fraction means the maximum fraction of this and all previous elementary modes.
 # min_R ( max_{1...i} ( f ) )
 #
-# For every elementary mode also it's complexity is put into the data frame. 
+# For every elementary mode also its complexity is put into the data frame. 
 
 pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
     # cut columns of data frame or elements of rate vector 'v'
