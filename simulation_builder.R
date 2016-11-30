@@ -59,10 +59,7 @@ sb_v_to_hash <- function(v, zero_range) {
 
 # This function can be used instead of <sb_v_to_hash> if the number of reactions
 # exceeds 60. It uses a string as hash instead of a long integer. This implies 
-# that it needs one byte for each reaction of memory. 
-# TODO: Check usage pattern in other files. Maybe it is better to 
-#       use sb_v_to_hash_s as standard case to avoid problems if somone uses
-#       the toolkit with bigger networks.
+# that it needs one byte of memory for each reaction. 
 
 sb_v_to_hash_s <- function(v, zero_range) {
     f <- function(x) {  if(x > zero_range) return("+") else if (x < -zero_range) return("-") else return("0")  }
