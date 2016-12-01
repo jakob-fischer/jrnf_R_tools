@@ -44,8 +44,11 @@ sb_plot_evol_pw <- function(Edyn=T) {
     }
 
     rec <- results_em_cross
-    # need_em_90
-    plt("evol_need_em_90.eps", "pw for 90%", rec$need_em_90, logY=T)
+    # Don't call plt if ALL values of need_em_90 are NA (it's surely a bad 
+    # simulation, but we still want to plot the other values and not abort
+    # because of an error).
+    if(!all(is.na(results_em_cross$need_em_90)))
+        plt("evol_need_em_90.eps", "pw for 90%", rec$need_em_90, logY=T)
     plt("evol_exp_r_max.eps", "max exp. r",  rec$exp_r_max)
     plt("evol_cycles_r.eps", "cycle number", rec$cycles_r)
     plt("evol_species_r.eps", "species number", rec$species_r)

@@ -9,8 +9,8 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
-#
-#
+# Function loads the network from <netfile> and returns a generator functor that 
+# can be used at "netgen" parameter of "sb_generator_ecol_mul". 
 
 sb_build_generator <- function(netfile) {
     net <- jrnf_read(netfile)
@@ -19,8 +19,8 @@ sb_build_generator <- function(netfile) {
 
 
 # Variant of sb_generator_ecol that does not load one network and assign <N_energies> 
-# of energies, but is given a <generator>-function from which <N_nets> networks are 
-# generated and each assigned <N_energies> of energies. 
+# of energies, but is given a generator-function (<netgen>) from which <N_nets> 
+# networks are generated and each assigned <N_energies> of energies. 
 #
 # parameters:
 # <netfile>     - path to network file
@@ -29,14 +29,14 @@ sb_build_generator <- function(netfile) {
 # <N_energies>  - number of energy sets that are drawn for the network
 # <N_runs>      - number of runs done for every energy set + boundary value set
 
-
 sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T, TlogMax=1e7) {
+                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, 
+                              flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T) {
     if(is.null(N_runs_eq)) N_runs_eq <- N_runs
     Tmax_ <- Tmax
 
-    if(Tmax > TlogMax && write_log)
-        Tmax_ = TlogMax
+    if(Tmax > sb_max_step_size  && write_log)
+        Tmax_ = sb_max_step_size 
 
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls

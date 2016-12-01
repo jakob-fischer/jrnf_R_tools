@@ -33,6 +33,12 @@ if(!exists("sourced_simulation_builder_evol"))
     source("simulation_builder_evol.R")
 
 
+# Constant that defines the maximum step size for calls of integrator (jrnf_int).
+# Logarithmic stepping can be used up to this time point and after that linear
+# steps are used.
+
+sb_max_step_size <- 1e7
+
 # Given a steady state vector <v> and an error range <zero_range> the function
 # calculates a hash encoding the reaction directions of the steady state vector.
 # Sign of each reaction can be negative, positive or 

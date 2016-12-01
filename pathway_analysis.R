@@ -1,8 +1,9 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-# testing-tool for algorithm which determines pathways / elementary flux modes
-# of reaction networks and a given flux (stea vector v. All functions of this 
-# file start with prefix "pa_"
+# Tool with algorithm which determines pathways / elementary flux modes of
+# reaction networks. The main functionality for calculating reaction
+# pathways is in "pa_initialize" and "pa_step". It can also be called at once
+# through "pa_analysis".
 
 sourced_pathway_analysis <- T
 
@@ -25,8 +26,42 @@ if(!exists("sourced_pathway_analysis_eval"))
     source("pathway_analysis_eval.R")
 
 
+# Function calculates the turnover for all species. The turnover is defined as
+# the total amount of a species that is consumed or produced by the species 
+# through all reactions. If total prouction differs from total consumption the
+# maximum is returned.
+#
+# parameters:
+# <N>  - Stoichiometric matrix
+# <v>  - (steady state) rate vector
+
+pa_calculate_turnover <- function(N, v) {
+    N_p <- matrix(pmax(N, 0), ncol=ncol(N))
+    N_n <- matrix(pmax(-N, 0), ncol=ncol(N))
+
+    return(as.numeric(pmax(abs(N_p %*% v), abs(N_n %*% v))))
+}
+
+
+#
+#
+# parameters:
+# <N>      - Stoichiometric matrix
+# <M>      - Elementary modes / pathway (matrix)
+# <alpha>  - Pathways' coefficients
+
+pa_calculate_interaction <- function(N, M, alpha) {
+    NM <- N %*% t(M)
+    NM_p <- matrix(pmax(NM, 0), ncol=ncol(NM)) 
+    NM_n <- matrix(pmax(-NM, 0), ncol=ncol(NM))
+
+    return(as.numeric(pmax(abs(NM_p %*% alpha), abs(NM_n %*% alpha))))
+}
+
+
 # TODO comment + test
 #
+# parameters:
 
 pa_decompose_plain <- function(N, pw_init , branch_sp) {
     rea_col <- -(1:nrow(N))
@@ -83,8 +118,8 @@ pa_decompose <- function(N_orig, path_orig, branch_all=F, rnd_o=F) {
     # calculate the reaction set for which decomposition is done
     sel_rea <- which(path_orig != 0)
 
-    # only species that are created and consumed by above reaction set are 
-    # taken as branching species
+    # Only species that are created and consumed by above reaction set are taken 
+    # as branching species. 
     N <- matrix(N_orig[,sel_rea], nrow(N_orig), length(sel_rea))
     if(!branch_all)
         branch_sp <- which(apply(N, 1, max) > 0 & apply(N, 1, min) < 0 & N %*% path_orig[sel_rea] == 0)
@@ -133,29 +168,19 @@ pa_decompose <- function(N_orig, path_orig, branch_all=F, rnd_o=F) {
 }
 
 
-
-# Function calculates the turnover for all species
 #
-# ss_v = t(M) %*% alpha 
-# ss_v = apply(M, 2, sum)
-
-
-pa_calculate_turnover <- function(N, ss_v) {
-    N_p <- matrix(pmax(N, 0), ncol=ncol(N))
-    N_n <- matrix(pmax(-N, 0), ncol=ncol(N))
-
-    return(as.numeric(pmax(abs(N_p %*% ss_v), abs(N_n %*% ss_v))))
-}
-
-
-pa_calculate_interaction <- function(N, M, alpha) {
-    NM <- N %*% t(M)
-    NM_p <- matrix(pmax(NM, 0), ncol=ncol(NM)) 
-    NM_n <- matrix(pmax(-NM, 0), ncol=ncol(NM))
-
-    return(as.numeric(pmax(abs(NM_p %*% alpha), abs(NM_n %*% alpha))))
-}
-
+#
+# parameters:
+# <net>             - the reaction network to decompose  
+# <rates>           - steady state rate of the network
+# <co_branch>       - cutoff parameter for branching (which pw "to combine")
+# <co_exp_rea>      - 
+# <co_exp_turnover> -
+# <prep>            - should network be prepared by remove reverse pairs and 
+#                     add pseudo in- / outflow reactions
+# <decompose>       - 
+# <dump>            -
+# <decreasing>      -
 
 pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover=0, prep=F, decompose=T, dump=T, decreasing=T) {
     # if preparation is done here: remove reverse reactions and add pseudoreactions
@@ -192,8 +217,8 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
         r <- x[length(x)]
         return(max(c(0, (abs(sp*r)/turnover)[sp != 0] ), na.rm=T))  
     }
-    exp_throughput <- apply(cbind(M_init, matrix(rates,ncol=1)), 1, calc_tp)
-    exp_interact <- exp_throughput
+    exp_turnover <- apply(cbind(M_init, matrix(rates,ncol=1)), 1, calc_tp)
+    exp_interact <- exp_turnover
 
     # explanation / definition of pa-structure:
     # pathways (part): state containing pathways or data associated with them
@@ -223,7 +248,7 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
     # parameters (part): parameters of algorithm that do not change after init
     #    co_branch       : cutoff parameter for branching probability
     #    co_exp_rea      : cutoff parameter for explained rates
-    #    co_exp_turnover : cutoff parameter for explained turnover / interaction (TODO check which works better)
+    #    co_exp_turnover : cutoff parameter for explained turnover / interaction
     #    rates           : steady state rates for which expansion is to be calculated
     #    turnover        : turnover of all species (equivalent to interaction at initial state)
     #    do_decompose    : Flag indicates if decomposition (to elementary modes) is done
@@ -231,7 +256,7 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
 
     return(list(pathways=list(M=M_init, coefficients=coefficients,  
                               active_f=active_f, exp_rates=exp_rates, 
-                              exp_turnover=exp_throughput, exp_interact=exp_interact),
+                              exp_turnover=exp_turnover, exp_interact=exp_interact),
                 state=list(rates_active=rates,
                            turnover_active=turnover, interaction_active=turnover,
                            sp_done=sp_done, sp_planned=sp_planned), 
@@ -248,26 +273,28 @@ pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover
 # Species are excluded if their change rate (assuming the 'rates' known are a
 # steady state) is above 'bound'.
 
-pa_limit_sp_planned <- function(x, bound=1e-20) {
-    sel <- as.logical(abs(x$parameters$N %*% x$parameters$rates) < bound)
-    x$state$sp_planned <- x$state$sp_planned[x$state$sp_planned %in% which(sel)]
+pa_limit_sp_planned <- function(obj, bound=1e-20) {
+    sel <- as.logical(abs(obj$parameters$N %*% obj$parameters$rates) < bound)
+    obj$state$sp_planned <- obj$state$sp_planned[obj$state$sp_planned %in% which(sel)]
 
-    return(x)
+    return(obj)
 }
 
 
 # Function returns true if no further species for branching are available 
 
 pa_is_done <- function(obj) {
-    if(length(obj$state$sp_planned) == 0)
-        return(T)
-    else 
-        return(F)
+    return(length(obj$state$sp_planned) == 0)
 }
 
 
+# Make one step for pathway analysis on pa-object <obj>. Step means that
+# pathways (net-) producing species <i> are combined with those that consume
+# it. On this way with minor contribution to steady state rate are dropped.
+# If no <i> parameter is driven the function takes the next planned species
+# of the pa-object.
 #
-#
+# TODO exp_interact
 
 pa_step <- function(obj, i=c()) {
     gc()  # call garbage collector first because function needs a lot of memory
@@ -360,7 +387,7 @@ pa_step <- function(obj, i=c()) {
                                       exp_turnover > obj$parameters$co_exp_turnover )
         #
         # 
-        } else if(active > 0.5 | is.na(active)) {
+        } else if(active > 0.5 || is.na(active)) {
             x[nrow(N)+ncol(N)+5] <- ( exp_rates > obj$parameters$co_exp_rea || 
                                       exp_turnover > obj$parameters$co_exp_turnover )
         }
@@ -451,15 +478,6 @@ pa_step <- function(obj, i=c()) {
 
 
 
-    # REENGINEER - following approach:
-    # 1) Create list of new (combined pathways)
-    # 2) Make list unique
-    # 3) Drop pathways with too low exp_fractions AND branching probability
-    # 4) Decompose new pathways and add to existing ones (unchanged ones)
-    # 5) Make unique again
-    # 6) Recalculate rates of decomposition from skratch
-    # 7) Drop pathways with too low rates / exp fractions
-    # 
     # Parameters that should be considered: 
     #  co_branch, co_exp_rea, co_exp_turnover
     #  do_decompose, do_dump
@@ -480,6 +498,7 @@ pa_step <- function(obj, i=c()) {
         # calculating branching probability (of fraction that is still exchanged)
 
         cat("A")
+        # Create list of new (combined pathways)
         if(obj$parameters$co_branch > 0) {
             v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
             v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
@@ -498,27 +517,16 @@ pa_step <- function(obj, i=c()) {
             cat("_", length(which(as.vector(mb))), "_")
             M_new <- do.call("rbind", lapply(which(as.vector(mb)), gen_comb_pw)) 
         } else {
-            # 1)
             M_new <- do.call("rbind", lapply(1:(length(sel_produce)*length(sel_consume)), gen_comb_pw)) 
         }
   
         M_ext <- matrix(M_ext[sel_keep,], ncol=ncol(M_ext))
 
         cat("B")
-        # 2)
+        # Remove duplicates of new (combined) pathways.
         M_new <- rm_duprows(M_new)
 
-        cat("D")
-        # 3) 
-        # M_new <- t(apply(M_new, 1, calculate_scores))
-        
-        # TODO 4) here - drop or not to drop
-        #   DON't have to think about it HERE because it's done by calculate score automatically
-        #   -> else one has to omitt above call entirely
-        #   Good idea would be to include a flag to the pathways and also their branching probability
-        #   so if this is available the right pathways can be dropped 
-
-        # 4)
+        # Decompose new pathways and add to existing ones (unchanged ones)
         if(obj$parameters$do_decompose) {
 
             cat("E") 
@@ -531,24 +539,26 @@ pa_step <- function(obj, i=c()) {
         cat(nrow(M_ext))
 
         cat("-G-")
-        # 5) 
+        # Make unique again
         M_ext <- rm_duprows(M_ext)
         cat(nrow(M_ext))
 
         cat("-H")
-        # 6)  
+        # Recalculate rates of decomposition from skratch
         act_id <- as.logical(M_ext[,ncol(N)+nrow(N)+5])
         coef_new <- pa_calc_coefficients(M_ext[act_id,nrow(N)+1:ncol(N)], obj$parameters$rates, con_fb=F)
         M_ext[act_id, nrow(N)+ncol(N)+1] <- coef_new$coef
         M_ext[act_id, nrow(N)+ncol(N)+2:5] <- NA
 
         cat("I")
-        # 7)
+        # Drop pathways with too low rates / exp fractions
         M_ext <- t(apply(M_ext, 1, calculate_scores))
       
         cat("J\n")
   
     } else if(length(sel_produce) != 0 || length(sel_consume) != 0) {
+        # If there is only an input or an output to the branching species these
+        # pathways have to be droped (as there is nothing to combine them with).
         M_ext[sel_produce,ncol(N)+nrow(N)+5] <- 0
         M_ext[sel_consume,ncol(N)+nrow(N)+5] <- 0       
 
@@ -572,8 +582,8 @@ pa_step <- function(obj, i=c()) {
     obj$pathways$active_f <- as.logical(M_ext[,ncol(N)+nrow(N)+5])
 
     # state specific 
-    obj$state$sp_done <- c(obj$state$sp_done, obj$state$sp_planned[1])
-    obj$state$sp_planned <- obj$state$sp_planned[-1]
+    obj$state$sp_done <- c(obj$state$sp_done, i)
+    obj$state$sp_planned <- obj$state$sp_planned[obj$state$sp_planned != i]
 
     # recalculate state parameters
     active <- obj$pathways$active_f
@@ -587,7 +597,16 @@ pa_step <- function(obj, i=c()) {
 }
 
 
-
+#
+#
+# parameters:
+# <net>              - Reaction network
+# <rates>            - reaction network's steady state vector
+# <fexp>             -
+# <pmin>             -
+# <do_decomposition> - Can be used to switch off intermediate decomposition to
+#                      elementary pathways.
+# <decreasing>       - Order intermediate species with decreasing turnover?
 
 pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, decreasing=T) {
     # Initialize - Don't use explained turnover for cutoff (not implemented as of April 16)

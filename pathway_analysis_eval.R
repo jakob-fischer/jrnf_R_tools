@@ -16,151 +16,19 @@ if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
 
-# This function orders the elementary modes and generates a data frame containing information
-# on how much the reordered elementary modes explain the rate vector 'v'. This is done es well
-# cumulative (only those parts not explained by previous modes) as well as individual. It is 
-# also interesting what is the average fraction and the minimum fraction of reaction rates. 
-# Here 'individual' fraction means the maximum fraction of this and all previous elementary modes.
-# min_R ( max_{1...i} ( f ) )
-#
-# For every elementary mode also its complexity is put into the data frame. 
-
-pa_iterate_rates_max <- function(em, v, order="max", net, coef=c()) {
-    # cut columns of data frame or elements of rate vector 'v'
-    if(length(v) < ncol(em))
-        em <- em[,1:length(v)]
-    else
-        v <- v[1:ncol(em)]
-
-    N <- jrnf_calculate_stoich_mat(net)      #
-    # inflow / outflow reaction are those with exactly one coefficient in a stoichiometric matrix column 
-    pseudo_r <- apply(N != 0, 2, sum) == 1   
-
-    em_id <- c()       # index of the elementary mode in matrix 'em'
-    coeff <- c()       # coefficient of em for initial v 
-    coeff_acc <- c()   # coefficient of em for v - parts explained by previous ems
-    exp_f <- c()       # fraction of rate explained with current em
-    exp_f_acc <- c()   # fraction of rate explained with current and previous ems
-    C1 <- c()          # complexity of current em (sum of all coeffiecients)
-    C2 <- c()          # complexity of current em (number of non zero coefficients)
-    C3 <- c()          # number of pseudoreactions (inflow or outflow)
-    min_f <- c()       # minimum fraction of reaction explained by individual ems
-    min_f_acc <- c()   # minimum fraction of reaction explained by this+previous ems 
-
-    exp_v <- rep(0, length(v))   # The fraction of reaction i explained by the best of the previous EMs
-
-    v_ <- v                       # 'v_' is the rate vector minus parts explained by previous modes
-
-    # if elementary modes 'em' is empty or no matrix just return empty data frame
-    if(!is.matrix(em) | nrow(em) == 0) 
-        return(data.frame(em_id=numeric(), coeff=numeric(), coeff_acc=numeric(), exp_f=numeric(), 
-               exp_f_acc=numeric(), C1=numeric(), C2=numeric(), min_f=numeric(), min_f_acc=numeric()))
-
-    # al-function gets one elementary mode and returns it's max coefficient (for v_)
-    al <- function(x) {
-        y <- v_/x
-        if(length(which(y>0)) > 0) 
-            return(min(y[x>0]))
-        else
-            return(0)
-    }
-
-    # adds an element to the results. you can give an value for the coefficient co and the
-    # accumulated coeffiecient co_a (expansion) ; else NA should be given and the function
-    # will calculate them
-    add_element <- function(i, co, co_a) {
-        if(is.na(co))            # the (maximal) coefficent of this em   
-            co <- a_init[i]
-
-        if(is.na(co_a))          # the coefficient of the em considering the previous em's have been "substracted"
-            co_a <- al(em[i,])
-
-        em_id <<- c(em_id, i)               # build vector of em's ids
-        coeff <<- c(coeff, co)              
-        coeff_acc <<- c(coeff_acc, co_a)
-        C1 <<- c(C1, sum(em[i,]))           # sum of all reaction's coefficients in the em 
-        C2 <<- c(C2, sum(em[i,] != 0))      # number of reactions with non-zero coefficients
-        C3 <<- c(C3, sum((em[i,] != 0) & pseudo_r))
-
-        v_ <<- v_ - co_a*em[i,]             # subtracting maximal possible part of this em from v_
-        v_[v_<0] <<- 0                      # v_ has to stay non-negative (may become zero because of numerical problems)
-
-        exp_f <<- c(exp_f, sum(co*em[i,])/sum(v))       # (maximum) fraction of activity explained by this reaction 
-        exp_f_acc <<- c(exp_f_acc, 1-sum(v_)/sum(v))    # fraction of activity explained when expanding up to this reaction
-
-        tmp <- (co*em[i,])/v                            # (maximum) fraction of flow this reaction explains (for every reaction)
-        tmp[v == 0] <- 1                                 
-        exp_v <<- pmax(exp_v, tmp, na.rm=T)             # Fraction the worst reaction is explained by its best em      
- 
-        min_f <<- c(min_f, min(exp_v[v!=0], na.rm=T))                   # build vector
-        min_f_acc <<- c(min_f_acc, min(((v-v_)/v)[v != 0], na.rm=T))    # build vector; fraction of the worst explained reaction (from the expansion)
-    }
-
-
-    if(length(coef) == 0)
-        a_init <- apply(em, 1, al)
-    else
-        a_init <- coef
-
-    # different modes in how the elementary modes are ordered for developing v / v_    
-    # "max": after each step the maximum mode best for the next step is selected
-    if(order == "max_step") {
-        prev <- T          # will be assigned the coefficient of the previous em 
-
-        for(i in 1:nrow(em)) {
-            if(prev) {
-                a <- apply(em, 1, al)
-                m_id <- order(a, decreasing=T)
-                add_element(m_id[1], NA, a[m_id[1]])
-                cat(".")
-
-                if(a[m_id[1]] == 0) {
-                    prev <- F
-                    m_id <- m_id[-1]
-                }
-            } else {
-                add_element(m_id[1], NA, a[m_id[1]])
-                cat(".")
-                m_id <- m_id[-1]
-            }
-
-
-        }
-
-    # "initial": initially the elementary pathways are ordered with decreasing coefficient
-    } else if(order == "max_init") {
-        a <- apply(em, 1, al)
-        m_id <- order(a, decreasing=T)
-
-        for(i in m_id) { 
-            add_element(i, a[i], NA);
-            cat(".")
-        }
-
-    # -: pathways are ordered as given / if coef is given it is used as accumulative coefficients
-    } else {
-        for(i in 1:nrow(em)) {
-            add_element(i, NA, a_init[i])
-            cat(".")
-        }
-    }
-
-    # return data frame with results
-    return(data.frame(em_id=em_id, coeff=coeff, coeff_acc=coeff_acc, exp_f=exp_f, 
-                      exp_f_acc=exp_f_acc, C1=C1, C2=C2, C3=C3, min_f=min_f, min_f_acc=min_f_acc))  
-}
-
-
-
 # Function derives properties of all elementary modes in a matrix and returns
 # them in a data frame. The function returns them 
 #
+# parameters:
+# <em_matrix>  - Elementary modes
+# <net>        - Network object
+# <c_max>      - Maximum size of cycles that are calculated.
+# <ignore_hv>  - Don't count "hv" species as exchange species (Ex, In, Out)
+# 
 # TODO At the moment his function assumes to get a network without pseudo-exchange
 #      species and a set of elementary modes that fit the number of reaction. For
 #      future releases it should be extended to cut the network to pathway size and
-#      also drop all exchange pseudoreactions automaticly.
-#
-#      
+#      also drop all exchange pseudoreactions automaticly.      
 
 pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
     # generating empty vectors
@@ -200,20 +68,8 @@ pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
         rev <- em_matrix[i,] < 0       # is the reaction reverted in the specific elementary mode
         em_abs <- abs(em_matrix[i,]) 
         sel <- which(em_abs != 0)       # which reactions are in the elementary mode (id's of ones with 
-                                        # higher coefficients are put there multiple times)
+                                        # higher coefficients are not considered
 
-        # Network was changed from containing the same reaction multiple times to 
-        # containing each reaction just one time (even if the pathway has higher
-        # coefficients.) TODO allow alternative ways of calculating / remove
-        # consider that for pathways with big coefficients calculation of cycles
-        # get's quite complicated)
-        #for(j in which(em_abs != 0)) {
-        #    for(k in 1:em_abs[j]) {
-        #        sel <- c(sel, j)
-        #        rev <- c()
-        #    }           
-        #}
-            
         # build temporary networks
         net_tmp <- list(net[[1]], net[[2]][sel,])
         N_tmp <- jrnf_calculate_stoich_mat(net_tmp)  
@@ -236,11 +92,12 @@ pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
             C_s[i,k] <- get_n_cycles_directed_V(g_tmp,k)[[1]]
         }
             
-        # calculate various other complexity measures
+        # Calculate various other complexity measures. "species_con" are those 
+        # species that are in- or output species of at least one reaction in the
+        # pathway.
         species_con <- which(apply(N_tmp_in != 0, 1, any) | apply(N_tmp_out != 0, 1, any))
         degree_global <- net_deg[ species_con ]
-        degree_internal <- as.vector(degree( jrnf_to_undirected_network(net_tmp) ))
-       
+        degree_internal <- as.vector(degree( jrnf_to_undirected_network(net_tmp) ))[species_con]
 
         Deg[i] <- mean( degree_global )
         Deg_int[i] <- mean( degree_internal )
@@ -272,20 +129,26 @@ pa_em_derive <- function(em_matrix, net, c_max=4, ignore_hv=F) {
 }
 
 
-
 # Uses an existing expansion of a network <net>'s steady state flow <v> and 
 # calculates how good it is absolute (using all elementary modes) and cummulative
 # (using elementary modes 1 to <n>). The expansion / elementary modes have to be
-# ordered in advance. If coefficients of em's are negative this means that the 
+# ordered in advance. If coefficients of reactions inside em's are negative tese 
 # reactions of the network are reversed before starting evaluating the expansion.
 # For this it is checked if there is no sign missmatch for all the pathways which 
-# have <em_rates> > 0.
+# have <em_coef> > 0.
+#
+# parameters:
+# <em_matrix>  - Elementary modes
+# <em_coef>    - Coefficients of the elementary modes
+# <net>        - Reaction network
+# <v>          - Steady state rate vector
+# <em_df>      - Data frame with extended pathway information (from "pa_em_derive")
 
-pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
+pa_ana_expansion <- function(em_matrix, em_coef, net, v, em_df=c()) {
     # First check the sign condition if rates of elementary modes are nonzero all coefficients of 
     # the respective elementary modes have to have the same sign as the reactions rate (v)
     
-    em_matrix_red <- em_matrix[em_rates != 0, ]
+    em_matrix_red <- em_matrix[em_coef != 0, ]
 
     ma <- apply(em_matrix_red, 2, max)
     mi <- apply(em_matrix_red, 2, min)
@@ -317,34 +180,34 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
     v_sum <- sum(v[rea_id_np]) 
     v_ <- rep(0, length(v))                # expansion for ems 1 to <n>
 
-    coeff <- em_rates                      # coefficient of the em
-    exp_f <- rep(0, length(em_rates))      # fraction of all rates explained by current em            
-    exp_f_acc <- rep(0, length(em_rates))  # fractions of all rates explained by ems 1 to <n>
-    err_f_50p <- rep(1, length(em_rates))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
-    err_rmax_50p <- rep(0, length(em_rates)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
+    coeff <- em_coef                      # coefficient of the em
+    exp_f <- rep(0, length(em_coef))      # fraction of all rates explained by current em            
+    exp_f_acc <- rep(0, length(em_coef))  # fractions of all rates explained by ems 1 to <n>
+    err_f_50p <- rep(1, length(em_coef))  # fraction of reaction which is explained by less than 50% by ems 1 to <n>
+    err_rmax_50p <- rep(0, length(em_coef)) # highest rate of reaction which is explained by less than 50% by ems 1 to <n> (argmax)
     err_rates <- list()                    # list of data frames. Each data frame contains absolute and relative error by the expansion to this point for each reaction 
 
     # If <em_df> is given the information on the used elementary modes is accumulated with the expansion of the steady state
-    C_sum_acc <- rep(0, length(em_rates))                     # Number of cycles of different length
-    C_s_sum_acc <- rep(0, length(em_rates))                   # Counting cycles by subgraph isomorphism (nodes!)
-    Deg_acc <- rep(0, length(em_rates))                       # mean degree of all associated species
-    Deg_int_acc <- rep(0, length(em_rates))                   # mean degree of all associated species ignoring other reactions
-    Deg_max_acc <- rep(0, length(em_rates))                   # max degree of all associated species
-    Deg_max_int_acc <- rep(0, length(em_rates))               # max degree of all associated species ignoring other reactions
-    Sp_no_acc <- rep(0, length(em_rates))                     # number of species taking part in elementary mode
-    Re_acc <- rep(0, length(em_rates))            # number of reactions taking part in elementary mode
-    Re_s_acc <- rep(0, length(em_rates))          # number of reactions (counting each only once)
-    Ex_acc <- rep(0, length(em_rates))            # Number of exchanges with environment
-    Ex_s_acc <- rep(0, length(em_rates))          # Number of exchanges (counting each species only once)
-    In_acc <- rep(0, length(em_rates))            # Number of input from environment
-    In_s_acc <- rep(0, length(em_rates))          # Number of input (counting each species only once)
-    Out_acc <- rep(0, length(em_rates))           # Number of output to environment
-    Out_s_acc <- rep(0, length(em_rates))         # Number of output to environment (each species only once) 
+    C_sum_acc <- rep(0, length(em_coef))                     # Number of cycles of different length
+    C_s_sum_acc <- rep(0, length(em_coef))                   # Counting cycles by subgraph isomorphism (nodes!)
+    Deg_acc <- rep(0, length(em_coef))                       # mean degree of all associated species
+    Deg_int_acc <- rep(0, length(em_coef))                   # mean degree of all associated species ignoring other reactions
+    Deg_max_acc <- rep(0, length(em_coef))                   # max degree of all associated species
+    Deg_max_int_acc <- rep(0, length(em_coef))               # max degree of all associated species ignoring other reactions
+    Sp_no_acc <- rep(0, length(em_coef))                     # number of species taking part in elementary mode
+    Re_acc <- rep(0, length(em_coef))            # number of reactions taking part in elementary mode
+    Re_s_acc <- rep(0, length(em_coef))          # number of reactions (counting each only once)
+    Ex_acc <- rep(0, length(em_coef))            # Number of exchanges with environment
+    Ex_s_acc <- rep(0, length(em_coef))          # Number of exchanges (counting each species only once)
+    In_acc <- rep(0, length(em_coef))            # Number of input from environment
+    In_s_acc <- rep(0, length(em_coef))          # Number of input (counting each species only once)
+    Out_acc <- rep(0, length(em_coef))           # Number of output to environment
+    Out_s_acc <- rep(0, length(em_coef))         # Number of output to environment (each species only once) 
 
-    #
-    for(i in 1:length(em_rates)) {
+    # Accumulate data for all pathways in the expansion
+    for(i in 1:length(em_coef)) {
         cat(".")
-        dv <- em_rates[i]*em_matrix[i,]
+        dv <- em_coef[i]*em_matrix[i,]
         v_ <- v_ + dv
         exp_f[i] <- sum(dv[rea_id_np])/v_sum      
         exp_f_acc[i] <- sum(v_[rea_id_np])/v_sum
@@ -359,7 +222,6 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
         err_rates[[i]] <- data.frame(v=v, err_abs=err_abs, err_rel=err_rel, v_acc=v_, dv=dv) 
  
         # if em derived data (em_df) is available their accumulated quantities are derived
-        #
         C_sum_acc[i] <- sum(em_df$C_sum[1:i]*exp_f[1:i])/sum(exp_f[1:i])
         C_s_sum_acc[i] <- sum(em_df$C_s_sum[1:i]*exp_f[1:i])/sum(exp_f[1:i])
         Deg_acc[i] <- sum(em_df$Deg[1:i]*exp_f[1:i])/sum(exp_f[1:i])
@@ -393,12 +255,8 @@ pa_ana_expansion <- function(em_matrix, em_rates, net, v, em_df=c()) {
 }
 
 
-
-#
-# Build matrices that contain the information (for each pathway) which species
-# are 
-#
-#
+# Build matrices that contain the information (for each pathway) how each species
+# is occuring in it / influenced by it.
 
 pa_build_species_incidence <- function(em_matrix, net_N) {
     # calculate stoichiometric matrix (if necessary)
@@ -417,56 +275,70 @@ pa_build_species_incidence <- function(em_matrix, net_N) {
     return(list(change=x1,prod_cons=x2,internal=(x2-abs(x1))))
 }
 
+
+# Build matrices that contain the information (for each pathway) how each 
+# elementary component is occuring in it / influenced by it.
+#
+# parameters:
+# <em_matrix> - Reaction pathways / elementary modes
+# <net_N>     - Reaction network / stoichiometric matrix
+# <comp_mat>  - Composition matrix
+# <si>        - Species incidence (pa_build_species_incidence) for same 
+#               network and same pathways
  
-pa_build_elementary_components_incidence <- function(em_matrix, net_N, comp_mat=c(), si=c()) {
+pa_build_elements_incidence <- function(em_matrix, net_N, comp_mat=c(), si=c()) {
     if(is.matrix(net_N) && is.null(comp_mat)) {
-        cat("Error in pa_build_elementary_components_incidence_1:")
+        cat("Error in pa_build_elements_incidence: ")
         cat("Have to have either network object or composition matrix!")
         return(FALSE)
     }
 
     N <- jrnf_calculate_stoich_mat(net_N)
 
-    # if no composition matrix is given ("comp_mat") it is calculated from
+    # If no composition matrix is given ("comp_mat") it is calculated from the
+    # network object.
     if(is.null(comp_mat))
         comp_mat <- build_composition_matrix(net_N)
 
-    # if species incidence is not given it is calculated 
+    # If species incidence is not given it is calculated 
     if(is.null(si))
         si <- pa_build_species_incidence(em_matrix, N);  
 
-    # 
-    #
     x1 <- t(t(comp_mat)%*%t(abs(si[[1]])))
     x2 <- t(t(comp_mat)%*%t(si[[2]]))
 
-    return(list(x1,x2,(x2-x1)))    
-}
+    return(list(change=x1,          # Number of parts of the elementary component
+                                    # that is contained in all species that are 
+                                    # effectively produced or consumed 
+                prod_cons=x2,       # Accumulative turnover of all elementary
+                                    # components
+                internal=(x2-x1)))  # The part of turnover that is not explained  
+}                                   # by in- or outflow
 
 
+# Calculate of how many cycles of a given size each species is part of in each 
+# pathway. For calculating cycles each reaction is only taken once (even if it 
+# has a bigger coefficient in the pathway).
+#
+# parameters:
+# <em_matrix> - Elementary modes / reaction pathways
+# <net>       - Reaction network
+# <c_max>     - Maximal cycle size
 
 pa_cycle_incidence_sp <- function(em_matrix, net, c_max=5) {
-    # generating empty vectors
+    # generate empty matrices
     incidence_cycles_sp <- list()
     for(i in 1:c_max)
         incidence_cycles_sp[[i]] <- matrix(0, ncol=nrow(net[[1]]), nrow=nrow(em_matrix))
 
 
-    # iterating all pathways
+    # iterate all pathways
     for(i in 1:nrow(em_matrix)) {
         cat(".")
 
-        rev <- c()                   # is the reaction reverted in the specific elementary mode
-        em_abs <- abs(em_matrix[i,]) 
-        sel <- c()                   # which reactions are in the elementary mode (id's of ones with 
-                                     # higher coefficients are put there multiple times)
-
-        for(j in which(em_abs != 0)) {
-            for(k in 1:em_abs[j]) {
-                sel <- c(sel, j)
-                rev <- c(rev, em_matrix[i,j] < 0)
-            }           
-        }
+        rev <- em_matrix[i,] < 0     # is the reaction reverted in the specific elementary mode
+        sel <- em_matrix[i,] != 0    # Which reactions are in the elementary mode? 
+                                     # Each reaction is just taken once.
             
         # build temporary networks
         net_tmp <- list(net[[1]], net[[2]][sel,])
@@ -475,9 +347,10 @@ pa_cycle_incidence_sp <- function(em_matrix, net, c_max=5) {
         N_tmp_out <- jrnf_calculate_stoich_mat_out(net_tmp)  
 
         # find cycles
-        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
+        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev[sel])
         for(k in 1:c_max) {
             x <- get_n_cycles_directed(g_tmp,k,F)
+            # save / collect cycle number (for each species)
             incidence_cycles_sp[[k]][i,] <- x[[2]] 
         }
     }    
@@ -487,29 +360,31 @@ pa_cycle_incidence_sp <- function(em_matrix, net, c_max=5) {
 }
 
 
+# Calculate of how many cycles of a given size each elementary component is part 
+# of in each pathway. An elementary component being part of a cycle means being
+# presen in EVERY species that is forming the cycle! For calculating cycles each 
+# reaction is only taken once (even if it has a bigger coefficient in the pathway).
+#
+# parameters:
+# <em_matrix> - Elementary modes / reaction pathways
+# <net>       - Reaction network
+# <c_max>     - Maximal cycle size
+
 pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
     # generating empty vectors
     incidence_cycles_el <- list()
     for(i in 1:c_max)
         incidence_cycles_el[[i]] <- matrix(0, ncol=length(get_element_names()), nrow=nrow(em_matrix))
 
-    cm <- build_composition_matrix(net)
+    comp_m <- build_composition_matrix(net)
 
     # iterating all pathways
     for(i in 1:nrow(em_matrix)) {
         cat(".")
 
-        rev <- c()                   # is the reaction reverted in the specific elementary mode
-        em_abs <- abs(em_matrix[i,]) 
-        sel <- c()                   # which reactions are in the elementary mode (id's of ones with 
-                                     # higher coefficients are put there multiple times)
+        rev <- em_matrix[i,] < 0     # Which reactions are reversed?
+        sel <- em_matrix[i,] != 0    # Which reactions are in the elementary mode. All
 
-        for(j in which(em_abs != 0)) {
-            for(k in 1:em_abs[j]) {
-                sel <- c(sel, j)
-                rev <- c(rev, em_matrix[i,j] < 0)
-            }           
-        }
             
         # build temporary networks
         net_tmp <- list(net[[1]], net[[2]][sel,])
@@ -518,7 +393,7 @@ pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
         N_tmp_out <- jrnf_calculate_stoich_mat_out(net_tmp)  
 
         # find cycles
-        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev)
+        g_tmp <- jrnf_to_directed_network_d(net_tmp, rev[sel])
         for(k in 1:c_max) {
             x <- get_n_cycles_directed(g_tmp,k,T)
             cycles <- x[[3]]
@@ -527,12 +402,12 @@ pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
                 for(j in 1:nrow(cycles)) {
                     u <- which(cycles[j,] != 0)
                     if(length(u) != 0) {
-                        t <- as.numeric(apply(matrix(cm[u,] != 0,nrow=k), 2, all))
+                        # increment for those elementary components that are 
+                        # part of ALL species of the cycle
+                        t <- as.numeric(apply(matrix(comp_m[u,] != 0,nrow=k), 2, all))
                         incidence_cycles_el[[k]][i,] <- incidence_cycles_el[[k]][i,] + t
                     }
-                 }
-
-             
+                 }  
         }
     }    
 
@@ -541,62 +416,23 @@ pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
 }
 
 
+# For a cycle incidence obtained from "pa_cycle_incidence_sp" or 
+# "pa_cycle_incidence_el" this function calculates an cycling 
+# score for each species / element if given an explained fraction
+# (<exp_f>) that weights the reaction pathways.
 
+pa_calc_sp_el_cycling <- function(ci_sp_el_l, exp_f) {
+    n_cycle <- list()
+    accum <- rep(0, ncol(ci_sp_el_l[[1]]))
 
-
-# Try to build an heuristic. The main assumption is that all reactions have same thermodynamic
-# disequilibrium. First all elementary modes without hv-inflow are removed and their thermodynamic
-# efficiency is set to zero. Also those that have only hv-inflow (and no other exchange with boundary)
-# are removed.
-#
-
-pa_calc_hv_efficiency <- function(em_matrix, em_rates, net) {
-    # First identify all exchange (pseudo) reaction
-    N_in <- jrnf_calculate_stoich_mat_in(net)
-    N_out <- jrnf_calculate_stoich_mat_out(net)
-    N <- N_out - N_in
-    hv_id <- which(net[[1]]$name == "hv")
-
-    pseudo_rea <- (1 == apply(N != 0, 2, sum) & 1 >= apply(N_in != 0, 2, sum) & 1 >= apply(N_out != 0, 2, sum))
-    hv_rea <- (N[hv_id,] != 0) & pseudo_rea
-
-    # 
-    hv_count <- em_matrix[,hv_rea]
-    ex_count <- apply(em_matrix[,pseudo_rea], 1, sum) - hv_count
-    np_count <- apply(em_matrix[,!pseudo_rea], 1, sum)
-
-    efficiency <- ex_count/(ex_count+np_count)
-    eff_zero <- which(hv_count != 0 & ex_count == 0 | hv_count == 0 & ex_count != 0)   # efficiency zero ems
-    efficiency[eff_zero] <- 0
-
-    return(efficiency)
-}
-
-
-# 
-pa_calc_species_cycling <- function(em_matrix, em_rates, net, ci_sp_l) {
-    accum <- rep(0, nrow(net[[1]]))
-    net <- (jrnf_calculate_stoich_mat(net))
-    net_a <- abs(jrnf_calculate_stoich_mat(net))
-
-    # first calculate one matrix containing information whether the species are part 
-    # of a cycle in all the path
-    c_f <- ci_sp_l[[2]] != 0
-    ci_sp_l <- ci_sp_l[-(1:2)]
-
-    for(x in ci_sp_l) {
-        c_f <- c_f | x != 0
+    for(X in ci_sp_el_l) {
+        y <- apply(scale_mat_rows(X, exp_f), 2, sum)
+        accum <- accum + y
+        n_cycle[[length(n_cycle)+1]] <- y
     }
 
-    # now iterate all the pathways
-    for(i in 1:nrow(em_matrix)) {
-        a <- as.vector(net %*% em_matrix[i,])
-        b <- as.vector(net_a %*% em_matrix[i,])
-        sel <- b != 0 & a == 0 & c_f[i,]
- 
-        accum <- accum + 0.5*b*sel*em_rates[i]
-    }
-
-    return(accum)
+    # return in two elemen list
+    return(list(n_cycle=n_cycle, accum=accum))
 }
+
 
