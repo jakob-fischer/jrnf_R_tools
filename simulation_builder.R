@@ -73,65 +73,6 @@ sb_v_to_hash_s <- function(v, zero_range) {
 }
 
 
-# This function probably only has legacy function.
-# TODO: Check an remove if save
-
-sb_assemble_em_from_flow <- function(results_ss, em, net) {
-    df <- data.frame(delta_b=numeric(), flow=numeric(), C_sum=numeric(), em_id=numeric(), em_exp_r=numeric(), 
-                     em_exp_d=numeric(), C_f_r=numeric(), C_f_d=numeric(), ep_lin=numeric(), ep_nonl=numeric())
-
-    der <- pa_em_derive(em[,1:nrow(net[[2]])], net)
-
-    for(i in 1:nrow(results_ss)) {
-        em_ex <- results_ss$em_ex[[i]]
-        N <- nrow(em_ex)
-        C_f_r <- 0
-        C_f_d <- 0
-
-        if(nrow(em_ex) != 0) {
-            C_f_r <- sum(em_ex$exp_r * der$C_sum[em_ex$id])
-            C_f_d <- sum(em_ex$exp_d * der$C_sum[em_ex$id])
-        }
-
-        df <- rbind(df,
-                    data.frame(delta_v= as.numeric(rep(max(results_ss$v1[i], results_ss$v2[i]), N)),
-                               flow=as.numeric(rep(results_ss$flow[i], N)),
-                               C_sum=as.numeric(rep(results_ss$C_sum[i], N)),
-                               em_id=as.numeric(em_ex$id),
-                               em_exp_r=as.numeric(em_ex$exp_r), 
-                               em_exp_d=as.numeric(em_ex$exp_d),
-                               C_f_r=as.numeric(rep(C_f_r, N)),
-                               C_f_d=as.numeric(rep(C_f_d, N)),
-                               ep_lin=as.numeric(rep(results_ss$ep_linear[i]/(results_ss$ep_linear[i]+results_ss$ep_nonlinear[i]), N)),                           ep_nonl=as.numeric(rep(results_ss$ep_nonlinear[i]/(results_ss$ep_linear[i]+results_ss$ep_nonlinear[i]), N))))
-
-    }
-  
-    return(df)
-}
-
-
-# Same as above (<assemble_em_from_flow>)
-# TODO check usage and remove if possible
-
-sb_extend_results <- function(results) {
-    state_hash <- character(nrow(results))
-    no_states <- rep(0, nrow(results))
-
-    for(i in 1:nrow(results))
-        state_hash[i] <- sb_v_to_hash_s(results$re_df[[i]]$flow_effective, results$flow[i]/1e5)
-
-    for(ed in unique(results$Edraw)) {
-        sel <- which(results$Edraw == ed)
-        count <- length(unique(state_hash[sel]))
-        no_states[sel] <- count
-    }
-
-    results$state_hash <- state_hash
-    results$no_states <- no_states
-    return(results)
-}
-
-
 # Function to estimate the stability of the steady state assuming the system
 # got to it. For this the jacobi matrix is calculated for each concentration
 # using the <sa> object generated from <jrnf_build_linear_stability_analyzer>.
