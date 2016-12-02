@@ -146,7 +146,7 @@ pa_decompose <- function(N_orig, path_orig=c(), branch_all=F, rnd_o=F) {
 
     # Only species that are created and consumed by above reaction set are taken 
     # as branching species. 
-    N <- matrix(N_orig[,sel_rea], nrow(N_orig), length(sel_rea))
+    N <- matrix(N_orig[,sel_rea], nrow(N_orig), sum(sel_rea))
     if(!branch_all)
         branch_sp <- which(apply(N, 1, max) > 0 & apply(N, 1, min) < 0 & N %*% path_orig[sel_rea] == 0)
     else
