@@ -457,7 +457,7 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list
         comp_em <- !as.logical((M > 0) %*% (r_ext < 0) | (M < 0) %*% (r_ext > 0))
           
         abs_M_comp <- abs(matrix(M[comp_em,], ncol=ncol(M)))
-        x <- pa_calc_coefficients(abs_M_comp, rates_rev, F)   
+        x <- pa_calculate_coef(abs_M_comp, rates_rev, F)   
         coef <- x$coef
         err_rel_max[i] <<- x$score_b   # TODO maybe calculate score only from non-pseudo reactions?
 

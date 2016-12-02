@@ -138,11 +138,11 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
 
     if(do_pw_ana) {
         res_ana <- pa_analysis(net_rev, rates_rev, 0.01, 0.7)
-        a <- pa_calc_coefficients(res_ana[[1]], rates_rev, T)
+        a <- pa_calculate_coef(res_ana[[1]], rates_rev, T)
 
     } else {
         res_ana <- list(1) # pa_analysis(net_rev, rates_rev, 0.01, 0.7)
-        a <- list(coef=0)  #pa_calc_coefficients(res_ana[[1]], rates_rev, T)
+        a <- list(coef=0)  #pa_calculate_coef(res_ana[[1]], rates_rev, T)
     }
 
     pathways <- list()

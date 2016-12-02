@@ -421,7 +421,7 @@ pa_cycle_incidence_el <- function(em_matrix, net, c_max=5) {
 # score for each species / element if given an explained fraction
 # (<exp_f>) that weights the reaction pathways.
 
-pa_calc_sp_el_cycling <- function(ci_sp_el_l, exp_f) {
+pa_calculate_sp_el_cycling <- function(ci_sp_el_l, exp_f) {
     n_cycle <- list()
     accum <- rep(0, ncol(ci_sp_el_l[[1]]))
 

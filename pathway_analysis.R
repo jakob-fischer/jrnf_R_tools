@@ -33,7 +33,7 @@ if(!exists("sourced_pathway_analysis_eval"))
 #
 # parameters:
 # <N>  - Stoichiometric matrix
-# <v>  - (steady state) rate vector
+# <v>  - (Steady state) rate vector
 
 pa_calculate_turnover <- function(N, v) {
     N_p <- matrix(pmax(N, 0), ncol=ncol(N))
@@ -43,7 +43,8 @@ pa_calculate_turnover <- function(N, v) {
 }
 
 
-#
+# Interaction is defined as the amount of a species that is created or consumed
+# by all pathways for a specific pathway decomposition (coefficients alpha).
 #
 # parameters:
 # <N>      - Stoichiometric matrix
@@ -59,32 +60,42 @@ pa_calculate_interaction <- function(N, M, alpha) {
 }
 
 
-# TODO comment + test
+# Simple algorithm for elementary mode computation. This can not be used for 
+# bigger networks because of its computational complexit, but it is necessary
+# for pathway analysis to test if found pathways are elementary.
 #
 # parameters:
+# <N>         - Stoichiometric matrix of network
+# <branch_sp> - Vector with ids of all branching species 
 
-pa_decompose_plain <- function(N, pw_init , branch_sp) {
-    rea_col <- -(1:nrow(N))
-    M <- cbind(t(N), diag(ncol(N)))
+pa_decompose_plain <- function(N, branch_sp) {
+    rea_col <- -(1:nrow(N))          # index for accessing only reaction columns
+    M <- cbind(t(N), diag(ncol(N)))  # intermediate pathways - first nrow(N)
+                                     # colums are change of species and the rest
+                                     # are reaction coefficients
 
     for(m in 1:length(branch_sp)) {
-        i <- branch_sp[m]
+        i <- branch_sp[m] # shortcut
 
         sel_keep <- which(M[,i] == 0)
         sel_produce <- which(M[,i] > 0)
         sel_consume <- which(M[,i] < 0) 
 
-
+        # Function calculates combined pathway "x" in matrix form.
         f <- function(x) {
+            # Index 'x' is mapped to production pathway 'k' and consumption
+            # pathway 'l'.
             x <- x - 1 
             k <- sel_produce[(x %% length(sel_produce)) + 1]
             l <- sel_consume[as.integer(x / length(sel_produce)) + 1] 
 
-            cre <- M[k,i]         
-            con <- -M[l,i]    
-            pw <- con*M[k,] + cre*M[l,]
+            cre <- M[k,i]   # production coefficient of i  
+            con <- -M[l,i]  # consumption coefficient of i
+            pw <- con*M[k,] + cre*M[l,]  # new pathway
+            # bring coefficients to minimal form
             gcd_l <- vec_gcd(pw[nrow(N)+(1:ncol(N))])
             pw <- pw / gcd_l 
+
             return(matrix(pw, nrow=1))
         }
 
@@ -95,13 +106,13 @@ pa_decompose_plain <- function(N, pw_init , branch_sp) {
             M_ <- matrix(M[sel_keep,], ncol=ncol(M))
 
         # Before thinking about not elementary pathways first remove all duplicates
-        # (nontrivial because their coefficients / rates have to be added up) 
         x_keep <- !duplicated(matrix(M_,nrow=nrow(M_)))
         M_ <- matrix(M_[x_keep,], ncol=ncol(M_))        
         
+        # Identify all elementary pathways
         keep_pw <- pa_find_elementary_pw(matrix(M_[,rea_col], nrow=nrow(M_)))
 
-        # And replace old by new (rates + pathways)
+        # And replace old by new pathways
         M <- matrix(M_[keep_pw], ncol=ncol(M_))
     }
 
@@ -111,12 +122,27 @@ pa_decompose_plain <- function(N, pw_init , branch_sp) {
 
 
 
-# BLA 
-# TODO: documentation + test
+# Decomposes a pathway in its elementary components / finds the elementary components
+# inside a subset of a network defined by a pathway. This method calls 
+# "pa_decompose_plain" for a subset and transforms the result back. 
+#
+# parameters:
+# <N_orig>     - Stoichiometric matrix
+# <path_orig>  - Pathway that has to be further decomposed. No argument is needed
+#                if one wants to calculate all pathways of a (smaller) network.
+# <branch_all> - Use all specief for branching? If unset, only species that are 
+#                net created and net consumed AND that are not changed by 
+#                <path_orig> are used for branching.
+# <rnd_o>      - Branch at species in random order (or with decreasing turnover
+#                calculated with <path_orig> as steady state?
 
-pa_decompose <- function(N_orig, path_orig, branch_all=F, rnd_o=F) {
+pa_decompose <- function(N_orig, path_orig=c(), branch_all=F, rnd_o=F) {
+    # If <path_orig> isn't given take full subnetwork 
+    if(is.null(path_orig))
+        path_orig <- rep(1, ncol(N_orig))
+
     # calculate the reaction set for which decomposition is done
-    sel_rea <- which(path_orig != 0)
+    sel_rea <- path_orig != 0
 
     # Only species that are created and consumed by above reaction set are taken 
     # as branching species. 
@@ -146,19 +172,21 @@ pa_decompose <- function(N_orig, path_orig, branch_all=F, rnd_o=F) {
     else 
         ord <- order(turnover, decreasing=T)
 
-    x_M <- pa_decompose_plain(N, path_orig[sel_rea]*s, ord)
-
+    # Call pa_decompose_plain and extract reaction part
+    x_M <- pa_decompose_plain(N, ord)
     x_M <- matrix(x_M[,-(1:nrow(N))], nrow=nrow(x_M))
 
+    # handle resulting pathways individually
     for(i in 1:nrow(x_M)) {
         sk <- x_M[i,] != 0
+        # scale back (p ensures that coefficients are integer)
         p <- prod(s[sk])
         x_M[i,sk] <- x_M[i,sk]*p/s[sk]
+        # bring to minimal form
         sh <- vec_gcd(x_M[i,sk])
         if(sh!=1) 
             x_M[i,sk] <- x_M[i,sk] / sh
     }
- 
 
     # transform back to space with all reactions in it!
     M_ret <- matrix(0, nrow=nrow(x_M), ncol=ncol(N_orig))
@@ -168,21 +196,21 @@ pa_decompose <- function(N_orig, path_orig, branch_all=F, rnd_o=F) {
 }
 
 
-#
+# Function for initializing a pathway analysis object.
 #
 # parameters:
-# <net>             - the reaction network to decompose  
-# <rates>           - steady state rate of the network
-# <co_branch>       - cutoff parameter for branching (which pw "to combine")
-# <co_exp_rea>      - 
-# <co_exp_turnover> -
-# <prep>            - should network be prepared by remove reverse pairs and 
+# <net>             - Reaction network to decompose  
+# <rates>           - Steady state rate of the network
+# <co_branch>       - Cutoff parameter for branching (which pw "to combine")
+# <co_exp_rea>      - Cutoff parameter for explained fraction of reactions' rates
+# <co_exp_turnover> - Cutoff parameter for explained fraction os pecies' turnover
+# <prep>            - Should network be prepared by remove reverse pairs and 
 #                     add pseudo in- / outflow reactions
-# <decompose>       - 
-# <dump>            -
-# <decreasing>      -
+# <decompose>       - Decompose to elementary modes at each step 
+# <dump>            - Dump pathways instead of just marking them inactive
+# <decreasing>      - Order branching species with decreasing turnover (defaults to "F")
 
-pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover=0, prep=F, decompose=T, dump=T, decreasing=T) {
+pa_initialize <- function(net, rates, co_branch=0, co_exp_rea=0, co_exp_turnover=0, prep=F, decompose=T, dump=T, decreasing=F) {
     # if preparation is done here: remove reverse reactions and add pseudoreactions
     if(prep) {
         x <- jrnf_remove_reverse_pairs(net, rates)
@@ -294,7 +322,10 @@ pa_is_done <- function(obj) {
 # If no <i> parameter is driven the function takes the next planned species
 # of the pa-object.
 #
-# TODO exp_interact
+# TODO There might be an other interesting parameter for dumping pathways, 
+#      "exp_interact". Some code for this is included, but if one wants to
+#      explore it in detail some modifications have to be made (and maybe
+#      "pa_calculate_interaction" should be used).
 
 pa_step <- function(obj, i=c()) {
     gc()  # call garbage collector first because function needs a lot of memory
@@ -318,7 +349,9 @@ pa_step <- function(obj, i=c()) {
     net <- obj$parameters$net
 
     # Build a combined matrix of M, rate (coefficient), explained rate, explained 
-    # turnover,explained interaction and active flag,  
+    # turnover,explained interaction and active flag. The last colum is the 
+    # branching probability for newly combined pathways and is set to NA after
+    # it has been checked for the elementary property.
     M <- obj$pathways$M   
     rates <- obj$pathways$coefficient
     turnover <- obj$state$turnover_active   
@@ -330,9 +363,10 @@ pa_step <- function(obj, i=c()) {
                    matrix(obj$pathways$active_f, ncol=1),
                    matrix(NA, ncol=1, nrow=nrow(M)))
 
-    # APPLY calculations
-    # first combine all of sel_produce with all of sel_consume
+    # Function calculates combined pathway "x" in matrix form.
     gen_comb_pw <- function(x) {
+        # Index 'x' is mapped to production pathway 'k' and consumption
+        # pathway 'l'.
         k <- sel_produce[mat_lin_to_rowid(x, length(sel_produce), length(sel_consume))]
         l <- sel_consume[mat_lin_to_colid(x, length(sel_produce), length(sel_consume))] 
 
@@ -341,6 +375,7 @@ pa_step <- function(obj, i=c()) {
         con <- -M[l,i]   
         con_f_x_turnover <- con*rates[l]  
 
+        # combine pathways and reduce (divide by gcd)
         pw <- con*M[k,] + cre*M[l,]
         gcd_l <- vec_gcd(pw[nrow(N)+(1:ncol(N))])
         pw <- pw / gcd_l 
@@ -352,7 +387,7 @@ pa_step <- function(obj, i=c()) {
         return(matrix(c(pw, new_rate, NA, NA, NA, 1, branch_p), nrow=1))
     }
 
-     # Calculate explained rates, turnover and interaction for all
+    # Calculate explained rates, turnover and interaction for all
     # rows in which at least one of those is NA
     calculate_scores <- function(x) {
         exp_rates <- x[nrow(N)+ncol(N)+2]
@@ -407,11 +442,13 @@ pa_step <- function(obj, i=c()) {
         rt <- x[nrow(N)+1:ncol(N)]
         tmp <- pa_decompose(N, rt, rnd_o=T)
 
+        # if decomposition only returns one pathway it is obviously elementary
         if(nrow(tmp) <= 1) {        
             x[nrow(N)+ncol(N)+6] <- NA
             return(matrix(x, ncol=length(x)))
         }
 
+        # if not, a matrix of elementary pathways is returned
         return(cbind(t(N %*% t(tmp)), 
                      tmp,
                      matrix(NA, ncol=4, nrow=nrow(tmp)),
@@ -420,6 +457,7 @@ pa_step <- function(obj, i=c()) {
     }
 
 
+    # remove duplicates in pathway matrix (and add up rates on the way)
     rm_duprows <- function(M) {
         if(nrow(M) <= 1)
             return(M)
@@ -469,21 +507,8 @@ pa_step <- function(obj, i=c()) {
     }
 
 
-    # simple diagnostic function prints state of intermediate pathways (in X)
-    print_diag <- function(X) {
-        a_F <- sum(X[,nrow(N)+ncol(N)+5] > 0.5)
-        t_F <- nrow(X)
-        cat("having t_F=", t_F, " with a_F=", a_F, " active!\n")
-    }
-
-
-
-    # Parameters that should be considered: 
-    #  co_branch, co_exp_rea, co_exp_turnover
-    #  do_decompose, do_dump
-
-
-    # Quite extensive (diagnostics) TODO simplify when function is tested
+    # Quite extensive (diagnostics) 
+    # TODO might be simplified in future
     cat("working ", obj$parameters$net[[1]]$name[i], "(", length(obj$state$sp_done)+1, "/") 
     cat(length(obj$state$sp_planned)+length(obj$state$sp_done), ") - combining ", length(sel_produce))
     cat("x", length(sel_consume), "=",length(sel_produce)*length(sel_consume),  "pathways!\n")
@@ -493,27 +518,31 @@ pa_step <- function(obj, i=c()) {
     # Function is fundamentally different depending on whether there are actually 
     # pathways to combine or not. If not (especially if the species is only created
     # or only consumed these are simply dumped or dropped depending do_dump
-    # 
     if(length(sel_produce)*length(sel_consume) != 0) {
         # calculating branching probability (of fraction that is still exchanged)
 
         cat("A")
         # Create list of new (combined pathways)
         if(obj$parameters$co_branch > 0) {
+            # calculate normalized production (v_in) and consumtion (v_out) rate
             v_in <- abs(M_ext[sel_produce,i])*rates[sel_produce] 
             v_out <- abs(M_ext[sel_consume,i])*rates[sel_consume] 
             v_in <- v_in / sum(v_in)
             v_out <- v_out / sum(v_out)
 
+            # calculate those production and consumption pathways that are strongly
+            # connected (will be combined with all corresponding pathways)
             o_in <- order(v_in, decreasing=T)
             s_in <- which(cumsum(v_in[o_in]) > (1-obj$parameters$co_branch))[1]
             o_out <- order(v_out, decreasing=T)
             s_out <- which(cumsum(v_out[o_out]) > (1-obj$parameters$co_branch))[1]
 
+            # Mark pairs that will be combined in matrix "mb"
             mb <- matrix(F, nrow=length(v_in), ncol=length(v_out))
             mb[,o_out[1:s_out]] <- T
             mb[o_in[1:s_in],] <- T
 
+            # give console feedback and combine pathways
             cat("_", length(which(as.vector(mb))), "_")
             M_new <- do.call("rbind", lapply(which(as.vector(mb)), gen_comb_pw)) 
         } else {
@@ -546,7 +575,7 @@ pa_step <- function(obj, i=c()) {
         cat("-H")
         # Recalculate rates of decomposition from skratch
         act_id <- as.logical(M_ext[,ncol(N)+nrow(N)+5])
-        coef_new <- pa_calc_coefficients(M_ext[act_id,nrow(N)+1:ncol(N)], obj$parameters$rates, con_fb=F)
+        coef_new <- pa_calculate_coef(M_ext[act_id,nrow(N)+1:ncol(N)], obj$parameters$rates, con_fb=F)
         M_ext[act_id, nrow(N)+ncol(N)+1] <- coef_new$coef
         M_ext[act_id, nrow(N)+ncol(N)+2:5] <- NA
 
@@ -597,18 +626,19 @@ pa_step <- function(obj, i=c()) {
 }
 
 
-#
+# Function encapsulates the pathway computation / allows to compute reaction 
+# pathways with one function call.
 #
 # parameters:
 # <net>              - Reaction network
 # <rates>            - reaction network's steady state vector
-# <fexp>             -
-# <pmin>             -
+# <fexp>             - cutoff for explained fraction of rates / turnover
+# <pmin>             - cutoff for combination / branching of pathways
 # <do_decomposition> - Can be used to switch off intermediate decomposition to
 #                      elementary pathways.
 # <decreasing>       - Order intermediate species with decreasing turnover?
 
-pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, decreasing=T) {
+pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, decreasing=F) {
     # Initialize - Don't use explained turnover for cutoff (not implemented as of April 16)
     xx <- pa_initialize(net, rates, pmin, fexp, fexp, prep=F, decompose=do_decomposition, decreasing=decreasing)
 
@@ -616,7 +646,9 @@ pa_analysis <- function(net, rates, fexp=1e-2, pmin=1e-3, do_decomposition=T, de
     while(!pa_is_done(xx))
         xx <- pa_step(xx)
 
-    # Return list with active pathways as first element and coefficients as second 
-    return(list(xx$pathways$M[xx$pathways$active_f,-(1:nrow(net[[1]]))], xx$pathways$coefficients[xx$pathways$active_f], xx))
+    # Return list with active pathways as first element and coefficients as second.
+    # Additionally, the entire pathway analysis object is returned as third element.
+    return(list(xx$pathways$M[xx$pathways$active_f,-(1:nrow(net[[1]]))], 
+                xx$pathways$coefficients[xx$pathways$active_f], xx))
 } 
 

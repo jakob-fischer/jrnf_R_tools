@@ -111,7 +111,7 @@ pa_write_em_set <- function(filename, net, em, coef, exp_f=c(), N=100) {
 # <v>       - Steady state flux vector
 # <con_fb>  - Give console feedback on pathway / decomposition quality.
 
-pa_calc_coefficients <- function(M, v, con_fb=F) {
+pa_calculate_coef <- function(M, v, con_fb=F) {
     coef <- rep(0, nrow(M))
     v_rem <- v      # REMaining flux vector (not explained by pw + coef till now)
     v_active <- v_rem != 0                       # rates / reactions that are not saturated yet
