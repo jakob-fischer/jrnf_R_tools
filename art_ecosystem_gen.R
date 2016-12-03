@@ -5,7 +5,12 @@
 # photochemical reactions. The second part of this module allows to 
 # generate networks that consist of an "anorganic" part and various 
 # organisms that can be replaced separately. This allows to evolve these
-# systems (-> "simulation_builder_evol.R").
+# systems (-> "simulation_builder_evol.R"). 
+#    The general philosophy for artifical ecosystem generation here is to
+# first generate an elementary composition. Afterwards ALL legal reactions
+# with two or less educts and two or less products are determined and the
+# network is creating by drawing a subset. This limits the size of the 
+# networks that can be created to a size of around 50 species.
 
 sourced_art_ecosystem_gen <- T
 
@@ -179,16 +184,12 @@ jrnf_ae_draw_el_comp <- function(N, comp_no, max_tot=c(), max_single=c(),
 }
 
 
-#
-#
-#
+# Function reconstructs a composition object from the network <net> similar to 
+# the one returned from "jrnf_ae_draw_el_comp". Additionally a fourth element 
+# "elements" is added that contains the names of the elementary components.	
 
-jrnf_ae_reconstruct_comp <- function(names) {
-    if(is.list(names))
-        names <- names[[1]]$name
-
-    if("hv" == names[length(names)])
-        names <- names[-length(names)]
+jrnf_ae_reconstruct_comp <- function(net) {
+    names <- net[[1]]$name
 
     constituents <- c()
 
@@ -199,30 +200,32 @@ jrnf_ae_reconstruct_comp <- function(names) {
     }
 
     constituents <- sort(unique(constituents))
+    constituents <- constituents[constituents != "hv"]
 
     m <- matrix(0, ncol=length(constituents), nrow=length(names))
 
 
     # Now extract component's names again / including multiplicity
-    for(i in 1:length(names)) {
-        con <- strsplit(names[i], "[0-9]+")[[1]]
-        mul <- as.numeric(strsplit(names[i], "[A-Za-z]+")[[1]][-1])
+    for(i in 1:length(names)) 
+        if(names[i] != "hv") {
+            con <- strsplit(names[i], "[0-9]+")[[1]]
+            mul <- as.numeric(strsplit(names[i], "[A-Za-z]+")[[1]][-1])
 
-        if(length(con) != length(mul))
-            cat("error: length of con and mul have to match (jrnf_analyze_ecosystem_constituents)!\n")
+            if(length(con) != length(mul))
+                cat("error: length of con and mul have to match (jrnf_analyze_ecosystem_constituents)!\n")
 
-        for(j in 1:length(con)) {
-            sel <- which(constituents == con[j])
-            m[i,sel] <- mul[j]
+            for(j in 1:length(con)) {
+                sel <- which(constituents == con[j])
+                m[i,sel] <- mul[j]
+            }
         }
-    }
 
-    return(list(constituents, m))
+    return(list(composition=m, name=net[[1]]$name, energy=net[[1]]$energy, elements=constituents))
 } 
 
 
 # HELPER for jrnf_ae_create
-# Checks if a reaction is possible from elementary constituents
+# Checks if a reaction is possible in terms of elementary constituents.
 #
 # parameters:
 # <rea>    - Reaction (integer representation)
@@ -245,7 +248,7 @@ hcae_check_rea_constituents <- function(rea, comp) {
 
 
 # HELPER TO jrnf_ae_create
-# Check further conditions on reactions 
+# Check further conditions on reactions besides elementary constituents.
 #
 # parameters:
 # <rea>    - Reaction (integer representation)
@@ -307,7 +310,7 @@ hcae_check_rea_conditions <- function(rea, comp) {
 
 hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
         # rebuild transformation
-        trans <- b_mdim_transf(rep(nrow(comp)+1, 4))  
+        trans <- b_mdim_transf(rep(nrow(comp$composition)+1, 4))  
         M_ <- length(s_rea)   # shortcut
 
         # create lists for educts, educts multipliers, products, 
@@ -350,13 +353,13 @@ hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
         }
 
         # Now build network object. Fields for reaction constants are left zero.
-        species <- data.frame(type=as.integer(rep(0, nrow(comp))), 
+        species <- data.frame(type=as.integer(rep(0, nrow(comp$composition))), 
                               name=as.character(comp$name), 
                               energy=as.numeric(comp$energy),
-                              constant=as.logical(rep(F, nrow(comp))),
+                              constant=as.logical(rep(F, nrow(comp$composition))),
                               stringsAsFactors=FALSE)
 
-        species$constant[hv_id] <- T
+        species$constant[comp$name == "hv"] <- T
 
         reactions <- data.frame(reversible=as.logical(rep(T, M_)),
                                 c=as.numeric(rep(0, M_)), 
@@ -377,19 +380,16 @@ hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
 # <M> - total number of reactions
 # <no_2fold> - number of linear reactions
 # <no_hv> - number of photochemical reactions
-# <cat_as_lin> - flag that indicates whether catalytical reactions (A + C -> B + C)
-#                are treated identical to linear reactions in terms of duplicates 
-#                and in terms of the reactions of the different types that are drawn
-# <type_spec_dup> - duplicates are treated specific to the three types and not 
-#                   accross them
 # <comp> - number of elementary components the set of species has 
 #          (elementary composition is generated by jrnf_ae_draw_el_comp
 #          using standard parameters.) Alternatively one can give a composition
 #          created by jrnf_ae_draw_el_comp directly. Note that this method
 #          won't add a hv-pseudospecies then but it has to be included.
-# <allow_direct_backflow> - Makes it possible to forbid direct backflow if it would
-#                           be otherways possible. Direct backflow means a combination
-#                           of reactions like: hv + A -> B;  B -> A
+# <cat_as_lin> - flag that indicates whether catalytical reactions (A + C -> B + C)
+#                are treated identical to linear reactions in terms of duplicates 
+#                and in terms of the reactions of the different types that are drawn
+# <type_spec_dup> - duplicates are treated specific to the three types and not 
+#                   accross them
 # <rm_dup> - Remove duplicates. Only allow one reaction for each column in the 
 #            stoichiometric matrix. Influenced by <type_spec_dup> and <cat_as_lin>
 #
@@ -397,7 +397,7 @@ hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F, 
-                           type_spec_dup=F, allow_direct_backflow=F, rm_dup=T, AE_max=3) { 
+                           type_spec_dup=F, rm_dup=T, AE_max=3) { 
     hv_name <- "hv"
 
     # If no cmposition is given draw compostition (el. constituents) and energy of species
@@ -416,12 +416,12 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         N <- nrow(comp$composition)-1
 
     hv_id <- which(comp$name == hv_name)  # shortcut
-    # 
-    trans <- b_mdim_transf(rep(nrow(comp)+1, 4))   
+    # Create transformation object from integer to vector (each element 
+    # one reactant) representation.
+    trans <- b_mdim_transf(rep(nrow(comp$composition)+1, 4))   
 
-    #
+
     # SUBFUNCTIONS (access previously defined values)
-    #
 
     # Check if the reaction is valid
     is_rea_possible <- function(i) {
@@ -448,8 +448,7 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
 
     # Subfunction transforms a linear reaction id <v> into an effective change
     # of concentration. Change is normalized to first nonzero component being
-    # greater zero. If direct backflow is forbidden change of hv is set to zero
-    # (so backflow is a duplicate of "forward flow") 
+    # greater zero.  
     fval_to_stoichcol <- function(v) {
         v <- trans$from_linear(v)
         x <- matrix(0, ncol=N+1, nrow=1)
@@ -459,12 +458,12 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         if(v[4] != 1) x[v[4]-1] <- x[v[4]-1] + 1
         # unique representation - first nonzero entry has to be positive
         m <- which(x[1,] != 0)[1]
-
         if(x[1,m] < 0)
             x <- -x       
 
-        if(!allow_direct_backflow)
-            x[1,hv_id] <- 0
+        # Change of hv is set to zero (so backflow is a duplicate of 
+        # "forward flow" and "hv + A -> B" and "hv + B -> A" won't cooccur).
+         x[1,hv_id] <- 0
 
         return(x)
     }
@@ -479,10 +478,14 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         return(duplicated(t(sapply(xx, fval_to_stoichcol))))
     }
 
-    reactions <- which(sapply(1:((N+2)**4), is_rea_possible))
-    cat("found", length(reactions), "valid reactions!\n")
-    reactions <- s(reactions)
+    # SUBFUNCTIONS END
 
+   
+    # Check for all possible reaction if they are legal.
+    reactions <- which(sapply(1:((nrow(comp$composition)+1)**4), is_rea_possible))
+    cat("found", length(reactions), "valid reactions!\n")
+    # Permutate legal reactions
+    reactions <- s(reactions)
 
     if(!type_spec_dup && rm_dup) {
         reactions <- s(reactions)
@@ -491,28 +494,20 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         cat("after removing (effective) doubles, there are ", length(reactions), "valid reactions!\n")
     }
 
-    sel <- which(sapply(reactions, is_hv_rea))
-    if(length(sel) == 0) {
-        rea_hv <- c()
-    } else {
-        rea_hv <- reactions[sel]
-        reactions <- reactions[-sel]
-    }
+    # Separate photoreactions, linear and nonlinear reactions
+    sel <- sapply(reactions, is_hv_rea)
+    rea_hv <- reactions[sel]
+    reactions <- reactions[!sel]
 
     sel <- sapply(reactions, is_lin_rea)
-    if(length(sel) == 0) {
-        rea_lin <- c()
-        rea_nonl <- reactions
-    } else {
-        rea_lin <- reactions[sel]
-        rea_nonl <- reactions[!sel]
-    }
+    rea_lin <- reactions[sel]
+    rea_nonl <- reactions[!sel]
 
     cat(length(rea_hv), "photochemical,", length(rea_lin), "linear (no loops) and", 
         length(rea_nonl), "nonlinear reactions!\n")
 
     if(type_spec_dup && rm_dup) {
-        # first remove duplicates inside of the different types
+        # Remove duplicates inside of the different types
         rea_hv <- s(rea_hv)
         y <- dup(rea_hv)
         rea_hv <- rea_hv[!y]
@@ -524,46 +519,29 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         rea_nonl <- s(rea_nonl)
         y <- dup(rea_nonl)
         rea_nonl <- rea_nonl[!y]
-
-        if(!allow_direct_backflow) {
-            # combine linear and hv reactions and shuffle
-            #rea_lin_hv <- s(c(rea_lin, rea_hv))
-            rea_lin_hv <- s(c(rea_lin, rea_hv))
-            # identify duplicates to remove (x) and to keep (x_)
-            x <- dup(rea_lin_hv)
-            x_ <- rev(dup(rev(rea_lin_hv)))
-            # 
-            dp_rm <- rea_lin_hv[x]   # duplicates that are removed
-            dp_keep <- rea_lin_hv[x_]  # duplicates that are kept
-
-            rea_lin <- rea_lin[! rea_lin %in% dp_rm]
-            rea_hv_keep <- rea_hv[rea_hv %in% dp_keep]
-            rea_hv <- rea_hv[! (rea_hv %in% dp_rm | rea_hv %in% dp_keep)]
-
-            # similar as above / combine nonlinear with (undecided!) hv
-            rea_nonl_hv <- c(rea_hv_keep, s(c(rea_hv, rea_nonl)))
-            #cat("rea_nonl_hv=", rea_nonl_hv, "\n")
-            dp_rm_ <- rea_nonl_hv[dup(rea_nonl_hv)]
-
-            rea_nonl <- rea_nonl[! rea_nonl %in% dp_rm_]
-            rea_hv <- c(rea_hv_keep, rea_hv[! rea_hv %in% dp_rm_])
-        }
     
         cat("After removing type specific duplicates there are", length(rea_hv), 
             "photochemical,", length(rea_lin), "linear (no loops) and", 
             length(rea_nonl), "nonlinear reactions!\n")
     }
 
+    # Ensure number of linear reactions and photoreactions not to exceed the
+    # number of available (legal) reactions
     if(length(rea_lin) < no_2fold)
         no_2fold <- length(rea_lin)
 
     if(length(rea_hv) < no_hv)
         no_hv <- length(rea_hv)
 
-     rea_lin <- rea_lin[sample(length(rea_lin), no_2fold)]
-     rea_hv <- rea_hv[sample(length(rea_hv), no_hv)]
-     if(M-no_hv-no_2fold > 0 && M-no_hv-no_2fold < length(rea_nonl))
-         rea_nonl <- rea_nonl[sample(length(rea_nonl), M-no_hv-no_2fold)]
+    # Sample reactions for all three different types
+    rea_lin <- rea_lin[sample(length(rea_lin), no_2fold)]
+    rea_hv <- rea_hv[sample(length(rea_hv), no_hv)]
+    if(M-no_hv-no_2fold > 0 && M-no_hv-no_2fold < length(rea_nonl))
+        rea_nonl <- rea_nonl[sample(length(rea_nonl), M-no_hv-no_2fold)]
+
+    # This should not really happen, but ensure consistency....
+    if(M <= no_hv+no_2fold) 
+        rea_nonl <- c()
    
     # transform chosen reaction into jrnf network format, add composition and
     # return the compiled object
