@@ -161,6 +161,61 @@ graph_to_amatrix <- function(g) {
 }
 
 
+# Helper function that is given a (weighted) adjacency matrix <M_adj> and a number 
+# of modules <N_mod> (has to be divisor of species number) and then calculates a
+# modularity score.
+
+get_amatrix_mod <- function(M_adj, N_mod) { 
+    mod_size <- ncol(M_adj)/N_mod
+
+    # Accumulate weight inside modules
+    s <- 0.0
+    for(i in 1:N_mod) {
+        x <- (i-1)*mod_size+1:mod_size
+        s <- s + sum(M_adj[x,x])/(mod_size**2)
+    }
+
+    return(s/(sum(M_adj)/(nrow(M_adj)**2)))
+}
+
+
+# Find a modular reordering (for given module number) by trying a big amount
+# of random exchanges and testing if it improves modularity.
+#
+# parameters:
+# <M_adj> - Adjacency matrix (now + colum number must match and be a multiple of <N_mod>)
+# <N_mod> - Number of modules
+
+find_modular_reordering <- function(M_adj, N_mod) {
+    N <- ncol(M_adj)                     # number of species
+    o <- 1:N                             # current reordering
+    mod <- get_amatrix_mod(M_adj, N_mod) # modularity
+
+    # sample big number of pairs to exchange
+    r1 <- sample(N, N**2*10, replace=T) 
+    r2 <- sample(N, N**2*10, replace=T)
+   
+    for(i in 1:(N**2*10*4)) {
+      # calculate modified reordering <o_t>
+      o_t <- o
+      o_t[r2[i]] <- o[r1[i]]
+      o_t[r1[i]] <- o[r2[i]]  
+
+      # recalculate modularity for new reordering
+      mod_t <- get_amatrix_mod(M_adj[o_t,o_t], N_mod)
+      
+      # keep if modularity is improved
+      if(mod_t > mod) {
+          mod <- mod_t
+          o <- o_t
+          cat("-> ", mod, "\n")
+      }
+    }
+
+    return(o)
+}
+
+
 # Transfers between multidimensional (vector) coordinates and one dimensional
 # The function creates a list / object with two methods to transform in both
 # ways. Parameter <v> is a integer vector with every element containing the

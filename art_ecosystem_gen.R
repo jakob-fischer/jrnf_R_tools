@@ -1,6 +1,6 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-# Generation of artificial ecosystems. That are reaction networks with an 
+# Generation of artificial ecosystems. AE are reaction networks with an 
 # elementary composition of species that are driven thermodynamically by 
 # photochemical reactions. The second part of this module allows to 
 # generate networks that consist of an "anorganic" part and various 
@@ -17,32 +17,45 @@ if(!exists("sourced_jrnf_network"))
 # drawn from "rplancklike" distribution and standard chemical potentials are 
 # drawn from a gauß distribution. Except the chemical potential for "hv" 
 # which is either 50 or the maximum of all other chemical potentials + 5...
-# If no <flat_energies> (all zero) are drawn additionally the constraint that 
-# photoreactions increase the energy is preserved.
+#
+# parameters:
+# <net>           - Reaction network
+# <flat_energies> - Simple energies drawn? "0" for chemical pot. "1" for activation.
+# <limit_AE>      - Set an limit for activation energy. Either give "F" for "no limit",
+#                   "T" for limit "3" or a numeric value of the limit.
 
 jrnf_ae_draw_energies <- function(net, flat_energies=F, limit_AE=F) {
     lAE <- NA
     if(limit_AE) lAE <- 3
     if(is.numeric(limit_AE)) lAE <- limit_AE
 
-    net[[1]]$energy <- rnorm(nrow(net[[1]]))    
-    net[[2]]$activation <- rplancklike(nrow(net[[2]]), lAE)
-
+    # draw energies
     if(flat_energies) {
         net[[1]]$energy <- rep(0, nrow(net[[1]]))    
         net[[2]]$activation <- rep(1, nrow(net[[2]]))    
+    } else {
+        net[[1]]$energy <- rnorm(nrow(net[[1]]))    
+        net[[2]]$activation <- rplancklike(nrow(net[[2]]), lAE)
     }
   
+    # energy of hv is 50 + at least 5 higher than all other species
     if(any(net[[1]]$name == "hv"))
         net[[1]]$energy[net[[1]]$name == "hv"] <- max(50, max(net[[1]]$energy)+5)
 
     return(net)
 }
 
+# HELPER for jrnf_ae_extend_el_comp
+# Function creates names consistent with elementary constituents.
+#
+# parameters:
+# <comp>       - Composition vector (how much of each elementary component)
+# <el_names>   - Names of elementary components (same length than <comp>)
+# <ex_names>   - Vector of existing names
+# <empty_name> - Name for empty species (NO elementary components)
+# <prefix>     - Prefix that is put in front of the name
 
-# Helper to create names consistent with elementary constituents
-
-hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="") {
+hcae_create_name <- function(comp, el_names, ex_names, empty_name="X", prefix="") {
     name <- prefix
 
     # first build name
@@ -51,7 +64,7 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="")
     else 
         for(i in 1:length(comp))
             if(comp[i] != 0) 
-                name <- paste(name, c_names[i], comp[i], sep="")    
+                name <- paste(name, el_names[i], comp[i], sep="")    
 
 
     # second step - unify name (by appending "_2", "_3", ...
@@ -67,33 +80,21 @@ hcae_create_name <- function(comp, c_names, ex_names, empty_name="X", prefix="")
 }
 
 
-# Checks if a reaction is possible from elementary constituents
-
-hcae_check_rea_constituents <- function(rea, comp, N) {
-    comp <- comp$composition
-    # Returns composition of <i>th participant in reaction
-    get_c <- function(i) {
-        if(rea[i] == 1)
-            return(rep(0, ncol(comp)))
-        else
-            return(comp[rea[i]-1,])
-    }
-
-    # All components have to match (empty species rea[x] == 1) is mapped to
-    # zero of all components by the get_c-helper function
-    return(all(get_c(1)+get_c(2) == get_c(3)+get_c(4)))
-}
-
-
 # This function draws an elementary composition for <N> species that are build from
-# the number of elementary components in comp$components. Parameters is the maximal
-# allowed number of duplicates (<max_tot>), the maximum number of duplicates for a single
-# species (<max_single>), maximal stoichiometric coefficient (<max_stoich>) and the flag 
-# controlling massless species creation (<allow_massless>). The parameter <lambda> 
-# corresponds to this parameter in the poisson distribution from which stoichiometric
-# coefficents are sampled.
+# the number of elementary components in <comp$components>. 
+#
+# parameters:
+# <N>              - Number of species
+# <comp>           - Composition object (data.frame)
+# <max_tot>        - Maximal allowed number of duplicates
+# <max_singles>    - Maximum number of duplicates for a single species
+# <lambda>         - Parameter in the poisson distribution from which 
+#                    stoichiometric coefficents are sampled
+# <allow_massless> - Are massless species allowed
+# <max_stoich>     - Maximal stoichiometric coefficient
+# <sp_n_pre>       - Prefix for species names (see "hcae_create_name")
 
-hcae_extend_elem_composition <- function(N, comp, max_tot=c(), max_single=c(), 
+jrnf_ae_extend_el_comp <- function(N, comp, max_tot=c(), max_single=c(), 
                                          lambda=0.1, allow_massless=F, max_stoich=10, sp_n_pre="") {
     comp_no <- ncol(comp$composition)  # number of components derived by existing composition matrix
     N_new <- N + nrow(comp$composition)
@@ -170,172 +171,19 @@ hcae_extend_elem_composition <- function(N, comp, max_tot=c(), max_single=c(),
 # adding new species to an existing composition. All parameters are explained in
 # the corresponding function (above).
 
-hcae_draw_elem_composition <- function(N, comp_no, max_tot=c(), max_single=c(), 
+jrnf_ae_draw_el_comp <- function(N, comp_no, max_tot=c(), max_single=c(), 
                                          lambda=0.1, allow_massless=F, max_stoich=10) {
     comp <- list(composition=matrix(0, nrow=0, ncol=comp_no), name=c(), energy=c())
 
-    return(hcae_extend_elem_composition(N, comp, max_tot, max_single, lambda, allow_massless, max_stoich))
+    return(jrnf_ae_extend_el_comp(N, comp, max_tot, max_single, lambda, allow_massless, max_stoich))
 }
 
 
-# If reaction is valid (by composition) returns max mass transfer
+#
+#
+#
 
-hcae_calc_rea_transfer <- function(rea, comp, N) {
-    comp <- comp$composition
-    get_c <- function(i) {
-        if(rea[i] == 1)
-            return(rep(0, ncol(comp)))
-        else
-            return(comp[rea[i],])
-    }
-
-    # the components that are hv are set to zero / empty species first
-    for(i in 1:4)
-        if(rea[i] == N+2) 
-            rea[i] <- 1
-   
-    if(rea[1] != 1)
-        return(min(sum(abs(get_c(1) - get_c(3))), 
-                   sum(abs(get_c(1) - get_c(4)))))
-
-    if(rea[2] != 1)
-        return(min(sum(abs(get_c(2) - get_c(3))), 
-                   sum(abs(get_c(2) - get_c(4)))))
-
-    return(0)    
-}
-
-
-# Check further conditions on reactions 
-
-hcae_check_rea_conditions <- function(rea, N, comp) {
-    hv_id <- which(comp$name == "hv") + 1
-    empty_id <- 1
-
-    empty_ed  <- (rea[1] == empty_id) + (rea[2] == empty_id)
-    empty_pro  <- (rea[3] == empty_id) + (rea[4] == empty_id)
-
-    # Avoid double reactions (through reverse reaction)
-    if(rea[2] > rea[1] || rea[4] > rea[3] || rea[3] > rea[1])
-        return(F) 
-
-    hv_ed <- (rea[1] == hv_id) + (rea[2] == hv_id)
-    hv_pro <- (rea[3] == hv_id) + (rea[4] == hv_id)
-
-    # One side is completely empty
-    if(empty_ed == 2 || empty_pro == 2)
-        return(F)
-
-    # Reaction doesn't do anything  
-    if(rea[1] == rea[3] && rea[2] == rea[4] || rea[1] == rea[4] && rea[2] == rea[3])
-        return(F)
-
-
-    if(length(hv_id) != 1)  # If there are no photoreactions: can finish here
-        return(T)
-
-
-    # hv is on both sides  OR  one side only has hv
-    if(hv_ed+hv_pro > 1 || hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
-        return(F)
-
-
-    # Reaction has the form "hv + A -> A"
-    # (complicated - permutations because hv_id can be bigger or smaller than id(A))
-    if(rea[1] == hv_id && rea[2] == rea[3] && rea[4] == empty_id ||
-       rea[2] == hv_id && rea[1] == rea[3] && rea[4] == empty_id ||
-       rea[3] == hv_id && rea[4] == rea[1] && rea[2] == empty_id ||
-       rea[4] == hv_id && rea[3] == rea[1] && rea[2] == empty_id)
-        return(F)
-
-    # Exclude drawing "hv + A -> B" AND "hv + B -> A"
-    # 
-    # Question: should reactions like "hv + A -> B + C" be 
-    # forbidden if mu_A > mu_B + mu_C 
-    energy <- c(0, comp$energy)
-    energy[hv_id] <- 0
-    delta_energy <- sum(energy[c(rea[3], rea[4])], -energy[c(rea[1], rea[2])])
-
-    # iff no energy difference "linear" photochemical reactions are only allowed
-    # from lower to higher species id's - photochemical reactions with three 
-    # components are always allowed
-    if(delta_energy == 0) {
-        if(rea[1] == hv_id && rea[4] == empty_id && rea[2] >= rea[3] ||
-           rea[2] == hv_id && rea[4] == empty_id && rea[1] >= rea[3] ||
-           rea[3] == hv_id && rea[2] == empty_id && rea[4] >= rea[1] ||
-           rea[4] == hv_id && rea[2] == empty_id && rea[3] >= rea[1])
-            return(F)
-
-    # if energy decreases in forward direction the reaction is discarded if the
-    # photon occurs on the LHS (independently of the number of components)
-    } else if (delta_energy < 0) { 
-        if(rea[1] == hv_id || rea[2] == hv_id)
-            return(F)
-
-    # if energy increases in forward direction the reaction is discarded if the
-    # photon occurs on the RHS (independently of the number of components)
-    } else if (delta_energy > 0) {
-        if(rea[3] == hv_id || rea[4] == hv_id)
-            return(F)
-    }
-
-    return(T)
-}
-
-
-
-# Helper function that is given a (weighted) adjacency matrix and a number of modules
-# (has to be divisor of species number) and then tries to maximize the modularity
-# (weight of edges inside the modules) by randomly reordering the species ids.
-
-gmr_get_inner_density <- function(M_adj, N_mod) {
-    s <- 0
-    N <- ncol(M_adj)    
-    mod_size <- N/N_mod
-
-    for(i in 1:N_mod) {
-        x <- (i-1)*mod_size+1:mod_size
-        s <- s + sum(M_adj[x,x])/(mod_size**2)
-    }
-
-    return(s/N_mod)
-}
-
-
-jrnf_get_modular_reordering <- function(M_adj, N_mod) {
-    #
-    #
-
-
-
-    N <- ncol(M_adj)                    # number of species
-    o <- 1:N                            # current reordering
-    density <- sum(M_adj)/(N**2)        # density
-
-
-
-    r1 <- sample(N, N**2*10, replace=T) 
-    r2 <- sample(N, N**2*10, replace=T)
-   
-    for(i in 1:(N**2*10)) {
-      o_t <- o
-      o_t[r2[i]] <- o[r1[i]]
-      o_t[r1[i]] <- o[r2[i]]  
-
-      density_t <- gmr_get_inner_density(M_adj[o_t,o_t], N_mod)
-      
-      if(density_t > density) {
-          density <- density_t
-          o <- o_t
-          cat("-> ", density, "\n")
-      }
-    }
-
-    return(o)
-}
-
-
-jrnf_analyze_ecosystem_constituents <- function(names) {
+jrnf_ae_reconstruct_comp <- function(names) {
     if(is.list(names))
         names <- names[[1]]$name
 
@@ -373,6 +221,157 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 } 
 
 
+# HELPER for jrnf_ae_create
+# Checks if a reaction is possible from elementary constituents
+#
+# parameters:
+# <rea>    - Reaction (integer representation)
+# <comp>   - Components data frame
+
+hcae_check_rea_constituents <- function(rea, comp) {
+    comp <- comp$composition
+    # Returns composition of <i>th participant in reaction
+    get_c <- function(i) {
+        if(rea[i] == 1)
+            return(rep(0, ncol(comp)))
+        else
+            return(comp[rea[i]-1,])
+    }
+
+    # All components have to match (empty species rea[x] == 1) is mapped to
+    # zero of all components by the get_c-helper function
+    return(all(get_c(1)+get_c(2) == get_c(3)+get_c(4)))
+}
+
+
+# HELPER TO jrnf_ae_create
+# Check further conditions on reactions 
+#
+# parameters:
+# <rea>    - Reaction (integer representation)
+# <comp>   - Components data frame
+
+hcae_check_rea_conditions <- function(rea, comp) {
+    hv_id <- which(comp$name == "hv") + 1
+    empty_id <- 1
+
+    # how many of the eucts and products are empty
+    empty_ed  <- (rea[1] == empty_id) + (rea[2] == empty_id)
+    empty_pro  <- (rea[3] == empty_id) + (rea[4] == empty_id)
+
+    # Avoid double reactions (through reverse reaction)
+    if(rea[2] > rea[1] || rea[4] > rea[3] || rea[3] > rea[1])
+        return(F) 
+
+    hv_ed <- (rea[1] == hv_id) + (rea[2] == hv_id)
+    hv_pro <- (rea[3] == hv_id) + (rea[4] == hv_id)
+
+    # One side is completely empty
+    if(empty_ed == 2 || empty_pro == 2)
+        return(F)
+
+    # Reaction doesn't do anything  
+    if(rea[1] == rea[3] && rea[2] == rea[4] || rea[1] == rea[4] && rea[2] == rea[3])
+        return(F)
+
+
+    if(length(hv_id) != 1)  # If there are no photoreactions: can finish here
+        return(T)
+
+
+    # hv is on both sides  OR  one side only has hv
+    if(hv_ed+hv_pro > 1 || hv_ed+empty_ed > 1 || hv_pro+empty_pro > 1)
+        return(F)
+
+
+    # Reaction has the form "hv + A -> A"
+    # (complicated - permutations because hv_id can be bigger or smaller than id(A))
+    if(rea[1] == hv_id && rea[2] == rea[3] && rea[4] == empty_id ||
+       rea[2] == hv_id && rea[1] == rea[3] && rea[4] == empty_id ||
+       rea[3] == hv_id && rea[4] == rea[1] && rea[2] == empty_id ||
+       rea[4] == hv_id && rea[3] == rea[1] && rea[2] == empty_id)
+        return(F)
+
+    return(T)
+}
+
+
+# HELPER for jrnf_ae_create
+# This function receives a list of reactions representated as a vector of
+# integers <s_rea> and transforms it into an jrnf-network.
+#
+# parameters:
+# <s_rea>  - List of reactions (vector of integers)
+# <comp>   - Components data frame
+# <AE_max> - Maximum activation energy 
+
+hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
+        # rebuild transformation
+        trans <- b_mdim_transf(rep(nrow(comp)+1, 4))  
+        M_ <- length(s_rea)   # shortcut
+
+        # create lists for educts, educts multipliers, products, 
+        # products multipliers
+        e <- list()
+        em <- list()
+        p <- list()
+        pm <- list()
+
+        for(i in 1:M_) {
+            e_ <- c()
+            em_ <- c()
+            p_ <- c()
+            pm_ <- c()
+
+            x <- trans$from_linear(s_rea[i])
+            if(x[1] != 1) {
+                e_ <- c(e_, x[1]-1)
+                em_ <- c(em_, 1)
+            }
+
+            if(x[2] != 1) {
+                e_ <- c(e_, x[2]-1)
+                em_ <- c(em_, 1)
+            }
+
+            if(x[3] != 1) {
+                p_ <- c(p_, x[3]-1)
+                pm_ <- c(pm_, 1)
+            }
+
+            if(x[4] != 1) {
+                p_ <- c(p_, x[4]-1)
+                pm_ <- c(pm_, 1)
+            }
+            e[[i]] <- e_
+            em[[i]] <- em_
+            p[[i]] <- p_
+            pm[[i]] <- pm_
+        }
+
+        # Now build network object. Fields for reaction constants are left zero.
+        species <- data.frame(type=as.integer(rep(0, nrow(comp))), 
+                              name=as.character(comp$name), 
+                              energy=as.numeric(comp$energy),
+                              constant=as.logical(rep(F, nrow(comp))),
+                              stringsAsFactors=FALSE)
+
+        species$constant[hv_id] <- T
+
+        reactions <- data.frame(reversible=as.logical(rep(T, M_)),
+                                c=as.numeric(rep(0, M_)), 
+                                k=as.numeric(rep(0, M_)),
+                                k_b=as.numeric(rep(0,M_)), 
+                                activation=as.numeric(rplancklike(M_, AE_max)), 
+                                educts=I(e), educts_mul=I(em),
+                                products=I(p), products_mul=I(pm))
+
+        return(list(species, reactions))
+    }
+
+
+
+
 # Function creates an artificial ecosystem randomly 
 # <N> - number of species
 # <M> - total number of reactions
@@ -384,9 +383,9 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 # <type_spec_dup> - duplicates are treated specific to the three types and not 
 #                   accross them
 # <comp> - number of elementary components the set of species has 
-#          (elementary composition is generated by hcae_draw_elem_composition
+#          (elementary composition is generated by jrnf_ae_draw_el_comp
 #          using standard parameters.) Alternatively one can give a composition
-#          created by hcae_draw_elem_composition directly. Note that this method
+#          created by jrnf_ae_draw_el_comp directly. Note that this method
 #          won't add a hv-pseudospecies then but it has to be included.
 # <allow_direct_backflow> - Makes it possible to forbid direct backflow if it would
 #                           be otherways possible. Direct backflow means a combination
@@ -398,40 +397,40 @@ jrnf_analyze_ecosystem_constituents <- function(names) {
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F, 
-                           type_spec_dup=T, allow_direct_backflow=T, rm_dup=T, AE_max=3) { 
+                           type_spec_dup=F, allow_direct_backflow=F, rm_dup=T, AE_max=3) { 
     hv_name <- "hv"
 
-     if(is.numeric(comp)) {
-        # draw compostition (el. constituents) and energy of species
+    # If no cmposition is given draw compostition (el. constituents) and energy of species
+     if(is.numeric(comp)) {    
         cat("Drawing elementary composition")
-        comp <- hcae_draw_elem_composition(N, comp)
+        comp <- jrnf_ae_draw_el_comp(N, comp)
         cat(".\n")
 
         # Add species for photons / energy source
-        comp$composition <- rbind(comp$composition, matrix(0, nrow=1, ncol=ncol(comp$composition)))
+        comp$composition <- rbind(comp$composition, 
+                                  matrix(0, nrow=1, ncol=ncol(comp$composition)))
         comp$energy <- c(comp$energy, max(max(comp$energy)+5, 50))
         comp$name <- c(comp$name, hv_name) 
     } else 
+        # This assumes
         N <- nrow(comp$composition)-1
 
-    hv_id <- which(comp$name == hv_name)
-    trans <- b_mdim_transf(rep(N+2, 4))   
+    hv_id <- which(comp$name == hv_name)  # shortcut
+    # 
+    trans <- b_mdim_transf(rep(nrow(comp)+1, 4))   
 
-    composition <- comp$composition
-    energy <- comp$energy
-    name <- comp$name
+    #
+    # SUBFUNCTIONS (access previously defined values)
+    #
 
-    
+    # Check if the reaction is valid
     is_rea_possible <- function(i) {
         x <- trans$from_linear(i)
-
-        if(!hcae_check_rea_constituents(x, comp, N) ||
-           !hcae_check_rea_conditions(x, N, comp))
-            return(F)
-            
-        return(T)
+        return(hcae_check_rea_constituents(x, comp) &&
+               hcae_check_rea_conditions(x, comp))
     }
 
+    # Check <i> is photoreaction
     is_hv_rea <- function(i) {
         x <- trans$from_linear(i)
         return(any(x-1 == hv_id)) 
@@ -470,18 +469,15 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
         return(x)
     }
 
-    # Sample one element from x
+    # Randomly permutate x
     s <- function(x) {
         return(x[sample(length(x))])
     }
-
-    r <- rev
 
     # Find the duplicates (in terms of effective change of species) reactions
     dup <- function(xx) {
         return(duplicated(t(sapply(xx, fval_to_stoichcol))))
     }
-
 
     reactions <- which(sapply(1:((N+2)**4), is_rea_possible))
     cat("found", length(reactions), "valid reactions!\n")
@@ -535,7 +531,7 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
             rea_lin_hv <- s(c(rea_lin, rea_hv))
             # identify duplicates to remove (x) and to keep (x_)
             x <- dup(rea_lin_hv)
-            x_ <- r(dup(r(rea_lin_hv)))
+            x_ <- rev(dup(rev(rea_lin_hv)))
             # 
             dp_rm <- rea_lin_hv[x]   # duplicates that are removed
             dp_keep <- rea_lin_hv[x_]  # duplicates that are kept
@@ -568,77 +564,17 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=F,
      rea_hv <- rea_hv[sample(length(rea_hv), no_hv)]
      if(M-no_hv-no_2fold > 0 && M-no_hv-no_2fold < length(rea_nonl))
          rea_nonl <- rea_nonl[sample(length(rea_nonl), M-no_hv-no_2fold)]
-
-
-    possible_reas_to_jrnf <- function(s_rea) {
-        M_ <- length(s_rea)
-
-        # create network object and return it...
-        e <- list()
-        em <- list()
-        p <- list()
-        pm <- list()
-
-        for(i in 1:length(s_rea)) {
-            e_ <- c()
-            em_ <- c()
-            p_ <- c()
-            pm_ <- c()
-
-            x <- trans$from_linear(s_rea[i])
-            if(x[1] != 1) {
-                e_ <- c(e_, x[1]-1)
-                em_ <- c(em_, 1)
-            }
-
-            if(x[2] != 1) {
-                e_ <- c(e_, x[2]-1)
-                em_ <- c(em_, 1)
-            }
-
-            if(x[3] != 1) {
-                p_ <- c(p_, x[3]-1)
-                pm_ <- c(pm_, 1)
-            }
-
-            if(x[4] != 1) {
-                p_ <- c(p_, x[4]-1)
-                pm_ <- c(pm_, 1)
-            }
-            e[[i]] <- e_
-            em[[i]] <- em_
-            p[[i]] <- p_
-            pm[[i]] <- pm_
-        }
-
-        
-
-        species <- data.frame(type=as.integer(rep(0, N+1)), name=as.character(name), 
-                              energy=as.numeric(energy),
-                              constant=as.logical(rep(F, N+1)),
-                              stringsAsFactors=FALSE)
-
-        species$constant[hv_id] <- T
-
-        reactions <- data.frame(reversible=as.logical(rep(T, M_)),
-                                c=as.numeric(rep(0, M_)), 
-                                k=as.numeric(rep(0, M_)),
-                                k_b=as.numeric(rep(0,M_)), 
-                                activation=as.numeric(rplancklike(M_, AE_max)), 
-                                educts=I(e), educts_mul=I(em),
-                                products=I(p), products_mul=I(pm))
-
-        return(list(species, reactions))
-    }
    
-    net <- possible_reas_to_jrnf(c(rea_hv, rea_lin, rea_nonl))
+    # transform chosen reaction into jrnf network format, add composition and
+    # return the compiled object
+    net <- hcae_reas_to_jrnf(c(rea_hv, rea_lin, rea_nonl), comp, AE_max)
     net$composition <- comp$composition
     return(net)
 }
 
 
 #
-# CODE FOR GENERATING ARTIFICIAL ECOSYSTEMS THAT CAN BE EVOLVED
+# CODE FOR GENERATING EVOLVABLE ARTIFICIAL ECOSYSTEMS
 #
 
 # Function creates an anorganic core. In principle this corresponds to creating
@@ -698,7 +634,7 @@ jrnf_ae_add_organism <- function(net,
     # construct composition object for current net - and extend
     comp <- list(composition=net$composition, name=net[[1]]$name, energy=net[[1]]$energy)
     cc <- list(composition=matrix(comp$composition[i,], ncol=ncol(comp$composition)), name=comp$name[i], energy=comp$energy[i])
-    c <- hcae_extend_elem_composition(net$para$org$N, cc, 
+    c <- jrnf_ae_extend_el_comp(net$para$org$N, cc, 
                                       sp_n_pre=prefix_table[net$para$org$next_id])
 
     cat("extended composition (private part) contains ", nrow(c$composition) - nrow(cc$composition), "\n")
@@ -723,7 +659,7 @@ jrnf_ae_add_organism <- function(net,
 }
 
 
-# Function for removing the organism with id <id> 
+# Function for removing the organism with id <id>. 
 
 jrnf_ae_remove_organism <- function(net, id) {
     # first remove all associated reactions
