@@ -159,20 +159,22 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
 
 
 
-# 
+# Function calculates score for an individual results object of network evolution.
 #
-#
-# <net>        -
-# <result>     -
-# <eval_worst> -
-# <do_pw_ana>  -
+# <net>        - Network that was simulated
+# <result>     - Results object (returned from "sb_solve_ae_org")
+# <eval_worst> - Eval function (see above, "sb_eval_...")
+# <do_pw_ana>  - Do pathway analysis (not recommendet + not thorroghly tested)
 
 sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1]]$flux_org)), do_pw_ana=F) {
-    subsum <- function(a, b) {
-        max_b <- max(b)
-        x <- rep(0, max_b)
-        for(i in 1:max_b)
-            x[i] <- sum(a[b == i])
+    # Function takes some numeric vector <a> and an integer class vector <id> of
+    # same length. For all integer values 1 ... max(id) the sum of all associated
+    # entries in <a> is returned.
+    subsum <- function(a, id) {
+        max_id <- max(id)
+        x <- rep(0, max_id)
+        for(i in 1:max_id)
+            x[i] <- sum(a[id == i])
         return(x)
     }
 
@@ -181,15 +183,25 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     # and all effective in- and out-fluxes are transformed to elementary 
     # components and all of them are summed up.
     #
-    #
-    # 
+    # parameters:
+    # <N_rev>     - stoichiometric matrix
+    # <rates_rev> - reaction rates
+    # <re_assoc>  - association of reactions to different types / organisms
+    # <i_i>       - Ids of organisms for which the exchange flux will be 
+    #               calculated. Output is of same size (+ same order) as this
+    #               vector.
     subflux <- function(N_rev, rates_rev, re_assoc, i_i) {
         comp <- net$composition
-        comp[net[[1]]$name == "hv",1] <- 1
+        comp[net[[1]]$name == "hv",1] <- 1  # "hv" corresponds to one mass unit.
+                # If pseudo inflow reaction for "hv" is included in <N_rev> 
+                # photoreactions in the anorganic part doesn't lead to exchange,
+                # but photoreactions in organisms does.
         x <- c()
  
         for(i in i_i) {
+            # Exchange flux in terms of network species.
             dx <- abs(matrix(N_rev[,re_assoc == i], nrow=nrow(N_rev)) %*% rates_rev[re_assoc == i])
+            # Transform to elementary components and add up.
             x <- c(x, sum(t(comp) %*% dx))
         }
         return(x)
@@ -198,6 +210,7 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     # conclude pathway analysis
     hv_id <- which(net[[1]]$name == "hv")
 
+    # Extend network with hv-inflow-reaction and reverse reactions (if necessary).
     x <- pa_extend_net(net, result$flow$flow_effective, invwhich(hv_id, nrow(net[[1]])), T)
     net_ex <- x[[1]]
     rates_ex <- x[[2]]
@@ -205,28 +218,28 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     net_rev <- jrnf_reverse_reactions(net_ex, rates_ex)
     N_rev <- jrnf_calculate_stoich_mat(net_rev)
     rates_rev <- abs(rates_ex)
-    # TODO
-    # res_ana <- pa_analysis(net_rev, rates_rev, 0.001, 0.7)
 
+    # If active, calculate pathways and coefficient. Else, create empty objects.
     if(do_pw_ana) {
         res_ana <- pa_analysis(net_rev, rates_rev, 0.01, 0.7)
         a <- pa_calculate_coef(res_ana[[1]], rates_rev, T)
 
     } else {
-        res_ana <- list(1) # pa_analysis(net_rev, rates_rev, 0.01, 0.7)
-        a <- list(coef=0)  #pa_calculate_coef(res_ana[[1]], rates_rev, T)
+        res_ana <- list(1) 
+        a <- list(coef=0)  
     }
 
+    # Collect pathwar relevant data in one list / object.
     pathways <- list()
     pathways$net_ex <- net_ex
     pathways$rates_ex <- rates_ex
     pathways$em <- res_ana[[1]]
     pathways$em_coef <- a$coef
 
-    if(do_pw_ana) {
+    # Revert reaction directions that were reversed before calculating pathways.
+    if(do_pw_ana) 
         for(l in 1:nrow(pathways$em))
             pathways$em[l,] <- pathways$em[l,]*(sign(rates_ex))
-    }
 
     # for each organism calculate exchange fluxes
     # and calculate explained fraction of steady state 
@@ -238,8 +251,8 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     re_assoc_ex <- c(net$assoc$re, 0)
     rates$rates_tot <- sum(rates_rev)                            # total accumulated rate
     rates$rates_org <- subsum(rates_rev, re_assoc_ex)            # vector containing accumulated rate of all
-                                                                # reactions associated with different organisms
-    rates$rate_anorg <- rates$rates_tot - sum(rates$rates_org)  # accumulated rate of anorganic part
+                                                                 # reactions associated with different organisms
+    rates$rate_anorg <- rates$rates_tot - sum(rates$rates_org)   # accumulated rate of anorganic part
  
     # sum of fluxes (total, organisms, anorganic)
     rates$flux_anorg <- subflux(N_rev, rates_rev, re_assoc_ex, 0)
@@ -247,17 +260,15 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     rates$flux_tot <- sum(rates$flux_org) + rates$flux_anorg
     rates$flux_anorg_f <- rates$flux_anorg/rates$flux_tot
 
-    # fraction of rates (organisms) - in terms of total rates
+    # fraction of rates / fluxes (organisms) - in terms of total rates
     rates$rates_org_f <- rates$rates_org / rates$rates_tot
-    rates$flux_org_f <- rates$flux_org / rates$flux_tot   # fraction a organism has on total flux
-    rates$org_cycling_f <- rates$rates_org / rates$flux_org   # cycling ratio defined by ratio of rates by flux
-                     # Because thermodynamically rates has to be driven by fluxes a high fraction implies there
-                     # has to be a lot of cycling.
+    rates$flux_org_f <- rates$flux_org / rates$flux_tot     # fraction a organism has on total flux
+    rates$org_cycling_f <- rates$rates_org / rates$flux_org # cycling ratio defined by ratio of rates by flux
+             # Because thermodynamically rates has to be driven by fluxes a high fraction implies there
+             # has to be a lot of cycling.
 
-
-    # for each organism calculate mass (fraction)
-    # especially mass fraction in elementary components
-    # also especially that of the private part
+    # For each organism calculate mass (fraction). In this case this implicitly 
+    # means the mass fraction of the private part. 
     weight <- list()
     weight$con <- apply(result$concentration * net$composition, 1, sum)
     weight$total <- sum(weight$con)
@@ -266,7 +277,7 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     weight$org_f <- weight$org/weight$total
     weight$anorg_f <- weight$anorg / weight$total
 
-    # 
+    # Add calculated values / objects to <result$eval_...>
     result$eval_pathways <- pathways
     result$eval_weight <- weight
     result$eval_rates <- rates
@@ -325,13 +336,21 @@ sb_ae_evo_merge <- function(res_eval) {
 # of 
 #
 # parameters:
-# <net_ac> - anorganic network 
-# <no_o>   - number of organisms
-# <no_gen> - number of generations
+# <net_ac>     - anorganic network 
+# <no_o>       - number of organisms
+# <no_gen>     - number of generations
 # <eval_worst> - score function that i used by sb_ae_evo_score to evaluate which
-#              of the organisms can be dropped in the next simulation step. 
-#               (see above)
-# <param>  - parameters for simulation (solving the ODE)
+#                of the organisms can be dropped in the next simulation step. 
+# <no_eva>     - number of evaluations (simulations per generation)
+# <do_pw_ana>  - conclude pathway analysis while simulating (not recommended)
+# <param>      - Parameters for simulation (solving the ODE). If one does not
+#                want to use the standard parameter all of the following have
+#                to be set:
+# <param$con_a>   - Initial (before shuffling) concentration of anorganic species
+# <param$con_o>   - Initial concentration of organic species
+# <param$con_hv>  - Concentration of enegy / hv pseudospecies.
+# <param$Tmax>    - Time up to which the ODE / network is solved.
+# <param$wint>    - Number of times the ODE is writen to file while solving. 
 
 sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_ana=F,
                              param=list(con_a=10, con_o=1e-2, con_hv=10, Tmax=1e7, wint=50)) {
@@ -453,7 +472,7 @@ sb_evol_build_results <- function(res) {
                      od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
                      od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
                      od_cycling_f_mean=numeric())
-
+    # shortcuts
     net_l = res$net_list;
     res_l = res$res_list
     dyn = res$dyn_data
@@ -462,6 +481,9 @@ sb_evol_build_results <- function(res) {
     c <- param$con_a
 
     for(bp in 1:length(net_l)) {
+        # Generate entry in results object for each simulation of each generation.
+        # Because different simulations of same generations are done with same
+        # network they also have the same <Edraw> number.
         net <- net_l[[bp]]
         N <- jrnf_calculate_stoich_mat(net)
 
@@ -476,7 +498,9 @@ sb_evol_build_results <- function(res) {
 
             df <- rbind(df,
                         data.frame(Edraw=as.numeric(bp),Rdraw=as.numeric(i), 
-                                   v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.character(state_hash),
+                                   v=as.numeric(v), c=as.numeric(c), 
+                                   flow=as.numeric(xres$flow_b), 
+                                   state_hash=as.character(state_hash),
                                    relaxing_sim=as.logical(F), 
                                    err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                    ep_tot=as.numeric(sum(xres$flow$entropy_prod)), 
@@ -516,7 +540,8 @@ sb_get_anorganic_subnet <- function(net) {
     net[[1]] <- net[[1]][net$assoc$sp == 0,]
     net[[2]] <- net[[2]][net$assoc$re == 0,]
     net$para$org$next_id <- 1
-    net$composition <- matrix(net$composition[net$assoc$sp == 0,], ncol=ncol(net$composition))
+    net$composition <- matrix(net$composition[net$assoc$sp == 0,], 
+                              ncol=ncol(net$composition))
     net$assoc$sp <- net$assoc$sp[net$assoc$sp == 0]
     net$assoc$re <- net$assoc$re[net$assoc$re == 0]
 
@@ -524,22 +549,22 @@ sb_get_anorganic_subnet <- function(net) {
 }
 
 
-# Similar as above, function generate a results object for a network evolution 
+# Similar as above, function generates a results object for a network evolution 
 # (sb_ae_org_evolve) object. The results object is compatible with the results 
 # generated from sb_collect_results_ecol - this means als consecutive methods in 
-# simulation_builder_ecol.R can then be applied th the resulting object. But in 
-# comparison to above function, this one looks only at the anorganic core of
-# the network. As this is unchanged all the states are using the same network
+# simulation_builder_ecol.R can then be applied th the resulting object. In 
+# contrary to above function, this one looks only at the anorganic core of
+# the network. As this is unchanged, all the states are using the same network
 # (Edraw = constant). In this case the generation is implicitly contained in
 # Rdraw. (Not quite sure how to handle the case if one makes multiple simulations
 # / evaluations for the same generation, here. For starters just analyze the first
-# simulation.)
-#
-# 
-# TODO complete (copy and paste of sb_collect_results_ecol at the moment)
+# simulation.) 
+# The function saves the resulting object under "core/results.Rdata" relative
+# to the current path.
 
 sb_evol_build_results_core <- function(res) {
-    if(is.null(res$param)) # Old version without param / add standard values that were used
+    if(is.null(res$param)) # Old version without param / add standard values that 
+                           # were used back then.
         res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
@@ -553,6 +578,7 @@ sb_evol_build_results_core <- function(res) {
                      od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
                      od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
                      od_cycling_f_mean=numeric())
+    # shortcuts
     net_l = res$net_list;
     res_l = res$res_list
     dyn_l = res$dyn_data
@@ -565,7 +591,7 @@ sb_evol_build_results_core <- function(res) {
     sel_sp <- 1:nrow(N)
     sel_re <- 1:ncol(N)    
 
-
+    # Add row to results data frame for each simulation in each generation
     for(i in 1:length(res_l)) 
         for(xres in res_l[[i]]) {
 
@@ -574,11 +600,14 @@ sb_evol_build_results_core <- function(res) {
                 state_hash <- sb_v_to_hash_s(xres$flow$flow_effective[sel_sp], 1e-20)
                 con <- data.frame(con=xres$concentration[sel_sp])
 
-                xres$err_cc <- 0  # set zero as it is used to estimate error / calculate direction hash in em-analysis
+                xres$err_cc <- 0  # set zero as it is used to estimate error / calculate 
+                                  # direction hash in em-analysis
 
                 df <- rbind(df,
                              data.frame(Edraw=as.numeric(1),Rdraw=as.numeric(i), 
-                                        v=as.numeric(v), c=as.numeric(c), flow=as.numeric(xres$flow_b), state_hash=as.character(state_hash),
+                                        v=as.numeric(v), c=as.numeric(c), 
+                                        flow=as.numeric(xres$flow_b), 
+                                        state_hash=as.character(state_hash),
                                         relaxing_sim=as.logical(F), 
                                         err_cc=xres$err_cc, err_cc_rel=xres$err_cc_con,
                                         ep_tot=as.numeric(sum(xres$flow$entropy_prod[sel_re])), 
@@ -602,6 +631,7 @@ sb_evol_build_results_core <- function(res) {
              }
          }
 
+    # Write to common location in global environment and into subdirectory "core".
     results <<- df
     results <<- results[!duplicated(results$Rdraw),]
     results_nets <<- list(net_a)
