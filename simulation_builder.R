@@ -39,6 +39,12 @@ if(!exists("sourced_simulation_builder_evol"))
 
 sb_max_step_size <- 1e7
 
+# Constant that defines the local path to the integrator for odes "jrnf_int".
+# (program is available on github: https://github.com/jakob-fischer/jrnf_int)
+
+sb_odeint_path <- "~/apps/jrnf_int"
+
+
 # Given a steady state vector <v> and an error range <zero_range> the function
 # calculates a hash encoding the reaction directions of the steady state vector.
 # Sign of each reaction can be negative, positive or 
@@ -103,7 +109,6 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 }
 
 
-
 # Function reduces the results object (in the global environment) to those that 
 # are the last of their simulation (have "is_last" flag) and saves it in the 
 # current directory as "results_red.Rdata".
@@ -111,4 +116,83 @@ sb_lin_stab_analysis_ecol <- function(res_nets, res) {
 sb_reduce_last_save <- function() {
     results <<- results[results$is_last,]
     save(results, results_nets, file="results_red.Rdata")
+}
+
+
+# function calculates how contribution of different pathways to a steady state
+# changes for different rows in a results_em / results_em_cross object. 
+# Because an entire results object can contain data reffering to different 
+# network objects one has to subset the results first. This function takes
+# the subsetted results object, and selected network and elementary modes
+# objects. One can only consider a subset of all elementary modes by using the
+# parameter <sub_em>. In all cases the matrix for explained fraction is calculated
+# normalized by row as well as non-normalized.
+#
+# parameters:
+# <results> - subetted results object (Edraw has to be identical for all entries)
+# <net>     - associated network object
+# <em>      - associated matrix of elementary modes
+# <sub_em>  - optional, a boolean vector indicating a subset of elementary modes
+
+sb_calc_pw_cross <- function(results, net, em, sub_em=c()) {
+    if(is.null(sub_em))
+        sub_em <- rep(T, nrow(em))
+    x <- n <- r <- matrix(0, nrow(results), sum(sub_em))
+
+    
+    for(i in 1:nrow(results)) 
+        if(is.list(results$em_ex[[i]])) {
+            # calculate explained rate and coefficient for full set of pathways
+            exp_r <- rate <- rep(0, nrow(em))
+            exp_r[results$em_ex[[i]]$id] <- results$em_ex[[i]]$exp_r
+            rate[results$em_ex[[i]]$id] <- results$em_ex[[i]]$rate
+            # now take the relevant subset
+            x[i,] <- exp_r[sub_em]
+            n[i,] <- x[i,] / sum(x[i,])
+            r[i,] <- rate[sub_em]
+        } else {
+            x[i,] <- NA
+            n[i,] <- NA
+            r[i,] <- NA      
+        }    
+    return(list(x=x, x_norm=n, rates=r))
+}
+
+
+# This function calls sb_calc_pw_cross to calculate how contribution of different 
+# pathways to a steady state changes for different rows in a results_em / 
+# results_em_cross object. The difference of this function is that it subsets 
+# the results object and selects net and em...
+#
+# parameters:
+# <results> - results object 
+# <net>     - associated list of networks
+# <em>      - associated list of matrices of elementary modes
+# <i>       - Which network (Edraw) to analyze
+# <sub_em>  - optional, a boolean vector indicating a subset of elementary modes
+
+sb_calc_pw_cross_i <- function(results, results_net, em, i, sub_em=c()) {
+    sel <- results$Edraw == i
+    return(sb_calc_pw_cross(results[sel,] , results_net[[i]], em[[i]], sub_em))
+}
+
+
+# Given a matrix <m> that indicates contribution / explained fraction of different
+# elementary modes to different simulation runs, the function determines the <N>
+# most important elementary modes.
+
+sb_pw_cross_sub_N <- function(m, N) {
+    a <- apply(m, 2, function(x) max(x, na.rm=T))
+    return(head(order(a, decreasing=T), N))
+}
+
+
+# Given a matrix <m> that indicates contribution / explained fraction of different
+# elementary modes to different simulation runs, the function determines the most
+# important elementary nodes that have explained fraction higher than <f>.
+
+sb_pw_cross_sub_f <- function(m, f) {
+    a <- apply(m, 2, function(x) max(x, na.rm=T))
+    r <- which(a > f)
+    return(r)
 }
