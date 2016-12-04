@@ -1,6 +1,15 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-# TODO
+# Module for creating simulations of artificial ecosystems with a wide range of
+# parameters (different Energies, different driving force, different 
+# concentration). "Artificial ecosystems" reffers to artificial reaction network
+# that have no matter exchange with their environment but are drivent to a
+# steady state in thermodynamic disequilibrium by reactions similar to photo-
+# chemical reactions. This file contains code for generating network files
+# and initial concentrations (in the file system), preparing the call to the 
+# ode solver and methods for collecting the results. Code for evaluation allows
+# to automatically conclude a pathway analysis and can also be used for 
+# results of evoveled networks generated with simulation_builder_evol.R.
 
 sourced_simulation_builder_ecol <- T
 
@@ -23,16 +32,31 @@ sb_build_generator <- function(netfile) {
 # networks are generated and each assigned <N_energies> of energies. 
 #
 # parameters:
-# <netfile>     - path to network file
-# <bvalues>   - vector containing the boundary values 
-# <N_nets>      -
-# <N_energies>  - number of energy sets that are drawn for the network
-# <N_runs>      - number of runs done for every energy set + boundary value set
+# <path_s>        - Path to where simulation files will be put
+# <netgen>        - Function that generates a net (randomly) and returns it 
+# <bvalues>       - Vector containing the values for the driving force (hv-species) 
+# <N_nets>        - Number of nets that are generated using <netgen> function
+# <N_energies>    - Number of energy sets that are drawn for each the network
+# <N_runs>        - Number of simulations done for every network+energy set + 
+#                   boundary value set
+# <odeint_p>      - Path for ode integrator (jrnf_int)
+# <Tmax>          - Time units up to that the networks are simulated
+# <wint>          - Number of times between 0 and <Tmax> output is written to file
+# <flat_energies> - If set, one time (of <N_energies> times) the network is taken 
+#                   with trivial energies (mu = 0, EA = 1)
+# <write_log>     - Results are written logarithmically equidistant
+# <N_runs_eq>     - Number of times for each network + energies + concentration the
+#                   system is relaxed without driving force for reference.
+# <limit_AE>      - Maximum activation energy (is forwarded as parameter to 
+#                   "jrnf_ae_draw_energies").
 
 sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
-                              odeint_p="~/apps/jrnf_int", Tmax=10000, wint=50, 
-                              flat_energies=F, write_log=T, N_runs_eq=0, limit_AE=T) {
-    if(is.null(N_runs_eq)) N_runs_eq <- N_runs
+                              odeint_p=sb_odeint_path, Tmax=10000, wint=50, 
+                              flat_energies=F, write_log=T, N_runs_eq=c(), limit_AE=T) {
+    # 
+    if(is.null(N_runs_eq)) 
+        N_runs_eq <- N_runs
+
     Tmax_ <- Tmax
 
     if(Tmax > sb_max_step_size  && write_log)
@@ -46,6 +70,7 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
     if(length(path) > 0)
         setwd(paste(path, collapse="/"))
 
+    # 
     wlog_s <- "write_log"
     if(!write_log)
         wlog_s <- ""
@@ -192,13 +217,15 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
 # Function collects results of simulations defined by "sb_generator" after
 # simulation was done using the generated script ("run.sh"). Function has 
 # to be executed with working directory being the directory containing the
-# initial network file! Results are saved in data frame results which is
-# stored in the file "results.Rdata". This is the redone function that 
-# was done for including all intermediate state in the results object.
-# It's results objects are not compatible with the old format!
+# initial network file! Results are saved in data frame "results" and the list
+# "results_nets" which are stored in the file "results.Rdata". This is the 
+# redone function that was done for including all intermediate state in the 
+# results object. It's results objects are not compatible with the old format!
 #
-# TODO: add comments
-# TODO: check adaption
+# The parameter <col_dynamics> indicates if the dynamics of the simulation is
+# going to be analyzed. Then a entry / row in the results is created for EACH
+# time step that was written for the simulations. Else only the last entry is
+# collected.
 
 sb_collect_results_ecol <- function(col_dynamics=T) {
     save_wd <- getwd()   # just to be save
@@ -291,84 +318,27 @@ sb_collect_results_ecol <- function(col_dynamics=T) {
 }
 
 
-
-
-sb_h_calc_em_info <- function(net, v, em_matrix, ex_sp, em_cutoff=0) {
-    # first add pseudoreactions (with rates to balance change of exchanged species - ex_sp)
-    cdif_r <- jrnf_calculate_concentration_change(net, v)
-
-    i <- length(ex_sp)
-
-    net[[2]] <- rbind(net[[2]], data.frame(reversible=factor(rep(FALSE, i)), 
-                          c=as.numeric(rep(1, i)), k=as.numeric(rep(1, i)),
-                          k_b=as.numeric(rep(0, i)), activation=as.numeric(rep(0, i)),
-                          educts=I(rep(I(list(c())), i)), educts_mul=I(rep(I(list(c())), i)),
-                          products=I(as.list(ex_sp)), products_mul=I(rep(I(list(1)), i))))
-    v_ <- c(v, -cdif_r[ex_sp])
-
-
-    # now reverse all reactions with negative rates 
-    rates_rev <- abs(v_) 
-    net_rev <- jrnf_reverse_reactions(net, v_)
-
-    x <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T, cutoff=1e-4*max(abs(cdif_r)))
-    #x <- pa_analysis_A(net_rev, rates_rev, 0, 0, T) 
-
-    # rename results and sort decreasing with fraction of v explained...
-    x_em <- x[[1]]
-    x_rates <- x[[2]]
-    x_sum <- apply(x_em, 1, sum)
-    o <- order(x_rates*x_sum, decreasing=T)
-
-    x_em <- matrix(x_em[o,], nrow=nrow(x_em))
-    x_rates <- x_rates[o] 
-    x_sum <- x_sum[o]
-
-    
-    # construct vector containing fraction of rate explained by pathway (with rate)
-    df <- data.frame(id=rep(0, nrow(x_em)), rate=x_rates, 
-                     exp_r=rep(0, nrow(x_em)), exp_d=rep(0, nrow(x_em)))
-
-    for(l in 1:nrow(x_em)) {
-        # 
-        df$exp_r[l] <- sum(x_em[l,]*x_rates[l])/sum(rates_rev)
-        # Next line only works for hv driven system in steady state... TODO fix
-        df$exp_d[l] <- x_em[l,length(rates_rev)]*x_rates[l] / rates_rev[length(rates_rev)]
-
-        em <- x_em[l,1:ncol(em_matrix)]  # cut current elementary mode (to width of em_matrix) 
-        em <- em*(sign(v))   # transform to original network (net)
-
-        m <- which(apply(em_matrix, 1, identical, em))
-        if(length(m) == 0) {    # add em to em_matrix
-            em_matrix <- rbind(em_matrix, em)
-            df$id[l] <- nrow(em_matrix)
-        } else 
-            df$id[l] <- m[1]
-    }
-
-    df$exp_r_cum <- cumsum(df$exp_r)
-    df$exp_d_acc <- cumsum(df$exp_d)
-
-    # TODO pa_decompose (in contrary to pa_analysis) does not calculate errors
-    # (thus err_rel_max and err are NA    
-    return(list(em_ex=df, em_matrix=em_matrix, em_no=nrow(x_em), 
-                err_rel_max=NA, err=NA))
-}
-
-
-
 # Function conducts a broad elementary mode analysis for results object generated
-# from sb_collect_results function. All simulations were done with same network
-# and same boundary species but directions of reactions may differ. Thus the set
-# of elementary modes differs. But some elementary modes may be present in different
-# simulations. To track the change in occurence + rates of these modes / pathways
-# a global list / matrix is created. In this list coefficients of reactions in pathways are
+# from sb_collect_results function. All simulations with same <Edraw> / <res_nets> 
+# were done with same network and same boundary species but directions of 
+# reactions may differ. Thus the set of elementary modes differs. But some 
+# elementary modes may be present in different simulations. To track the change 
+# in occurence + rates of these modes / pathways a list (matrix) is created for
+# each network. In this matrices coefficients of reactions in pathways are
 # negative if the dynamic of the network in that the pathway was found favours the 
 # backward direction.
 #
-# TODO: check adaption
+# parameters:
+# <res_nets>   - results-nets object (list of networks)
+# <res>        - results object 
+# <c_max>      - Maximum cycle size for determining cycles
+# <do_precies> - Calculate ALL pathways (only recommended for VERY small networks)
+# <param>      - Parameters for pathway calculation (if do_precise == F)
+# <param$fext> - Cutoff for explained fraction of rates / turnover
+# <param$pmin> - Cutoff for combination / branching of pathways
+#                (see pa_analysis in "pathway_analysis.R" for details)
 
-sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list(fext=0.05, pmin=0.5)) {
+sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list(fext=0.05, pmin=0.5)) {
     # Elementary mode structure depends on network (res_nets) which can have different
     # sizes if multiple networks were drawn randomly. Thus there is a extended
     # (pseudoreactions added) network and a list of elementary modes for each network
@@ -442,8 +412,6 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list
 
     # helper function
     # calculating elementary modes
-    # TODO Extract all general functionality of this method to sb_h_calc_em_info
-    #      (or an other, better suited, general function)
     calc_em_info <- function(rev, mu, cutoff, i_net) {
         if(is.na(cutoff))
             cutoff <- 0
@@ -559,11 +527,16 @@ sb_em_analysis_ecol <- function(res, res_nets, c_max=4, do_precise=T, param=list
 
 #
 #
-# TODO the function has to be changed to the new convention. We expects a individual network
-#      for each Edraw in a list called <res_nets>
 #
 # deleted em_exp_r_cross because it is not compatible with having different networks data inside 
 # one results object (res_nets). One has to subset res_nets for a certain network / Edraw first.
+#
+# parameters:
+# <res_nets>  - results-nets object (list of networks)
+# <res>       - results object 
+# <res_em>    - List of elementary modes / pathway matrices (em_m)
+# <c_max>     - Maximum cycle size for determining cycles
+
 
 sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em, c_max=4) {
     em_der <- list()           # 
@@ -622,15 +595,18 @@ sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em, c_max=4) {
             res_em$em_con_ch_r[i] <- sum(r[(em_der[[i_net]]$Ex_s[id] != 0)])
         }
 
-    results=results_em_cross <- res_em
-    save(results_em_cross, em_der, file="results_em_cross.Rdata")
-    return(list(results_em_cross=results_em_cross, em_derive=em_der))
+    results_em_cross <- res_em
+    em_derive <- em_der
+    save(results_em_cross, em_derive, file="results_em_cross.Rdata")
+    return(list(results_em_cross=results_em_cross, em_derive=em_derive))
 }
 
 
 # 
 #
-#
+# parameters:
+# <res_nets>  - results-nets object (list of networks)
+# <res>       - results object 
 
 sb_cross_analysis_ecol <- function(res_nets, res) {
     N <- jrnf_calculate_stoich_mat(res_nets[[1]])
