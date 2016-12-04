@@ -1,14 +1,74 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-# TODO
+# Methods for evolving a reaction network consisting of an anorganic core and 
+# multiple organisms. Each time the network is simulated for a fixed time that
+# should allow it to reach steady state in most cases. Afterwards the 
+# different organisms are scored with a choosen score and the worst one is 
+# replaced with a new, randomly drawn organism (subnetwork).
 
 sourced_simulation_builder_evol <- T
 
+#   EVAL / FITNESS FUNCTIONS
+# A fitness function is necessary to determine what organisms are successful.
+# Its parameter is a list of results object (from "sb_solve_ae_org") for which
+# "sb_ae_evo_score" already has been called. The eval function is called for
+# the individual results (one element list) as well as all simulations of one
+# generation (if multiple runs are done). The return value is either the worst
+# organism (that will be deleted) or "NA" if none can be determined. Best 
+# practice is to check if results are converged ("x$converged_proper" / see below)
+# before using any results. One can use one of the fitness functions below or
+# write their own (and pass it to sb_ae_org_evolve).
 
-#  Function generates a set of initial conditions, prepares everything and calls the 
-#  solver for which the binary is located in "~/apps/jrnf_int". Temporary files are
-#  created and deleted in the current directory. The solver can be found on
-#  https://github.com/jakob-fischer/jrnf_int
+# build eval X - constructor for various eval functions
+# As most eval functions differ just in one term this functions gets a function
+# f as parameter that calculates the fitness of the organisms of one simulation.
+# <f> takes a results object for which sb_ae_evo_score has been called and that
+# is guaranteed to have converged.
+
+sb_build_eval <- function(f) {
+    sb_eval <- function (r) {
+        l = length(r[[1]]$eval_weight$org_f)
+        a = rep(NA, l) 
+     
+        # for all organisms calculate the maximum fitness over all simulations
+        for(x in r)
+            if(x$converged_proper)
+                a <- pmax(a, f(x), na.rm=T)
+
+        # if there was no simulation (value) for at least one organism return NA
+        if(any(is.na(a)))
+            return(NA)
+
+        # else return the least fit one
+        return(which.min(a))
+    }
+
+    return(sb_eval)
+}
+
+
+# EVAL FUNCTION: fitness by organism's mean fraction on the systems mass.
+
+sb_eval_weight <- sb_build_eval(function(x) x$eval_weight$org_f)
+
+
+# EVAL FUNCTION: fitness by organism's mean fraction on the systems mass times
+# its mean fraction on thes system's internal fluxes.
+
+sb_eval_weight_X_flux <- sb_build_eval(function(x) x$eval_weight$org_f*x$eval_rates$flux_org_f)
+
+
+# EVAL FUNCTION: fitness by organism's mean fraction on the systems mass times
+# its mean fraction on the system's reaction rates.
+
+sb_eval_weight_X_rates <- sb_build_eval(function(x) x$eval_weight$org_f*x$eval_rates$rates_org_f)
+
+
+
+# Function generates a set of initial conditions, prepares everything and calls the 
+# solver for which the binary is located in <sb_odeint_path> (see 
+# "simulation_builder.R". Temporary files are created and deleted in the current 
+# directory. The solver can be found on https://github.com/jakob-fischer/jrnf_int
 #
 # parameters:
 # <net>    - network containing information on association of species to organisms - inorganic part
@@ -22,16 +82,19 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     init <- rep(con_o, nrow(net[[1]]))
     init[net$assoc$sp == 0] <- con_a       # set concentration for anorganic part
     init[net[[1]]$name == "hv"] <- con_hv  # for hv / energy
-    N <- jrnf_calculate_stoich_mat(net)   # calculate stoich matrix 
-    N[net[[1]]$name == "hv",] <- 0        # and set row for "hv" to zero
+    N <- jrnf_calculate_stoich_mat(net)    # calculate stoich matrix 
+    N[net[[1]]$name == "hv",] <- 0         # and set row for "hv" to zero
 
     # shuffle concentrations by randomly applying different reactions to (almost) exhaustion
     s_sample <- sample(ncol(N), ncol(N)*3, replace=T)
     s_sign <- sample(c(-1,1), size=ncol(N)*3, replace=T)
     
+    # As <con_o> is normaly set around one thousandth of <con_a> it is taken as
+    # lower bound. All reactions (s_sample*s_sign) are applied until so far that
+    # no species has a concentration lower than <con_a>
     for(k in 1:length(s_sign)) {
         rea <- N[,s_sample[k]]*s_sign[k]
-        l <- min(-((init - con_o/100)/rea)[rea < 0])
+        l <- min(-((init - con_o)/rea)[rea < 0])
         init <- pmax(0, init + rea*l)
     }
 
@@ -41,20 +104,22 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     df[as.vector(net[[1]]$name)] <- init         
     write.csv(df, "X34tmp_ini.con", row.names=FALSE)
 
-    # call the c++-program that solves the ode
+    # call the c++-program (through shell) that solves the ode
     call_cmd <- function(cmd) {
         cat("CMD: ", cmd, "\n")
         system(cmd)
-
     }
 
-    odeint_p <- "~/apps/jrnf_int"
+    # strings with parameters for ode solver
+    sim_log_s <- " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint="
+    sim_lin_s <- " simulate solve_implicit net=X34tmp_net.jrnf con=X34tmp_ini.con wint="
+
     # first make 5 small linear steps and then <wint> logarithmic spaced steps
-    call_cmd(paste(odeint_p, " simulate solve_implicit  net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(5), " Tmax=", as.character(1e-8), sep=""))
-    call_cmd(paste(odeint_p, " simulate solve_implicit write_log net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(wint), " Tmax=", as.character(min(Tmax, 1e7)), sep="")) 
-    # after 1e7 do linear steps 
+    call_cmd(paste(sb_odeint_path, sim_lin_s, as.character(5), " Tmax=", as.character(1e-8), sep=""))
+    call_cmd(paste(sb_odeint_path, sim_log_s, as.character(wint), " Tmax=", as.character(min(Tmax, 1e7)), sep="")) 
+    # after 1e7 do linear steps not bigger than 1e7 if necessary
     if(Tmax > 1e7)
-        call_cmd(paste(odeint_p, " simulate solve_implicit net=X34tmp_net.jrnf con=X34tmp_ini.con wint=", as.character(as.integer(Tmax/1e7)), " Tmax=", as.character(Tmax), sep=""))
+        call_cmd(paste(sb_odeint_path, sim_lin_s, as.character(as.integer(Tmax/1e7)), " Tmax=", as.character(Tmax), sep=""))
 
     # load the dynamics / final concentrations / rates
     run <- read.csv("X34tmp_ini.con")
@@ -69,6 +134,7 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     con <- as.numeric(as.matrix(run)[nrow(run), -(1:2)])
     flow <- jrnf_calculate_flow(jrnf_calculate_rconst(net), con)
     cc <- jrnf_calculate_concentration_change(net, flow$flow_effective)
+
     # To estimate the error / closenes to steady state the change of 
     # concentration is calculated with the last rate vector. As hv is kept 
     # constant its concentration change is through "missing" inflow reactions
@@ -79,10 +145,13 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
     err_cc[net[[1]]$name == "hv"] <- 0
     err_cc_con <- abs(cc) / con
     err_cc_con[net[[1]]$name == "hv"] <- 0   
-    # relative error concentration change scaled by maximal effective reaction rate
+
+    # Relative error concentration change scaled by maximal effective reaction rate
     err_cc_flow <- abs(cc) / max(flow$flow_effective)
     err_cc_flow[net[[1]]$name == "hv"] <- 0
 
+    # Create and return results object / for being considered as converged the 
+    # relative error estimated through concentration change has to be below 0.1.
     return(list(concentration=con, flow=flow, err_cc=max(err_cc), err_cc_con=max(err_cc_con), 
                 err_cc_flow=max(err_cc_flow), flow_b=flow_b, 
                 converged_proper=as.logical(max(err_cc_con) < 0.1), msd=msd, time=time))
@@ -93,9 +162,12 @@ sb_solve_ae_org <- function(net, con_a, con_o, con_hv, Tmax, wint) {
 # 
 #
 #
-#
+# <net>        -
+# <result>     -
+# <eval_worst> -
+# <do_pw_ana>  -
 
-sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1]]$flux_org)), do_pw_ana=T) {
+sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1]]$flux_org)), do_pw_ana=F) {
     subsum <- function(a, b) {
         max_b <- max(b)
         x <- rep(0, max_b)
@@ -207,14 +279,12 @@ sb_ae_evo_score <- function(net, result, eval_worst=(function (r) which.min(r[[1
     cat(" worst is organism with id ", result$eval_worst_id, "\n")
     cat("-----------------------------------------------------------\n")
 
-
     return(result)
 }
 
 
-# helper function tha merges a list of results and calculates all interesting
-# parameters for directly observing the parameters.
-#
+# Helper function tha merges a list of results and calculates all interesting
+# parameters for directly observing the parameters of this generation.
 
 sb_ae_evo_merge <- function(res_eval) {
     converged_proper <- c()
@@ -258,14 +328,13 @@ sb_ae_evo_merge <- function(res_eval) {
 # <net_ac> - anorganic network 
 # <no_o>   - number of organisms
 # <no_gen> - number of generations
-# <eval_worst>  
-#          - score function that i used by sb_ae_evo_score to evaluate which
-#            of the organisms can be dropped in the next simulation step. 
-#            (see above)
+# <eval_worst> - score function that i used by sb_ae_evo_score to evaluate which
+#              of the organisms can be dropped in the next simulation step. 
+#               (see above)
 # <param>  - parameters for simulation (solving the ODE)
 
-sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_ana=T,
-                             param=list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)) {
+sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_ana=F,
+                             param=list(con_a=10, con_o=1e-2, con_hv=10, Tmax=1e7, wint=50)) {
     # Submethod calling <sb_solve_ae_org> to calculate initial conditions and
     # simulate the differential equation. The parameters are hardcoded now 
     # but that might be changed later. 
@@ -309,11 +378,6 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
  
         ext <- jrnf_ae_add_organism(ext)   # add one additional organism
 
-        if(nrow(ext[[2]]) != length(ext$assoc$re)) {
-            cat("BAD LENGTH MISMATCH in ASSOC RE (AA):\n")
-            return(ext)
-        }
-
         res <- list()
         res_eval <- list()
 
@@ -323,8 +387,10 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
             cat("EVALUATED!\n")
         }
 
+        # Merge / collect information for dynamics
         x <- sb_ae_evo_merge(res_eval) 
 
+        # Save old worst organism and determine new worst
         old_worst <- dyn$worst_id[length(dyn$worst_id)]
         if(is.null(old_worst))
             old_worst <- 1      
@@ -333,6 +399,7 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
         if(is.na(new_worst))
             new_worst <- old_worst
 
+        # Extend the dynamical information 
         dyn$worst_id <- c(dyn$worst_id, new_worst)
         dyn$innovated <- c(dyn$innovated, new_worst != old_worst)
         dyn$converged_proper <- c(dyn$converged_proper, x$converged_proper)
@@ -353,13 +420,9 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
 
         # kill off worst organism
         ext <- jrnf_ae_remove_organism(ext, dyn$worst_id[length(dyn$worst_id)])
-
-        if(nrow(ext[[2]]) != length(ext$assoc$re)) {
-            cat("BAD LENGTH MISMATCH in ASSOC RE (BB):\n")
-            return(ext)
-        }
     } 
 
+    # First generation is marked as innovated because it is interesting in itself.
     dyn$innovated[1] = T
 
     return(list(net_list=net_list, res_list=res_list, dyn_data=dyn, param=param))
@@ -377,7 +440,7 @@ sb_ae_org_evolve <- function(net_ac, no_o, no_gen, eval_worst, no_eva=1, do_pw_a
 
 sb_evol_build_results <- function(res) {
     if(is.null(res$param)) # Old version without param / add standard values that were used
-        res$param <- list(con_a=10, con_o=1e-3, con_hv=10, Tmax=1e7, wint=50)
+        res$param <- list(con_a=10, con_o=1e-2, con_hv=10, Tmax=1e7, wint=50)
 
     df <- data.frame(Edraw=numeric(), Rdraw=numeric(), c=numeric(), v=numeric(), 
                      flow=numeric(), ep_max=numeric(), state_hash=character(), sp_df=I(list()), 
@@ -447,7 +510,7 @@ sb_evol_build_results <- function(res) {
 
 # Function extracts the anorganic subnet identified by assoc$re and assoc$sp.
 # This is nontrivial because the function maintains all the metainformation
-# and updates it. 
+# and updates it correctly. 
 
 sb_get_anorganic_subnet <- function(net) {
     net[[1]] <- net[[1]][net$assoc$sp == 0,]
@@ -472,6 +535,7 @@ sb_get_anorganic_subnet <- function(net) {
 # / evaluations for the same generation, here. For starters just analyze the first
 # simulation.)
 #
+# 
 # TODO complete (copy and paste of sb_collect_results_ecol at the moment)
 
 sb_evol_build_results_core <- function(res) {
@@ -504,8 +568,6 @@ sb_evol_build_results_core <- function(res) {
 
     for(i in 1:length(res_l)) 
         for(xres in res_l[[i]]) {
-           # cat("xres$eval_worst_id=", xres$eval_worst_id, "\n")
-           # cat("dyn_l$worst_id[i]= ", dyn_l$worst_id[i], "\n")
 
             if(!is.na(xres$eval_worst_id) && xres$eval_worst_id == dyn_l$worst_id[i]) {
                 cat("v=", v, "c=", c, "Edraw=", 1, "Rdraw=", i, "\n")
