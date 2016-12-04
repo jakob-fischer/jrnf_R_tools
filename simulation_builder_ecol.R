@@ -533,12 +533,12 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
 #
 # parameters:
 # <res_nets>  - results-nets object (list of networks)
-# <res>       - results object 
-# <res_em>    - List of elementary modes / pathway matrices (em_m)
+# <res_em>    - results object (results_em) 
+# <em_m>      - List of elementary modes / pathway matrices (em_m)
 # <c_max>     - Maximum cycle size for determining cycles
 
 
-sb_em_cross_analysis_ecol <- function(res_nets, em_m, res_em, c_max=4) {
+sb_em_cross_analysis_ecol <- function(res_nets, res_em, em_m, c_max=4) {
     em_der <- list()           # 
 
     for(i in 1:length(res_nets)) {
