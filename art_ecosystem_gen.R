@@ -403,7 +403,7 @@ hcae_reas_to_jrnf <- function(s_rea, comp, AE_max) {
 #      (<comp>) <N> is set minus one of the number of species in this composition.
 
 jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=T, 
-                           type_spec_dup=F, rm_dup=T, AE_max=3) { 
+                           type_spec_dup=T, rm_dup=T, AE_max=3) { 
     hv_name <- "hv"
 
     # If no composition is given draw compostition (el. constituents) and energy of species
