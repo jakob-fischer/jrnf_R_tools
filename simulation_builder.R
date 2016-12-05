@@ -119,12 +119,12 @@ sb_reduce_last_save <- function() {
 }
 
 
-# function calculates how contribution of different pathways to a steady state
+# Function calculates how contribution of different pathways to a steady state
 # changes for different rows in a results_em / results_em_cross object. 
 # Because an entire results object can contain data reffering to different 
 # network objects one has to subset the results first. This function takes
 # the subsetted results object, and selected network and elementary modes
-# objects. One can only consider a subset of all elementary modes by using the
+# objects. One can consider a subset of all elementary modes by using the
 # parameter <sub_em>. In all cases the matrix for explained fraction is calculated
 # normalized by row as well as non-normalized.
 #
