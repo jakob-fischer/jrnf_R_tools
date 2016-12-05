@@ -53,12 +53,11 @@ sb_build_generator <- function(netfile) {
 sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_energies, N_runs, 
                               odeint_p=sb_odeint_path, Tmax=10000, wint=50, 
                               flat_energies=F, write_log=T, N_runs_eq=c(), limit_AE=T) {
-    # 
+    # Standard value for equilibrium runs is the same as the normal runs
     if(is.null(N_runs_eq)) 
         N_runs_eq <- N_runs
 
     Tmax_ <- Tmax
-
     if(Tmax > sb_max_step_size  && write_log)
         Tmax_ = sb_max_step_size 
 
@@ -344,54 +343,57 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
     # (pseudoreactions added) network and a list of elementary modes for each network
     # in res_nets.
 
-    net_ext <- list()
-    em_matrix <- list()
-    ex_state_hashes <- list()
-    N_sp <- c()
-    N_re <- c()
+    net_ext <- list()          # list of networks extended by in- / outflow reactions
+    em_matrix <- list()        # list of pathway matrices for each extended network
+    ex_state_hashes <- list()  # list of vectors of already handled states' hashes
 
     for(net in res_nets) {
         net_x <- pa_extend_net(net, rep(0,nrow(net[[2]])), 0, T)[[1]]
         net_ext[[length(net_ext)+1]] <- net_x 
         em_matrix[[length(em_matrix)+1]] <- matrix(0, ncol=nrow(net_x[[2]]), nrow=0)
         ex_state_hashes[[length(ex_state_hashes)+1]] <- character()
-        N_sp <- c(N_sp, nrow(net[[1]]))
-        N_re <- c(N_sp, nrow(net[[1]]))
     }
     
-    # list of data frames for species specific, reaction specific and elementary mode expansion data
+    # List of data frames for species specific, reaction specific and elementary 
+    # mode expansion data
     sp <- res$sp_df
     re <- res$re_df
     em_ex <- list()
 
-    # 
+    # Number of cycles of different length
     C_matrix <- matrix(0, ncol=c_max, nrow=nrow(res))
+    # Total number of cycles
     C_sum <- rep(0, nrow(res))
-    sh_p <- rep(0, nrow(res))
-    sh_p_d <- rep(0, nrow(res))
+    # Entropy production in linear reactions
     ep_l <- rep(0,nrow(res))
+    # Entropy production in nonlinear reactions
     ep_nl <- rep(0,nrow(res))
+    # Error of pathway decomposition
     err_rel_max <- rep(0,nrow(res))
     err <- rep(0,nrow(res))
     em_no <- rep(0, nrow(res))
 
  
-    # helper function one, 
+    # Helper function which takes steady state vector <rev>, a <cutoff> and an id 
+    # of a network <i_net> to determine through a hash if this state was already 
+    # seen. If not, pathways are calculated and collected for this steady state. 
     add_em <- function(rev, cutoff, i_net) {
         if(is.na(cutoff))
             cutoff <- 0
-        #print(res_nets[[i_net]])
+
         cat("length(ex_state_hashes)= ", length(ex_state_hashes[[i_net]]), "\n")
 
+        # create and hash steady state for extended network net_ext[[x]]
         r_ext <- c(rev, jrnf_calculate_concentration_change(res_nets[[i_net]], rev))    
         x_hash <- sb_v_to_hash_s(r_ext, cutoff) 
         if(!(x_hash %in% ex_state_hashes[[i_net]])) {
             cat("added hash: ", x_hash, "\n")
             ex_state_hashes[[i_net]] <<- c(ex_state_hashes[[i_net]], x_hash)
-
+            # Pathway decomposition is done with all rates positive
             net_rev <- jrnf_reverse_reactions(net_ext[[i_net]], r_ext)
             rates_rev <- abs(r_ext)        
 
+            # Calculate pathways
             if(do_precise)
                 x_em <- pa_decompose(jrnf_calculate_stoich_mat(net_rev), rates_rev, branch_all=T)
             else
@@ -399,59 +401,64 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
              
             for(l in 1:nrow(x_em))
                 x_em[l,] <- x_em[l,]*(sign(r_ext))
-                
+              
+            # Add found pathways to existing ones for this network... 
             em_matrix[[i_net]] <<- rbind(em_matrix[[i_net]], x_em)
 
+            # ... and remove duplicates
             x_keep <- !duplicated(matrix(em_matrix[[i_net]],nrow=nrow(em_matrix[[i_net]])))
             em_matrix[[i_net]] <<- matrix(em_matrix[[i_net]][x_keep,], ncol=ncol(em_matrix[[i_net]]))   
         }
     }
-    
 
+    # Helper function that calculates the pathway decomposition specific data 
+    # frames using the previously calculated pathways.
+    # 
+    # parameters:
+    # <rev>   - Steady state vector (without exchange reactions)
+    # <mu>    - Chemical potential vector 
+    # <i_net> - Id of the respective network
+    #
+    # TODO maybe calculate score only from non-pseudo reactions?
 
-
-    # helper function
-    # calculating elementary modes
-    calc_em_info <- function(rev, mu, cutoff, i_net) {
-        if(is.na(cutoff))
-            cutoff <- 0
+    calc_em_info <- function(rev, mu, i_net) {
+        # Calculate state vector that is compatible with extended network net_ext[[i]]
         r_ext <- c(rev, jrnf_calculate_concentration_change(res_nets[[i_net]], rev))    
-
-        net_rev <- jrnf_reverse_reactions(res_nets[[i_net]], r_ext)
         rates_rev <- abs(r_ext)  
-        
-        M <- em_matrix[[i_net]]
 
+        M <- em_matrix[[i_net]]    # shortcut
+
+        # Find compatible pathways
         comp_em <- !as.logical((M > 0) %*% (r_ext < 0) | (M < 0) %*% (r_ext > 0))
           
+        # Build subset of pathways and map to positive coefficients
         abs_M_comp <- abs(matrix(M[comp_em,], ncol=ncol(M)))
+        # calculate coefficients
         x <- pa_calculate_coef(abs_M_comp, rates_rev, F)   
         coef <- x$coef
-        err_rel_max[i] <<- x$score_b   # TODO maybe calculate score only from non-pseudo reactions?
+        err_rel_max[i] <<- x$score_b   # quality of pathway decomposition  
 
+        # Order pathways with decreasing explained fractions
         abs_sum <- apply(matrix(abs_M_comp[,1:length(rev)], nrow=nrow(abs_M_comp)), 1, sum)
         o <- order(coef*abs_sum, decreasing=T)
 
-        em_id <- which(comp_em)[o]
+        # Calculate explained fraction (only considering reactions of original net)
         exp_r <- (coef*abs_sum)[o]/sum(rates_rev[1:length(rev)])
  
-        #     
-        sp_dis <- abs(t(jrnf_calculate_stoich_mat(net_rev)) %*% mu)
-        pw_dis <- abs_M_comp[,1:nrow(sp_dis)] %*% sp_dis
-        exp_d <- (coef*pw_dis)[o]/sum(coef*pw_dis)
+        # calculate dissipation through coefficient of hv inflow reaction
+        id_hv_ex_rea <- nrow(res_nets[[i_net]][[2]])+which(res_nets[[i_net]][[1]]$name == "hv")
+        exp_d <- (coef*abs_M_comp[,id_hv_ex_rea])[o]/sum(coef*abs_M_comp[,id_hv_ex_rea])
         
         em_no[i] <<- sum(coef != 0)
         err[i] <<- 1-sum(exp_r)
 
-        return(data.frame(id=em_id, rate=coef[o], exp_r=exp_r, exp_r_cum=cumsum(exp_r), 
+        return(data.frame(id=which(comp_em)[o], rate=coef[o], exp_r=exp_r, exp_r_cum=cumsum(exp_r), 
                           exp_d=exp_d, exp_d_acc=cumsum(exp_d)))
     }
 
 
     # PRE LOOP
-    # (calculate extended rate vector and it's state hash - using err_cc as cutoff)
-    # (if state hash hasn't been decomposed before, decompose current one and add
-    #  found pathways to the pathway list)
+    # (Check if state already occured. Do pw decomposition if not.)
 
     for(i in 1:nrow(res)) {
         cat("============================================================\n")
@@ -460,7 +467,6 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
     }
 
     # MAIN LOOP
-
     for(i in 1:nrow(res)) {
         cat("============================================================\n")
         cat(" i=", i, "  v=", res$v[i], "  c=", res$c[i], "\n")  
@@ -493,7 +499,7 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
 
         # build data frame refering to expansion of simulation's rate by elementary modes
         if(!res$relaxing_sim[i] & (res$err_cc_rel[i] < 0.1 | is.na(res$err_cc_rel[i])))
-            em_ex[[i]] <- calc_em_info(res$re_df[[i]]$flow_effective, sp[[i]]$mu, res$err_cc[i], res$Edraw[i])
+            em_ex[[i]] <- calc_em_info(res$re_df[[i]]$flow_effective, sp[[i]]$mu, res$Edraw[i])
         else
             em_ex[[i]] <- NA
 
@@ -517,16 +523,18 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
     res$em_err_max <- err_rel_max
     res$em_err_sum <- err
 
+    # Save to file / return
     results_em <- res
     em_m <- em_matrix
     save(results_em, em_m, file="results_em.Rdata")
-
-    return(list(res, em_matrix))
+    return(list(results_em=res, em_m=em_matrix))
 }
 
 
-#
-#
+# This function can be called after pathways have been calculated (sb_em_analysis_ecol).
+# It first derives further properties of the pathways (pa_em_derive) and then uses
+# this properties and the coefficients of the pathway decomposition to calculate further
+# properties of the respective steady states.
 #
 # deleted em_exp_r_cross because it is not compatible with having different networks data inside 
 # one results object (res_nets). One has to subset res_nets for a certain network / Edraw first.
@@ -571,8 +579,9 @@ sb_em_cross_analysis_ecol <- function(res_nets, res_em, em_m, c_max=4) {
     res_em$em_con_ch_r <- rep(0, nrow(res_em))
 
     for(i in 1:nrow(res_em)) 
+        # Makes only sense if pathway information is available for entry
         if(is.data.frame(res_em$em_ex[[i]])) {
-            i_net <- res_em$Edraw[i]
+            i_net <- res_em$Edraw[i] # shortcut to network id
             res_em$exp_r_sum[i] <- sum(res_em$em_ex[[i]]$exp_r)
             res_em$exp_r_max[i] <- max(res_em$em_ex[[i]]$exp_r)
 
@@ -594,7 +603,8 @@ sb_em_cross_analysis_ecol <- function(res_nets, res_em, em_m, c_max=4) {
             res_em$em_steadystate_r[i] <- sum(r[(em_der[[i_net]]$Ex_s[id] == 0)])
             res_em$em_con_ch_r[i] <- sum(r[(em_der[[i_net]]$Ex_s[id] != 0)])
         }
-
+ 
+    # Write back / to file
     results_em_cross <- res_em
     em_derive <- em_der
     save(results_em_cross, em_derive, file="results_em_cross.Rdata")
@@ -602,18 +612,23 @@ sb_em_cross_analysis_ecol <- function(res_nets, res_em, em_m, c_max=4) {
 }
 
 
-# 
+# This function executes a further analysis for simulation results (not related
+# to found pathways). Espespecially it calculates quantities that can only be
+# determined if one can compare an out of equilibrium state with a reference 
+# state in thermodynamic equilibrium.
 #
 # parameters:
 # <res_nets>  - results-nets object (list of networks)
 # <res>       - results object 
 
 sb_cross_analysis_ecol <- function(res_nets, res) {
-    N <- jrnf_calculate_stoich_mat(res_nets[[1]])
     # species degree
-    deg <- as.vector(degree(jrnf_to_undirected_network(res_nets[[1]])))   
+    deg <- list()
+    for(net in res_nets)
+        deg[[length(deg)+1]] <- as.vector(degree(jrnf_to_undirected_network(res_nets[[1]])))   
 
-    res$flow_energy <- rep(0, nrow(res))      # flow (of energy to hv)
+    res$flow_energy_hv <- rep(0, nrow(res))   # flow (of energy to hv)
+    res$flow_energy_tot <- rep(0, nrow(res))  # flow of energy
     res$energy <- rep(0, nrow(res))           # complete energy in system (except of hv species)
     res$diseq <- rep(0, nrow(res))            # difference between energy of this SS and eq. SS
     res$core_sp_no <- rep(NA, nrow(res))      # number of species in core (species with mu higher 
@@ -622,41 +637,49 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
     res$core_diseq_f <- rep(NA, nrow(res))    # fraction of disequilibrium contained in network core
     res$core_mass_f <- rep(NA, nrow(res))     # fraction of mass contained in network core
     res$equilibrium_ref <- rep(NA, nrow(res)) # id of equivalent equilibrium simulation for out of equilibrium sim.
-    
-    # Matrix containing chemical potential difference for every reaction
-    dmu_cross <- matrix(0, ncol=ncol(N), nrow=nrow(res))
 
-    # First calculate 'equilibrium_ref' for non-equilibrium rows and all the data for
-    # the equilibrium rows
+    # First calculate some additional data for all rows (energy flow). Then 
+    # calculate 'equilibrium_ref' for non-equilibrium rows and all the data for
+    # the equilibrium rows.
     for(i in 1:nrow(res)) {
         net <- res_nets[[res$Edraw[i]]]
+        # Function should not take too long to run compared to others, but want
+        # to have some user feedback.
         cat("-")
         if(i %% 1000 == 0) cat("\n", i/nrow(res))
-        res$sp_df[[i]]$degree <- deg
+
+        # calculate additional species specific data
+        res$sp_df[[i]]$degree <- deg[[ res$Edraw[i] ]]
         res$sp_df[[i]]$mu <- net[[1]]$energy + log(res$sp_df[[i]]$con)
         res$sp_df[[i]]$mu[!is.finite(res$sp_df[[i]]$mu)] <- 0
         res$sp_df[[i]]$mean_ep <- jrnf_associate_reaction_to_species(net, res$re_df[[i]]$entropy_prod)
 
+        # shortcuts
         con <- res$sp_df[[i]]$con
         mu <- res$sp_df[[i]]$mu
         x <- con*mu
-           
-        res$energy[i] <- sum(x[-length(x)])
-
-        if(res$relaxing_sim[i]) {     # If it is a relaxing simulation calculate energy
-            con <- res$sp_df[[i]]$con
-            mu <- res$sp_df[[i]]$mu
-            x <- con*mu 
-            res$energy[i] <- sum(x[-length(x)])
+        hv_sel <- "hv" == res_nets[[res$Edraw[i]]][[1]]$name   
+        res$energy[i] <- sum(x[!hv_sel])
+ 
+        # calculate concentration change from flow and derive energy flow
+        cc <- jrnf_calculate_concentration_change(net, res$re_df[[i]]$flow_effective)
+        res$flow_energy_hv[i] <- sum(mu[hv_sel]*res$flow[i])
+        res$flow_energy_tot[i] <- -sum(mu*cc)
+        
+        if(res$relaxing_sim[i]) {     
+            # If it is a relaxing simulation disequilibrium and mass fraction are 
+            # 1 by definition.
             res$core_diseq_f[i] <- 1
             res$core_mass_f[i] <- 1
         } else {
+            # Try finding best fit for equilibrium reference by loosening 
+            # constraints step by step.
             s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
                        res$Rdraw == res$Rdraw[i] & res$c == res$c[i] &
                        res$is_last)
             if(length(s) == 0)
                 s <- which(res$relaxing_sim & res$Edraw == res$Edraw[i] &
-                           res$c == res$c[i])[1]
+                           res$c == res$c[i] & res$is_last)[1]
 
             if(length(s) == 0)
                 s <- 0
@@ -665,10 +688,11 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
         }
     }
      
+    # Now calculate all the data for out of equilibrium states which have an
+    # equilibrium reference state (simulation).
     for(i in which(!res$relaxing_sim & res$equilibrium_ref != 0)) { 
         cat(".")
         if(i %% 1000 == 0) cat("\n", i/nrow(res))
-        dmu_cross[i,] <- res$sp_df[[i]]$mu %*% N
  
         # load data on mu (chemical potential) and con (concentration)
         eqref <- res$equilibrium_ref[i]
@@ -676,22 +700,26 @@ sb_cross_analysis_ecol <- function(res_nets, res) {
         mu <- res$sp_df[[i]]$mu 
         x <- con*mu
         x2 <- res$sp_df[[eqref]]$con*res$sp_df[[eqref]]$mu
+        hv_sel <- "hv" == res_nets[[res$Edraw[i]]][[1]]$name
         
-        core_sp <- mu > res$sp_df[[ eqref ]]$mu
-        core_sp[length(core_sp)] <- F    # Ensure 'hv' is not in core
+        # "Core" species are those that have higher energy than in their
+        # respective refference state.     
+        core_sp <- (mu > res$sp_df[[ eqref ]]$mu) & !hv_sel
         res$sp_df[[i]]$core_sp <- core_sp
 
-        res$flow_energy[i] <- res$flow[i]*mu[length(mu)]
+        # Disequilibrium is distance of core species from reference state in
+        # terms of energy
         res$diseq[i] <- res$energy[i] - res$energy[eqref]
         res$core_sp_no[i] <- sum(core_sp) 
-                                             # than the reference state - eq. SS)
+                          
+        # Hash core species and calculate fraction of mass + dissequilibrium in core.                  
         res$core_hash[i] <-  sb_v_to_hash_s(core_sp, 0.1)
         res$core_diseq_f[i] <- sum(x[core_sp]-x2[core_sp])/res$diseq[i]
-        res$core_mass_f[i] <- sum(con[core_sp])/sum(con[-length(con)])
+        res$core_mass_f[i] <- sum(con[core_sp])/sum(con[!hv_sel])
     }
      
     results_cross <- res
 
-    save(results_cross, dmu_cross, file="results_cross.Rdata")
-    return(list(results_cross=results_cross, dmu_cross=dmu_cross))
+    save(results_cross, file="results_cross.Rdata")
+    return(list(results_cross=results_cross))
 }
