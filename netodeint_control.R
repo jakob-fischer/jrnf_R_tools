@@ -18,6 +18,9 @@ if(!exists("sourced_jrnf_network"))
 if(!exists("sourced_jrnf_network_io"))
     source("jrnf_network_io.R")
 
+if(!exists("sourced_simulation_builder"))
+    source("simulation_builder.R")
+
 
 
 # Create a initial file for a certain jrnf network which can 
@@ -67,16 +70,16 @@ jrnf_create_initial <- function(jrnf_network, init_fn, network_fn=NA, bc_id=NA, 
         return()
 
     # Write the network with the boundary species set constant.
-    if(!is.na(network_file) && !is.na(bc_id))
+    if(!is.na(network_fn) && !is.na(bc_id))
         jrnf_network[[1]]$constant[bc_id] <- TRUE;
 
     # If <setBCE0> also set their energy to zero (and recalculate rates).
-    if(!is.na(network_file) && !is.na(bc_id) && setBCE0) {
+    if(!is.na(network_fn) && !is.na(bc_id) && setBCE0) {
         jrnf_network[[1]]$energy[bc_id] <- 0
         jrnf_network <- jrnf_calculate_rconst(jrnf_network, kB_T)
     }
 
-    jrnf_write(network_file, jrnf_network)
+    jrnf_write(network_fn, jrnf_network)
 }
 
 
@@ -106,9 +109,6 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
         df_1$to <- (1:(N*N)-1) %% N + 1
             
         df_1$shortest_path <- as.vector(sps_g)
-        #for(i in 1:(N*N)) {
-        #    df_1$shortest_path[i] <- sps_g[floor((i-1)/N) + 1, (i-1) %% N + 1]
-        #}
         df_1$sp_multiplicity <- 0
         df_1$sp_multiplicity_s <- 0
 
@@ -141,22 +141,21 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
 
 
     if(!is.na(nfile)) {
-        df_2 <- data.frame(node=as.numeric(1:N), deg_in=as.numeric(rep(NA,N)), deg_out=as.numeric(rep(NA,N)), deg_all=as.numeric(rep(NA,N)),
-                           deg_s_in=as.numeric(rep(NA,N)), deg_s_out=as.numeric(rep(NA,N)), deg_s_all=as.numeric(rep(NA,N)), betweenness=as.numeric(rep(NA,N)), betweenness_s=as.numeric(rep(NA,N)), main=as.logical(rep(NA,N)), main_w=as.logical(rep(NA,N)), stringsAsFactors=FALSE) 
-
-        df_2$deg_in <- as.numeric(degree(g, mode="in"))
-        df_2$deg_out <- as.numeric(degree(g, mode="out"))
-        df_2$deg_all <- as.numeric(degree(g, mode="all"))
-        df_2$deg_s_in <- as.numeric(degree(g_s, mode="in"))
-        df_2$deg_s_out <- as.numeric(degree(g_s, mode="out"))
-        df_2$deg_s_all <- as.numeric(degree(g_s, mode="all"))
-        df_2$betweenness <- as.numeric(betweenness(g))
-        df_2$betweenness_s <- as.numeric(betweenness(g_s))
-
         strong_clusters <- clusters(g, mode="strong")
         weak_clusters <- clusters(g, mode="weak")
-        df_2$main <- (strong_clusters$membership == which.max(strong_clusters$csize))
-        df_2$main_w <- (weak_clusters$membership == which.max(weak_clusters$csize))
+
+        df_2 <- data.frame(node=as.numeric(1:N), 
+                           deg_in=as.numeric(degree(g, mode="in")),
+                           deg_out=as.numeric(degree(g, mode="out")), 
+                           deg_all=as.numeric(degree(g, mode="all")),
+                           deg_s_in=as.numeric(degree(g_s, mode="in")), 
+                           deg_s_out=as.numeric(degree(g_s, mode="out")),  
+                           deg_s_all=as.numeric(degree(g_s, mode="all")), 
+                           betweenness=as.numeric(betweenness(g)), 
+                           betweenness_s=as.numeric(betweenness(g_s)), 
+                           main=(strong_clusters$membership == which.max(strong_clusters$csize)), 
+                           main_w=(weak_clusters$membership == which.max(weak_clusters$csize)), 
+                           stringsAsFactors=FALSE) 
 
         write.csv(df_2, nfile, row.names=FALSE)
     }
@@ -299,7 +298,8 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                     system(paste(c("mkdir", fff), collapse=" "))
 
                     # create network-files and (initial) concentration files
-                    if(i == 1 && v == 1) { # Create network-file only if first in ensemble and boundary
+                    if(i == 1 && v == 1) { # Create network-file only if first 
+                                           # in ensemble and boundary
                         netref <- paste(ff_mid, "/net.jrnf", sep="/")
                         jrnf_create_initial(net, paste(fff, "run.con", sep="/"), 
                                             netref, bc_id=b, bc_v=bvalues_l[[v]])
@@ -310,7 +310,10 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
 
                     # add script command
                     cmd <-odeint_p
-                    scripts <- c(scripts, paste(odeint_p, " simsim net=", ff_mid, "/net.jrnf con=", fff, "/run.con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), " wint=", as.character(wint) , sep=""))
+                    scripts <- c(scripts, paste(odeint_p, " simsim net=", ff_mid, 
+                                     "/net.jrnf con=", fff, "/run.con deltaT=", 
+                                     as.character(deltaT), " Tmax=", as.character(Tmax), 
+                                     " wint=", as.character(wint) , sep=""))
                 }
 
             }
@@ -555,7 +558,6 @@ calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
         cat("No valid sampling specified!\n")
         return() 
     }
-
 
     .Random.seed <<- tmp
 
