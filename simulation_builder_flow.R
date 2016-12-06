@@ -278,7 +278,7 @@ sb_em_analysis <- function(res, net, c_max=4) {
             }
 
         # Calculate pathways and coefficients
-        x_em <- pa_analysis(net_rev, rates_rev, param$fext, param$pmin, T, F)[[1]
+        x_em <- pa_analysis(net_rev, rates_rev, param$fext, param$pmin, T, F)[[1]]
         x_rates <- pa_calculate_coef(x_em, rates_rev)$coef
 
         # Sort decreasing with fraction of v explained...
