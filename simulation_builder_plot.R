@@ -171,14 +171,17 @@ sb_plot_evol_core <- function() {
 }
 
 
-# 
-#
+# Function plots the full evolved networks. For each state (value of Edraw) the
+# ten most significant pathways are plotted into a separate folder. Explained
+# fraction and explained dissipation are written in the filename. Additionally
+# information derived from the pathway decomposition is plotted with
+# "sb_plot_evol_pw".
 #
 # The function does not take more arguments but assumes that the results of a
 # simulation are loaded in the global enviroment (as it is put there by 
 # "sb_em_cross_analysis_ecol").
 
-sb_plot_evol_reduced <- function() {
+sb_plot_evol <- function() {
     rec <- results_em_cross
 
     # create a directory for each network / state 
@@ -255,22 +258,24 @@ sb_plot_evol_reduced <- function() {
 
 
 
-#
-#
+# Function plots how pathway decomposition changes with some variable <x_data>. 
+# Number of pathways (rows in <em_cross>) should be limited to 5.
 #
 # parameters:
-# <em_cross>  -
-# <x_data>    -
-# <x_name>    -
-# <em_name>   -
-# <filename>  -
+# <em_cross>  - Explained rate fraction for same pathways in different simulations. 
+#               Each row represents one simulation, each column one pathway.
+# <x_data>    - Data for x-axis (pathway decomposition is plotted as a function of this)
+# <x_name>    - X-axis label text
+# <em_name>   - Names used for identifying different pathways (rows in em_cross)
+# <filename>  - Name of output file
 # <logY>      - Logarithmic y-scale?
 # <logX>      - Logarithmic x-scale?
 
-sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps", logY=F, logX=F) { 
-    a <- data.frame(x_data=numeric(), 
-                    exp_r=numeric(),
-                    em=factor())
+sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), 
+                               filename="em_spectre.eps", logY=F, logX=F) { 
+    a <- data.frame(x_data=numeric(), # x-axis
+                    exp_r=numeric(),  # y-axis
+                    em=factor())      # colour / group / shape
  
     for(i in 1:ncol(em_cross)) {
         a <- rbind(a, 
@@ -280,6 +285,8 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
     }
 
     postscript(filename, width=7, height=5)
+
+    # Decide on linear or logarithmic scale
     scaleY <- scale_y_continuous()
             
     if(logY)
@@ -308,16 +315,22 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
 }
 
 
-# 
+# This function uses "sb_plot_em_spectre" for plotting the dependency of the
+# pathway decomposition of an external parameter. Thus, the number of pathways 
+# (entries in <sub_s>) should be limited to 5. The function also makes separate
+# plots of the topology of these 5 pathways.
 #
 # parameters:
-# <net>      - 
-# <em>       -
-# <cross>    -
-# <x_data>   -
-# <x_name>   -
-# <sub_s>    -
-# <filename> -
+# <net>      - The reaction network (non extended)
+# <em>       - Set of elementary modes / pathways
+# <cross>    - Explained pathways for same pathways in different simulations. 
+#              Each row represents one simulation, each column one pathway.
+# <x_data>   - Data for x-axis (pathway decomposition is plotted as a function of this)
+# <x_name>   - X-axis label text
+# <sub_s>    - Subset of interesting pathways (to plot) 
+# <filename> - Name of the postscript output files. Needs to contain the 
+#              character "%" which will be replaced with different values
+#              for the different plots.
 # <logX>     - Logarithmic x-scale?
 
 sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), filename="pw_cross_%.eps", logX=F) {
@@ -326,16 +339,16 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
         cat("filename should contain placeholder '%' - output may be faulty!\n") 
     }
 
-    # Extend net?
+    # Extend net.
     y <- pa_extend_net(net, em[1,1:nrow(net[[2]])], unique_dir=T)
     net_x <- y[[1]] 
 
+    # Ensure that <sub_s> contains indices of pathways
     if(is.null(sub_s)) 
         sub_s <- 1:nrow(em)
 
     if(is.logical(sub_s))
         sub_s <- which(sub_s)
-
 
     # First print spectrum of selected / subseted pathways
     em_name <- 1:ncol(cross)
@@ -346,7 +359,6 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
     # Now plot all (selected) pathways in separate files
     for(i in sub_s) {
         postscript(sub("%", as.character(i), filename), width=5, height=5, family="serif")
-        #x <- jrnf_plot_pathway(net, em[i,1:nrow(net[[2]])], layout_f=layout.lgl, lim_plot=T)
         x <- jrnf_plot_pathway(net_x, em[i,], layout_f=layout.lgl, lim_plot=T)
         dev.off()
     }
@@ -354,6 +366,13 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
     return(y)
 }
 
+
+# Simple plot function that plots the number of core species in dependency of
+# driving force <v>.
+#
+# parameters:
+# <res_cross> - Results object (from "sb_cross_analysis_ecol"!)
+# <filename>  - Filename of output file
 
 plot_core_sp <- function(res_cross, filename="core_sp.eps") { 
     setEPS()
@@ -376,6 +395,13 @@ plot_core_sp <- function(res_cross, filename="core_sp.eps") {
 }
 
 
+# Simple plot function that plots flow as a function as function of driving 
+# force strength <v>.
+#
+# parameters:
+# <res_cross> - Results object
+# <filename>  - Filename of output file
+
 plot_flow_v <- function(res_cross, filename="flow_v.eps") { 
     setEPS()
     postscript(filename, width=7, height=5)
@@ -397,53 +423,12 @@ plot_flow_v <- function(res_cross, filename="flow_v.eps") {
 }
 
 
-
+#          LEGACY FUNCTION
 #
-#          LEGACY FUNCTIONS
-#
-# TODO Functions below aren't as thoroughly tested and designed as the ones above
-#      but still might prove valuable in the future. Thus they are still here as
-#      basis for future work but their interface is not really stable.
-#
-
-# This function probably only has legacy function.
-
-sb_assemble_em_from_flow <- function(results_ss, em, net) {
-    df <- data.frame(delta_b=numeric(), flow=numeric(), C_sum=numeric(), em_id=numeric(), em_exp_r=numeric(), 
-                     em_exp_d=numeric(), C_f_r=numeric(), C_f_d=numeric(), ep_lin=numeric(), ep_nonl=numeric())
-
-    der <- pa_em_derive(em[,1:nrow(net[[2]])], net)
-
-    for(i in 1:nrow(results_ss)) {
-        em_ex <- results_ss$em_ex[[i]]
-        N <- nrow(em_ex)
-        C_f_r <- 0
-        C_f_d <- 0
-
-        if(nrow(em_ex) != 0) {
-            C_f_r <- sum(em_ex$exp_r * der$C_sum[em_ex$id])
-            C_f_d <- sum(em_ex$exp_d * der$C_sum[em_ex$id])
-        }
-
-        df <- rbind(df,
-                    data.frame(delta_v= as.numeric(rep(max(results_ss$v1[i], results_ss$v2[i]), N)),
-                               flow=as.numeric(rep(results_ss$flow[i], N)),
-                               C_sum=as.numeric(rep(results_ss$C_sum[i], N)),
-                               em_id=as.numeric(em_ex$id),
-                               em_exp_r=as.numeric(em_ex$exp_r), 
-                               em_exp_d=as.numeric(em_ex$exp_d),
-                               C_f_r=as.numeric(rep(C_f_r, N)),
-                               C_f_d=as.numeric(rep(C_f_d, N)),
-                               ep_lin=as.numeric(rep(results_ss$ep_linear[i]/(results_ss$ep_linear[i]+results_ss$ep_nonlinear[i]), N)),                           ep_nonl=as.numeric(rep(results_ss$ep_nonlinear[i]/(results_ss$ep_linear[i]+results_ss$ep_nonlinear[i]), N))))
-
-    }
-  
-    return(df)
-}
-
-
-#
-#
+# TODO Functions below is not functional any more because of some reengineering 
+#      that was done. Nevertheless it is kept here as it gives valuable insight
+#      in how results of pathway analysis may be layouted and how a 4 panel plot
+#      can be created with ggplot.
 
 evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), filename="test.eps") {
     if(is.null(my_em))
@@ -458,7 +443,7 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
     my_results_X <- sb_extend_results(my_results)
     my_results_X <- my_results_X[my_results_X$Edraw == Edraw,]
 
-    x <- sb_assemble_em_from_flow(my_results_X, my_em, my_net)
+    #x <- sb_assemble_em_from_flow(my_results_X, my_em, my_net)
     
 
     gg1 <- ggplot(x, aes(x=flow, y=em_exp_r, colour=as.factor(em_id), group=as.factor(em_id), lty=as.factor(em_id), size=2)) + 
@@ -509,8 +494,4 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
 
     return(list(gg1, gg2, gg3, gg4)) 
 }
-
-
-
-
 
