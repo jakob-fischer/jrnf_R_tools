@@ -39,7 +39,7 @@ sb_build_generator <- function(netfile) {
 # <N_energies>    - Number of energy sets that are drawn for each the network
 # <N_runs>        - Number of simulations done for every network+energy set + 
 #                   boundary value set
-# <odeint_p>      - Path for ode integrator (jrnf_int)
+# <odeint_p>      - Path to ode integrator (jrnf_int)
 # <Tmax>          - Time units up to that the networks are simulated
 # <wint>          - Number of times between 0 and <Tmax> output is written to file
 # <flat_energies> - If set, one time (of <N_energies> times) the network is taken 

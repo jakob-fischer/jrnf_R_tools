@@ -1,6 +1,9 @@
 # author: jakob fischer (jakob@automorph.info)
 # description: 
-# TODO
+# Similar to "simulation_builder_ecol.R" this module generates a gib number of
+# simulations in the file system and evaluates them after they have been 
+# executed. But the systems generated from this module here are driven by flow
+# of matter instead of photochemical reactions.
 
 sourced_simulation_builder_flow <- T
 
@@ -11,16 +14,18 @@ sourced_simulation_builder_flow <- T
 # <N_runs> runs are generated and a line for calculation added in the script file <run.sh>
 #
 # parameters:
-# <netfile>     - path to network file
-# <bvalues_l>   - list of two element vectors containing the boundary values 
-# <bids>        - two element vector with ids of the boundary species
-# <N_energies>  - number of energy sets that are drawn for the network
-# <N_runs>      - number of runs done for every energy set + boundary value set
-#
-# TODO: - Add parameter for generation of multiple script-files  
+# <netfile>     - Path to network file
+# <bvalues_l>   - List of two element vectors containing the boundary values 
+# <bids>        - Two element vector with ids of the boundary species
+# <N_energies>  - Number of energy sets that are drawn for the network
+# <N_runs>      - Number of runs done for every energy set + boundary value set
+# <odeint_p>    - Path to ode integrator (jrnf_int)
+# <Tmax>        - Time up to which to ode is solved.
+# <wint>        - Number of writes up to the <Tmax>.
+# <deltaT>      - Initial time step for integrator.
 
-
-sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs, odeint_p="~/apps/jrnf_int", Tmax=10000, deltaT=1) {
+sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs,
+                         odeint_p=sb_odeint_path, Tmax=10000, wint=50, deltaT=0.1) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     path_old <- getwd()
@@ -47,14 +52,12 @@ sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs, odeint_p=
         # create new directory and enter
         system(paste("mkdir ", i, sep=""))
         setwd(as.character(i))
-   
 
         # sample energies and save to net_energies.jrnf
         net <- jrnf_sample_energies(net)
 
         # as we are having only one set of boundary species we are setting their 
         # boundary energies to zero first to save then
-
         net[[1]]$energy[bids[[1]]] <- 0
         net[[1]]$energy[bids[[2]]] <- 0
         net <- jrnf_calculate_rconst(net, 1)
@@ -62,29 +65,33 @@ sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs, odeint_p=
         cat("writing energies in netfile.\n")
         jrnf_write("net_energies.jrnf", net)
 
-
         # Inner loop (create simulations with different boundary values
-
         for(v in 1:length(bvalues_l)) {
-            ff <- paste(c("v", as.character(bvalues_l[[v]][1]), "_" ,as.character(bvalues_l[[v]][2])), collapse="")
+            # create directory
+            ff <- paste(c("v", as.character(bvalues_l[[v]][1]), "_" ,
+                        as.character(bvalues_l[[v]][2])), collapse="")
             system(paste("mkdir", ff)) 
             setwd(ff) 
        
+            # create initial files for multiple runs
             for(j in 1:N_runs) {
-                jrnf_create_initial(net, paste(j, ".con", sep=""), "../net.jrnf", bc_id=bids, bc_v=bvalues_l[[v]])
+                jrnf_create_initial(net, paste(j, ".con", sep=""), "../net.jrnf", 
+                                    bc_id=bids, bc_v=bvalues_l[[v]])
 
                 scripts <- c(scripts, 
-                             paste(odeint_p, " simulate solve_implicit net=", i, "/net.jrnf con=", i, "/", ff, "/", j, ".con deltaT=", as.character(deltaT), " Tmax=", as.character(Tmax), sep=""))
+                             paste(odeint_p, " simulate solve_implicit net=", i, 
+                                   "/net.jrnf con=", i, "/", ff, "/", j, 
+                                   ".con deltaT=", as.character(deltaT), " Tmax=", 
+                                   as.character(Tmax), " wint=", as.character(wint), 
+                                   sep=""))
             }
 
             setwd("..")
         }
 
-
         # back to start directory
         setwd(path_old)
     }
-
 
     # write script file (file doing all the simulation when executed)
     cat("create batch-script-files\n")    
@@ -102,14 +109,11 @@ sb_generator <- function(netfile, bvalues_l, bids, N_energies, N_runs, odeint_p=
 }
 
 
-
 # Function collects results of simulations defined by "sb_generator" after
 # simulation was done using the generated script ("run.sh"). Function has 
 # to be executed with working directory being the directory containing the
 # initial network file! Results are saved in data frame results which is
-# stored in the file "results.Rdata".
-#
-# TODO: add comments
+# stored in the file "results.Rdata". 
 
 sb_collect_results <- function(b1, b2) {
     save_wd <- getwd()   # just to be save
@@ -119,6 +123,7 @@ sb_collect_results <- function(b1, b2) {
                      ep_max=numeric(), sp_df=I(list()), re_df=I(list()), 
                      last_time=numeric(), last_msd=numeric())
 
+    # 
     Edir_v <- list.dirs(recursive=FALSE)
 
 
@@ -155,9 +160,6 @@ sb_collect_results <- function(b1, b2) {
                 flow <- 0.5*abs(flowb1-flowb2)
                 err_cc_rel <- err_cc/flow
 
-                #cat("flowb1 = ", flowb1, "\n")
-                #cat("flowb2 = ", flowb2, "\n")
-
                 df <- rbind(df,
                               data.frame(Edraw=as.numeric(bp), Rdraw=as.numeric(i), b1=as.numeric(b1), 
                               b2=as.numeric(b2), v1=as.numeric(v1), v2=as.numeric(v2),
@@ -173,11 +175,11 @@ sb_collect_results <- function(b1, b2) {
         setwd("..")
     }
 
+    # Save results in original directory
     setwd(save_wd)
     results <- df
     save(results, file="results.Rdata")
 }
-
 
 
 # Function conducts a broad elementary mode analysis for results object generated
@@ -233,7 +235,6 @@ sb_em_analysis <- function(res, net, c_max=4) {
         cat(".")         
 
         # calculating elementary modes
-        # TODO
         rev <- res$re_df[[i]]$flow_effective
         rates_rev <- abs(res$re_df[[i]]$flow_effective) 
         net_rev <- jrnf_reverse_reactions(net, rev)
@@ -258,6 +259,7 @@ sb_em_analysis <- function(res, net, c_max=4) {
                 rates_rev <- c(rates_rev, -cdif_r[k])
             }
 
+        #x_em <- pa_analysis(net_rev, rates_rev, param$fext, param$pmin, T, F)[[1]]
         x <- pa_analysis(net_rev, rates_rev, 0, 0)
 
         # rename results and sort decreasing with fraction of v explained...

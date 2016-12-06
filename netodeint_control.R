@@ -9,7 +9,6 @@
 # and "simulation_builder_....R", this could be unified in future. Nevertheless the
 # functionality should be maintained as it was used for generate data for the publication
 # Thermodynamics of Random Reaction Networks; Fischer, Kleidon, Dittrich; 2015
-# TODO some documentation + cleanup
 
 sourced_netodeint_control <- T
 
@@ -29,9 +28,16 @@ if(!exists("sourced_jrnf_network_io"))
 # of (1-indexed) ids. If this is done, then 'bc_v' should be set to a 
 # numeric vector of the same size indicating the respective concentrations.
 #
-# setBCE0  -  setting the boundary condition species energy to zero
+# parameters:
+# <jrnf_network>  - Reaction network
+# <init_fn>       - Filename of the file in that the initial concentration is written
+# <network_fn>    - Name of the while to which the reaction network is written
+# <bc_id>         - Vector of boundary species ids or names
+# <bc_v>          - Boundary species concentrations
+# <kb_T>          - Energy scale (Boltzmann Constant and temperature) 
+# <setBCE0>       - Setting the boundary condition species energy to zero?
 
-jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=TRUE) {
+jrnf_create_initial <- function(jrnf_network, init_fn, network_fn=NA, bc_id=NA, bc_v=NA, kB_T=1, setBCE0=TRUE) {
     jrnf_species <- jrnf_network[[1]]
     jrnf_reactions <- jrnf_network[[2]]    
 
@@ -40,6 +46,7 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
         for(i in 1:length(bc_id)) 
             bc_id[i] <- which(jrnf_species$name == bc_id[i])
 
+    # create data frame with one row 
     df <- data.frame(time=as.numeric(0),msd=as.numeric(0))
     df[as.vector(jrnf_species$name)] <- abs(rnorm(length(jrnf_species$name), mean=mean(bc_v), sd=sqrt(mean((bc_v- mean(bc_v))^2))))
 
@@ -53,15 +60,17 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
     } 
 
     # and write 
-    write.csv(df, init_file, row.names=FALSE)
+    write.csv(df, init_fn, row.names=FALSE)
 
-    if(is.na(network_file)) 
+    # Don't write network if no filename is given.
+    if(is.na(network_fn)) 
         return()
 
-    # Writing a network with the boundary species set constant
+    # Write the network with the boundary species set constant.
     if(!is.na(network_file) && !is.na(bc_id))
         jrnf_network[[1]]$constant[bc_id] <- TRUE;
 
+    # If <setBCE0> also set their energy to zero (and recalculate rates).
     if(!is.na(network_file) && !is.na(bc_id) && setBCE0) {
         jrnf_network[[1]]$energy[bc_id] <- 0
         jrnf_network <- jrnf_calculate_rconst(jrnf_network, kB_T)
@@ -72,14 +81,14 @@ jrnf_create_initial <- function(jrnf_network, init_file, network_file=NA, bc_id=
 
 
 # This function calculates information on the network topology using igraph and 
-# writes it to two files. 
+# writes it to two files: 
 # - One file (pfile) contains information specific to pairs of nodes
 # shortest path, number of different shortest paths, ...
 # - The second file (nfile) contains information specific to nodes, like degree,
 # betweenness and whether the node belongs to the biggest cluster of the network.
-# This two outputs can be enabled separately. The topological analysis is done
-# on the directed graph one gets from 'jrnf_to_directed_network'
-# TODO implement
+# This two outputs can be enabled separately by giving a filename to write them 
+# to for <pfile> or <nfile>. The topological analysis is done on the directed 
+# graph one gets from 'jrnf_to_directed_network'.
 
 jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
     N <- nrow(jrnf_network[[1]])
@@ -202,7 +211,7 @@ jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TR
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=c(), sampling_sym=TRUE,
-                            odeint_p="~/apps/jrnf_int", Tmax=1000, deltaT=0.1, v=1, 
+                            odeint_p=sb_odeint_path, Tmax=1000, deltaT=0.1, v=1, 
                             wint=100, b_seed=c(), script_lead="bscript_", zero_E=FALSE, bignet=FALSE) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls

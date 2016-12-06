@@ -14,8 +14,23 @@ if(!exists("sourced_simulation_builder"))
     source("simulation_builder.R")
 
 
+# Function plots evolution of different pathway related properties in the 
+# current directory. They are either plotted as a function of Edraw (<Edyn> == T)
+# or as a function of Rdraw (<Edyn> == F).
+#
+# The <Edyn> parameter determines if dynamics is defined by increasing <Edraw>
+# in the results object as it is for networks evolving their structure or 
+# alternatively through <Rdraw> as for an anorganic core network where the 
+# network itself stays constant through all generations.
+#
+# The function does not take more arguments but assumes that the results of a
+# simulation are loaded in the global enviroment (as it is put there by 
+# "sb_em_cross_analysis_ecol").
 
 sb_plot_evol_pw <- function(Edyn=T) {
+    # Subfunction to plot into file <fn>. Y-axis is named <yname> and the data 
+    # plotted is <ydata>. Length of <ydata> has to match the number of rows in 
+    # <results_em_cross>. Y-axis is logscale if <logY> is set.
     plt <- function(fn, yname, ydata, width=7, height=5, logY=F) {
         if(Edyn)
             a <- data.frame(b=results_em_cross$Edraw, c=ydata)
@@ -59,11 +74,21 @@ sb_plot_evol_pw <- function(Edyn=T) {
 }
 
 
-# 
+# Generic plot function that can be applied in the "core" directory generated
+# from "sb_evol_build_results_core". The function plots all those parameters that
+# where saved while evolving (and ARE NOT specific to the core but to the entire
+# simulation / network). In the subdirectory "pw_evol" the importance of the 5 
+# most relevant pathways as function of generation / "Rdraw" is plotted using
+# "pw_evol". Additionally the next five most relevant pathways are plotted.
 #
-#
+# The function does not take more arguments but assumes that the results of a
+# simulation are loaded in the global enviroment (as it is put there by 
+# "sb_em_cross_analysis_ecol").
 
 sb_plot_evol_core <- function() {
+    # Subfunction to plot into file <fn>. Y-axis is named <yname> and the data 
+    # plotted is <ydata>. Length of <ydata> has to match the number of rows in 
+    # <results_em_cross>. Y-axis is logscale if <logY> is set.
     plt <- function(fn, yname, ydata, width=7, height=5, logY=F) {
         a <- data.frame(b=results_em_cross$Rdraw, c=ydata)
         postscript(fn, width=width, height=height)
@@ -119,17 +144,22 @@ sb_plot_evol_core <- function() {
         # calculate pathway evolution of core in subdirectory
         # plot diagramms of 10 most important pathways
         fn <- paste("E", as.character(Edraw), "_pw_cross_%.eps", sep="")
+
+        # Select network and pathway matrix...
         net <- results_nets[[Edraw]]
         em <- em_m[[Edraw]]
-        a <- sb_calc_pw_cross(rec, results_nets[[Edraw]], em_m[[Edraw]])
+        # ...and calculate contribution cross matrix.
+        a <- sb_calc_pw_cross(rec, net, em)
        
+        # Select 5 most relevant pathways...
         sub_x <- sb_pw_cross_sub_N(a$x_norm, 5)
+        # ... and the following five.
         sub_y <- sb_pw_cross_sub_N(a$x_norm, 10)[-(1:5)]
 
-        # plot pathway spectre
+        # Plot pathway spectre
         sb_pw_cross_plot(net, em, a$x_norm, rec$Rdraw, x_name="generation", sub_s=sub_x, filename=fn)
   
-        # plot pw 6-10 (that are not plotted with the spectre)
+        # plot pw 6-10 (that are not plotted with the spectre but might be interesting)
         for(i in sub_y) {
             fn_ <- sub("%", as.character(i), fn)
             postscript(fn_, width=5, height=5, family="serif")
@@ -144,6 +174,9 @@ sb_plot_evol_core <- function() {
 # 
 #
 #
+# The function does not take more arguments but assumes that the results of a
+# simulation are loaded in the global enviroment (as it is put there by 
+# "sb_em_cross_analysis_ecol").
 
 sb_plot_evol_reduced <- function() {
     rec <- results_em_cross
@@ -151,6 +184,7 @@ sb_plot_evol_reduced <- function() {
     # create a directory for each network / state 
     for(i in 1:nrow(rec)) 
         if(is.list(rec$em_ex[[i]])) { 
+            # For each generation / network generate an extra subdirectory
             dir = paste("pw_details_E", as.character(results_em_cross$Edraw[i]), "_R", results_em_cross$Rdraw[i], sep="")
             system(paste("mkdir -p", dir))
             setwd(dir)
@@ -170,9 +204,10 @@ sb_plot_evol_reduced <- function() {
                 dev.off()
             }
 
-            # explained fraction (decreasing for all pathways)
-            # explained dissipation (decreasing for all wathways)
-            # plot first 50 pathways (y-log)
+            # Plot explained fraction of rates and explained fraction of 
+            # dissipation (decreasing for all wathways). Both are plotted in the
+            # same plot as a function of the ordered pathway id. (Only first 50 
+            # pathways are plotted!)
 
             K <- rec$em_ex[[i]]
             J <- data.frame(x=rep(1:nrow(K), 2),
@@ -181,6 +216,7 @@ sb_plot_evol_reduced <- function() {
 
             J <- J[J$x<51,]
 
+            # Plot with linear x and logarithmic y axis
             postscript("exp_f_linlog.eps", width=7, height=5)
             gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
                 scale_x_continuous() +
@@ -195,7 +231,7 @@ sb_plot_evol_reduced <- function() {
              print(gg)
              dev.off()
 
-            # plot first 50 pathways (x-log, y-log)
+            # Plot with both axis logarithmic
             postscript("exp_f_loglog.eps", width=7, height=5)
             gg <- ggplot(J, aes(x=x, y=f, colour=type, group=type, shape=type))  + 
                 scale_x_log10() +
@@ -222,6 +258,14 @@ sb_plot_evol_reduced <- function() {
 #
 #
 #
+# parameters:
+# <em_cross>  -
+# <x_data>    -
+# <x_name>    -
+# <em_name>   -
+# <filename>  -
+# <logY>      - Logarithmic y-scale?
+# <logX>      - Logarithmic x-scale?
 
 sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), filename="em_spectre.eps", logY=F, logX=F) { 
     a <- data.frame(x_data=numeric(), 
@@ -236,7 +280,6 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
     }
 
     postscript(filename, width=7, height=5)
-    #scaleY <- scale_y_continuous(limits=c(1e-3,1))
     scaleY <- scale_y_continuous()
             
     if(logY)
@@ -265,8 +308,17 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), fi
 }
 
 
+# 
 #
-#
+# parameters:
+# <net>      - 
+# <em>       -
+# <cross>    -
+# <x_data>   -
+# <x_name>   -
+# <sub_s>    -
+# <filename> -
+# <logX>     - Logarithmic x-scale?
 
 sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), filename="pw_cross_%.eps", logX=F) {
     if(length(grep("%", filename)) == 0) {
@@ -303,20 +355,58 @@ sb_pw_cross_plot <- function(net, em, cross, x_data, x_name="xname", sub_s=c(), 
 }
 
 
+plot_core_sp <- function(res_cross, filename="core_sp.eps") { 
+    setEPS()
+    postscript(filename, width=7, height=5)
+    
+    gg<-ggplot(res_cross, aes(x=v, y=core_sp_no, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
+          scale_x_log10() + scale_y_continuous() + 
+           ylab("#core species") + 
+           xlab("v (hv concentration)") +
+           geom_point(size=2.2) + 
+           theme_bw(22) +
+           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
+
+    print(gg)
+    
+    dev.off()
+
+    return(gg)
+}
 
 
-sb_write_network_pathways <- function(sel=0) {
-    jrnf_network_to_ltable("network.tex", net)
+plot_flow_v <- function(res_cross, filename="flow_v.eps") { 
+    setEPS()
+    postscript(filename, width=7, height=5)
+    
+    gg<-ggplot(res_cross, aes(x=v, y=flow, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
+          scale_x_log10() + scale_y_log10() + 
+           ylab("flow") + 
+           xlab("hv concentration") +
+           geom_point(size=2.2) + 
+           theme_bw(22) +
+           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
 
-    sel_em <- which(apply(em_exp_r_cross, 2, max) >= sel)
-    sel_em_info <- data.frame(cycles=em_derive$C_s_sum[sel_em] ,EMPTY=paste("(", as.character(sel_em), ")", sep=""))
-    pa_pathways_to_ltable("pathways.tex", em_m[sel_em,1:nrow(net[[2]])], net, sel_em_info)
+    print(gg)
+    
+    dev.off()
+
+    return(gg)
 }
 
 
 
+#
+#          LEGACY FUNCTIONS
+#
+# TODO Functions below aren't as thoroughly tested and designed as the ones above
+#      but still might prove valuable in the future. Thus they are still here as
+#      basis for future work but their interface is not really stable.
+#
+
 # This function probably only has legacy function.
-# TODO: Check an remove if save
 
 sb_assemble_em_from_flow <- function(results_ss, em, net) {
     df <- data.frame(delta_b=numeric(), flow=numeric(), C_sum=numeric(), em_id=numeric(), em_exp_r=numeric(), 
@@ -363,7 +453,7 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
         my_net <- net
 
     if(is.null(my_results))
-        my_results <- results_em
+        my_results <- results_em_cross
 
     my_results_X <- sb_extend_results(my_results)
     my_results_X <- my_results_X[my_results_X$Edraw == Edraw,]
@@ -422,152 +512,5 @@ evaluate_Edraw_plot <- function(Edraw, my_results=c(), my_em=c(), my_net=c(), fi
 
 
 
-plot_core_sp <- function(res_cross, filename="core_sp.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v, y=core_sp_no, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
-          scale_x_log10() + scale_y_continuous() + 
-           ylab("#core species") + 
-           xlab("v (hv concentration)") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
 
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-plot_flow_v <- function(res_cross, filename="flow_v.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v, y=flow, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
-          scale_x_log10() + scale_y_log10() + 
-           ylab("flow") + 
-           xlab("hv concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-
-plot_flow_v2 <- function(res_cross, filename="flow_v2.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v2, y=flow, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
-          scale_x_log10() + scale_y_log10() + 
-           ylab("flow") + 
-           xlab("boundary concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-
-plot_cycles_v <- function(res_cross, filename="cycles_v.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v, y=cycles_r, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
-          scale_x_log10() + scale_y_continuous() + 
-           ylab("cycles") + 
-           xlab("hv concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-plot_cycles_v2 <- function(res_cross, filename="cycles_v2.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v2, y=cycles_r, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
-          scale_x_log10() + scale_y_continuous() + 
-           ylab("cycles") + 
-           xlab("boundary concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-
-plot_shannon_v <- function(res_cross, filename="shannon_v.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v, y=informationE, colour=as.factor(c), group=as.factor(c), shape=as.factor(c)))  + 
-          scale_x_log10() + scale_y_continuous() + 
-           ylab("inf. entropy") + 
-           xlab("hv concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
-
-
-plot_shannon_v2 <- function(res_cross, filename="shannon_v2.eps") { 
-    setEPS()
-    postscript(filename, width=7, height=5)
-    
-    gg<-ggplot(res_cross, aes(x=v2, y=informationE, colour=as.factor(Edraw), group=as.factor(Edraw), shape=as.factor(Edraw)))  + 
-          scale_x_log10() + scale_y_continuous() + 
-           ylab("inf. entropy") + 
-           xlab("boundary concentration") +
-           geom_point(size=2.2) + 
-           theme_bw(22) +
-           theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 legend.key = element_rect(color = "white", fill="white"), legend.position="bottom")
-
-    print(gg)
-    
-    dev.off()
-
-    return(gg)
-}
 
