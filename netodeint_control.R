@@ -8,7 +8,7 @@
 # Parts of this this file / modules functionality are shared with "simulation_builder.R" 
 # and "simulation_builder_....R", this could be unified in future. Nevertheless the
 # functionality should be maintained as it was used for generate data for the publication
-# Thermodynamics of Random Reaction Networks; Fischer, Kleidon, Dittrich; 2015
+# "Thermodynamics of Random Reaction Networks; Fischer, Kleidon, Dittrich; 2015".
 
 sourced_netodeint_control <- T
 
@@ -159,9 +159,7 @@ jrnf_create_pnn_file <- function(jrnf_network, pfile=NA, nfile=NA) {
 
         write.csv(df_2, nfile, row.names=FALSE)
     }
-
 }
-
 
 
 # A faster and less space consuming variant of pfile generation. Only calculates 
