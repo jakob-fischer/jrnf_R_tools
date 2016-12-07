@@ -195,31 +195,49 @@ jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TR
 }
 
 
-#
+# Helper function that is given a table (<pfile>) containing information on 
+# network topology and samples pairs of boundary species according to different
+# rules. 
 #
 # parameters:
-# <pfile>        -  
-# <sampling>     -
-# <sampling_par> - 
+# <pfile>        - Table with information on pairs of nodes (read.csv("pfile.csv")).
+#                  For sampling of type "random" also "NA" can be given.
+# <sampling>     - String indicating what type of sampling to use:
+#         "spath":  Samples a given number of pairs for each value of shortest
+#                   distances in the network.
+#         "all":    Just take all possible pairs.
+#         "random": Chose a given number of pairs randomly. If "NA" is given for
+#                   <pfile> an entry "sampling_par$N" has to be added to 
+#                   <sampling_par> indicating the number of species in the network.
+# <sampling_par> - Parameter specific to sampling. Parameter can be given as a
+#                  numeric value or as a list with the numeric value as its first
+#                  entry.
 
 noh_calculate_bids_l <- function(pfile, sampling, sampling_par) {
+    if(!is.list(sampling_par))
+        sampling_par <- list(sampling_par)
+
     bids_l <- list()
 
     if(sampling == "all") {
+        # Determine all pairs from <pfile>.
         for(i in 1:nrow(pfile)) 
             if(pfile$from[i] < pfile$to[i])
                 bids_l[[length(bids_l)+1]] <- c(pfile$from[i], pfile$to[i])  
     } else if (sampling == "random") {
-        bids_l <- list()
-        if(is.na(pfile))
-            N <- sampling_par$N
-        else
+        # Determine number of species from pfile or as second entry of 
+        # <sampling_par> list.
+        if(is.data.frame(pfile))
             N <- max(c(pfile$from, pfile$to))
+        else
+            N <- sampling_par$N
  
-        for(i in 1:sampling_par) {
+        # 
+        for(i in 1:sampling_par[[1]]) {
             a <- sample(1:N, 1)
             b <- sample(1:N, 1)
 
+            # Only want pairs with a < b
             while(a >= b) {
                 a <- sample(1:N, 1)
                 b <- sample(1:N, 1)
@@ -229,25 +247,30 @@ noh_calculate_bids_l <- function(pfile, sampling, sampling_par) {
         }
 
     } else if (sampling == "spath") {
+        # Sample for all values occuring as shortest path in the network.
         for(i in sort(unique(pfile$shortest_path))) {   
             if(is.finite(i) && i != 0) {
+                # Find all eligeble pairs with shortest path equal <i>.
                 l <- which(pfile$shortest_path == i & pfile$from < pfile$to)
 
-                if(length(l) > sampling_par) 
-                    x <- sample(l, sampling_par)
+                # Sample (if necessary) 
+                if(length(l) > sampling_par[[1]]) 
+                    x <- sample(l, sampling_par[[1]])
                 else 
                     x <- l
 
+                # Add all pairs to list of boundary species pairs.
                 for(y in x)    
                     bids_l[[length(bids_l)+1]] <- c(pfile$from[y], pfile$to[y])  
             }
         }
     } else {
-        cat("No valid sampling specified!\n")
+        cat("No valid sampling type specified!\n")
         return() 
     }
 
-    return(bids_l)
+    # Make unique because sampling might have included same pair multiple times 
+    return(unique(bids_l))
 }
 
 
@@ -262,24 +285,32 @@ noh_calculate_bids_l <- function(pfile, sampling, sampling_par) {
 # script named "submit_all.sh" is generated.
 #
 # parameters:
-# <netfile>      - 
-# <bvalues_l>    - 
-# <no_scripts>   - 
-# <ensemble_s>   -
-# <sampling>     - ="spath", "bignet", "all", "random"
-# <sampling_par> - =5, 
-# <sampling_sym> - =TRUE,
-# <odeint_p>     - =sb_odeint_path, 
-# <Tmax>         - =1000, 
-# <deltaT>       - =0.1, 
-# <v>            - , 
-# <wint>         - =100, 
-# <zero_E>       - =FALSE
+# <netfile>      - Filename of network file for which simulations are created.
+# <bvalues_l>    - List of tuples (2 el. vectors) with boundary concentration pairs.
+# <no_scripts>   - Number of script files for distributing calculation.
+# <ensemble_s>   - Number of simulations for same parameters (different initial 
+#                  concentration.
+# <sampling>     - Types for sampling. See above ("noh_calculate_bids_l"). Parameter
+#                  "bignet" corresponds to "random" without generating a pfile,
+#                  which might be impossible for big networks.
+# <sampling_par> - See above ("noh_calculate_bids_l").
+# <sampling_sym> - Sampling symetrically (boundary concentrations are reversed).
+# <odeint_p>     - Path to ODE integrator (jrnf_int). 
+# <Tmax>         - Time range for solving the ODE.
+# <deltaT>       - Initial step size for ODE stepper (not influences times at
+#                  which output is written.
+# <v>            - Rescaling of volume (for systems with only 1-1 and 2-2 reactions)
+# <wint>         - Number of write steps for simulator
+# <zero_E>       - Don't chose energies from distributions but use 0 (chemical 
+#                  energy) and 1 (activation energy)
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=5, sampling_sym=TRUE,
                             odeint_p=sb_odeint_path, Tmax=1000, deltaT=0.1, v=1, 
                             wint=100, zero_E=FALSE) {
+    if(!is.list(sampling_par))
+        sampling_par <- list(sampling_par)
+
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     scripts_level <- as.integer()    # difficulty of each scripts call
@@ -312,8 +343,11 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     jrnf_write("net_energies.jrnf", net)
 
     if(sampling == "bignet") {
+        # For "bignet" pfile is not calculated but size of the network has to
+        # be given to sampling function as additional parameter.
         cat("doing bignet sampling\n")
         jrnf_create_pnn_file(net, NA, "nfile.csv") 
+
         sampling_par$N <- nrow(net[[1]])
         bids_l <- noh_calculate_bids_l(NA, "random", sampling_par)
     } else {
@@ -366,10 +400,13 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
         }
 
 
+    # Create multiple batch-script files by randomly choosing an associated
+    # script file for each call to the simulator.
     cat("create batch-script-files\n")
     sel <- sample(no_scripts, length(scripts), replace=TRUE)
     
     for(i in 1:no_scripts) {
+        # Create script file number i.
         con <- file(paste("bscript_", as.character(i), ".sh", sep=""), "w")
         writeLines("#!/bin/sh",con)
         writeLines(paste("#$ -N bscript_", as.character(i) ,sep=""), con)
@@ -387,10 +424,10 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
 }
 
 
-
-# 
-# Has to be executed in the same directory in that "netodeint_setup" has been
-# executed.
+# Method is executed in the same directory in that "netodeint_setups" has been
+# used and collects all results (last time step of simulation) from many files
+# in the file system in one single "results" data frame. This data frame is
+# saved into "results.Rdata".
 
 netodeint_collect_results <- function() {
     save_wd <- getwd()   # just to be save
@@ -419,15 +456,18 @@ netodeint_collect_results <- function() {
                 i <- as.numeric(strsplit(ep,"/")[[1]][2])
                 setwd(ep)
                 
+                # User feedback
                 cat("doing b1=", b1, "b2=", b2, "v1=", v1, "v2=", v2, "i=", i, "\n")
                 run <- read.csv("run.con")
 
+                # Load last time step / last row of table
                 last_time_ <- run[nrow(run),1]
                 last_msd_  <- run[nrow(run),2]
                 last_con <- data.frame(con=as.numeric(run[nrow(run), 3:ncol(run)]))
                 
                 last_flow <- jrnf_calculate_flow(net, last_con$con)
 
+                # Calculate flow
                 flowb1 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b1]
                 flowb2 <- jrnf_calculate_concentration_change(net, last_flow$flow_effective)[b2]
 
