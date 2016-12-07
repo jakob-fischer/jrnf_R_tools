@@ -195,18 +195,39 @@ jrnf_create_pfile_bignet <- function(jrnf_network, b_list, pfile, calc_sp_mul=TR
 }
 
 
-noh_calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
-    bids_l <- list()
+#
+#
+# parameters:
+# <pfile>        -  
+# <sampling>     -
+# <sampling_par> - 
 
-    tmp <- .Random.seed
-    if(!is.null(b_seed)) {
-        .Random.seed <<- b_seed
-    }
+noh_calculate_bids_l <- function(pfile, sampling, sampling_par) {
+    bids_l <- list()
 
     if(sampling == "all") {
         for(i in 1:nrow(pfile)) 
             if(pfile$from[i] < pfile$to[i])
                 bids_l[[length(bids_l)+1]] <- c(pfile$from[i], pfile$to[i])  
+    } else if (sampling == "random") {
+        bids_l <- list()
+        if(is.na(pfile))
+            N <- sampling_par$N
+        else
+            N <- max(c(pfile$from, pfile$to))
+ 
+        for(i in 1:sampling_par) {
+            a <- sample(1:N, 1)
+            b <- sample(1:N, 1)
+
+            while(a >= b) {
+                a <- sample(1:N, 1)
+                b <- sample(1:N, 1)
+            }
+
+            bids_l[[length(bids_l)+1]] <- c(min(a,b), max(a,b))
+        }
+
     } else if (sampling == "spath") {
         for(i in sort(unique(pfile$shortest_path))) {   
             if(is.finite(i) && i != 0) {
@@ -226,8 +247,6 @@ noh_calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
         return() 
     }
 
-    .Random.seed <<- tmp
-
     return(bids_l)
 }
 
@@ -243,27 +262,24 @@ noh_calculate_bids_l <- function(pfile, sampling, sampling_par, b_seed) {
 # script named "submit_all.sh" is generated.
 #
 # parameters:
-netfile, 
-bvalues_l, 
-no_scripts, 
-ensemble_s,
-sampling="spath", "bignet", "all", "random"
-sampling_par=5, 
-sampling_sym=TRUE,
-odeint_p=sb_odeint_path, 
-Tmax=1000, 
-deltaT=0.1, 
-v=1, 
-wint=100, 
-b_seed=c(), 
-script_lead="bscript_", 
-zero_E=FALSE
-
+# <netfile>      - 
+# <bvalues_l>    - 
+# <no_scripts>   - 
+# <ensemble_s>   -
+# <sampling>     - ="spath", "bignet", "all", "random"
+# <sampling_par> - =5, 
+# <sampling_sym> - =TRUE,
+# <odeint_p>     - =sb_odeint_path, 
+# <Tmax>         - =1000, 
+# <deltaT>       - =0.1, 
+# <v>            - , 
+# <wint>         - =100, 
+# <zero_E>       - =FALSE
 
 netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
                             sampling="spath", sampling_par=5, sampling_sym=TRUE,
                             odeint_p=sb_odeint_path, Tmax=1000, deltaT=0.1, v=1, 
-                            wint=100, b_seed=c(), script_lead="bscript_", zero_E=FALSE) {
+                            wint=100, zero_E=FALSE) {
     # Save old and set new working directory
     scripts <- as.character()        # Vector of script entries / odeint_rnet calls
     scripts_level <- as.integer()    # difficulty of each scripts call
@@ -297,30 +313,16 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
 
     if(sampling == "bignet") {
         cat("doing bignet sampling\n")
-
-        jrnf_create_pnn_file(net, NA, "nfile.csv")
-
-        bids_l <- list()
-        N <- nrow(net[[1]])  
- 
-        for(i in 1:sampling_par) {
-            a <- sample(1:N, 1)
-            b <- sample(1:N, 1)
-
-            while(a >= b) {
-                a <- sample(1:N, 1)
-                b <- sample(1:N, 1)
-            }
-
-            bids_l[[length(bids_l)+1]] <- c(min(a,b), max(a,b))
-        }
+        jrnf_create_pnn_file(net, NA, "nfile.csv") 
+        sampling_par$N <- nrow(net[[1]])
+        bids_l <- noh_calculate_bids_l(NA, "random", sampling_par)
     } else {
         cat("topological analysis \n")
 
         jrnf_create_pnn_file(net, "pfile.csv", "nfile.csv")
 
         pfile <- read.csv("pfile.csv")
-        bids_l <- noh_calculate_bids_l(pfile, sampling, sampling_par, b_seed)
+        bids_l <- noh_calculate_bids_l(pfile, sampling, sampling_par)
     }
 
     cat("creating directory structure and initial files\n")
@@ -368,9 +370,9 @@ netodeint_setup <- function(netfile, bvalues_l, no_scripts, ensemble_s,
     sel <- sample(no_scripts, length(scripts), replace=TRUE)
     
     for(i in 1:no_scripts) {
-        con <- file(paste(script_lead, as.character(i), ".sh", sep=""), "w")
+        con <- file(paste("bscript_", as.character(i), ".sh", sep=""), "w")
         writeLines("#!/bin/sh",con)
-        writeLines(paste("#$ -N ", script_lead, as.character(i) ,sep=""), con)
+        writeLines(paste("#$ -N bscript_", as.character(i) ,sep=""), con)
         writeLines("#$ -j y", con)
         writeLines("#$ -cwd", con)
 
