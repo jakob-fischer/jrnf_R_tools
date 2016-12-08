@@ -4,7 +4,7 @@ homepage: https://github.com/jakob-fischer/jrnf_R_tools
 
 This package contains different functionality to analyze reaction networks. It uses
 its own reaction network format. It also includes functionality to randomly 
-generate reaction network and initialize a huge abount of simulations to explore
+generate reaction network and initialize a huge amount of simulations to explore
 the parameter space.
 
 The code was tested with the current version of R (3.1.1) and current versions for 
