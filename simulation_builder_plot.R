@@ -273,6 +273,7 @@ sb_plot_evol <- function() {
 
 sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(), 
                                filename="em_spectre.eps", logY=F, logX=F) { 
+    minY <- 1e-2
     a <- data.frame(x_data=numeric(), # x-axis
                     exp_r=numeric(),  # y-axis
                     em=factor())      # colour / group / shape
@@ -284,13 +285,15 @@ sb_plot_em_spectre <- function(em_cross, x_data, x_name="xname", em_name=c(),
                               em=as.factor(rep(em_name[i], length(x_data)))))
     }
 
+    a <- a[a$exp_r >= minY,]
+
     postscript(filename, width=7, height=5)
 
     # Decide on linear or logarithmic scale
     scaleY <- scale_y_continuous()
             
     if(logY)
-        scaleY <- scale_y_log10(limits=c(1e-8,1)) 
+        scaleY <- scale_y_log10(limits=c(minY,1)) 
 
     scaleX <- scale_x_continuous()
            

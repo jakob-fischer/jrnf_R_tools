@@ -150,11 +150,7 @@ sb_calc_pw_cross <- function(results, net, em, sub_em=c()) {
             x[i,] <- exp_r[sub_em]
             n[i,] <- x[i,] / sum(x[i,])
             r[i,] <- rate[sub_em]
-        } else {
-            x[i,] <- NA
-            n[i,] <- NA
-            r[i,] <- NA      
-        }    
+        }  
     return(list(x=x, x_norm=n, rates=r))
 }
 
@@ -195,4 +191,43 @@ sb_pw_cross_sub_f <- function(m, f) {
     a <- apply(m, 2, function(x) max(x, na.rm=T))
     r <- which(a > f)
     return(r)
+}
+
+
+# 
+#
+# parameter:
+# <m>      - Matrix associating contribution / explained fraction between
+#            simulations (rows) and pathways (columns)
+# <N>      - Number of (additional) pathways to select
+# <start>  - Already selected pathways (vector).
+# <con_fb> - Give feedback on the console?
+
+sb_pw_cross_sub_ND <- function(m, N, start=c(), con_fb=F) {
+    N <- min(N, ncol(m))
+
+    selected <- start
+    rest <- 1:ncol(m)
+    rest <- rest[!(rest %in% selected)]
+    explained <- rep(0, nrow(m))
+
+    for(i in 1:N) {
+        # For every pathway in "rest" test how big the minimum exlained fraction
+        # through all pathways would be
+        score <- rep(0,length(rest))
+        active_sim <- apply(m, 1, sum) != 0
+
+        for(k in 1:length(rest)) {
+            s <- c(selected, rest[k])
+            X <- matrix(m[,s], nrow=nrow(m))
+            score[k] <- min(apply(X, 1, sum)[active_sim])
+        }
+
+        selected <- c(selected, rest[which.max(score)])
+        rest <- rest[-which.max(score)]
+        if(con_fb)
+            cat("explained", max(score), "\n")
+    }
+
+    return(selected)
 }
