@@ -52,6 +52,11 @@ sb_build_eval <- function(f) {
 sb_eval_weight <- sb_build_eval(function(x) x$eval_weight$org_f)
 
 
+# EVAL FUNCTION: fitness by organism's mean fraction on the systems steady state rate.
+
+sb_eval_rates <- sb_build_eval(function(x) x$eval_rates$rates_org_f)
+
+
 # EVAL FUNCTION: fitness by organism's mean fraction on the systems mass times
 # its mean fraction on thes system's internal fluxes.
 
