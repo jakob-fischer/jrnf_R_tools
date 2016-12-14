@@ -50,11 +50,11 @@ floating point or an unsigned integer number:
   <educt_number> - Unsigned integer. Number of educts in the reaction equation
   <product_number> - Unsigned integer. Number of products in the reaction equation.
   <educt_id> - Unsigned integer. Id of the species occuring on educt side of this
-               reaction equation. Species are 1-indexed. 
+               reaction equation. Species are 0-indexed. 
   <educt_mul> - Unsigned integer. Number of occurences of respective species on the
                 educt side of this reaction equation.
   <product_id> - Unsigned integer. Id of the species occuring on product side of this
-                 reaction equation. Species are 1-indexed. 
+                 reaction equation. Species are 0-indexed. 
   <product_mul> - Unsigned integer. Number of occurences of respective species on the
                   product side of this reaction equation.
 
