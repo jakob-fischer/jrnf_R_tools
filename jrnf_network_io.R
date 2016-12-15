@@ -949,8 +949,13 @@ jrnf_plot_pathway <- function(net, pw, prep=c(), layout_f=layout.auto, lim_plot=
     rea_m <- pw[rea]
 
     i_pr <- prep_p$color == "blue"
-    prep_p$size[prep_p$N+rea] <- 5+2*rea_m
+    prep_p$size[prep_p$N+rea] <- 5+2*pmin(rea_m, 10)
     prep_p$color[prep_p$N+rea] <- "green"
+
+    for(r in 1:length(rea)) 
+        if(rea_m[r] > 10)
+            prep_p$name[prep_p$N+rea[r]] <- paste(as.character(rea_m[r]), "X", sep="")
+
 
     # pseudoreactions that are part of the pathway are plotted purple (no size change here)
     if(mark_pseudor)   
