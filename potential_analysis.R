@@ -196,7 +196,7 @@ poa_check_potentials <- function(net, rates, E) {
 # for every reaction is returned in a data frame and also extensive feedback is 
 # given to the user as console output.
 
-poa_calculate_reaction_energetics <- function(net, mu, re_rates) {
+poa_calculate_reaction_energetics <- function(net, mu, re_rates, con_fb=F) {
     no_reas <- nrow(net[[2]])
 
     # Calculate stoichiometric matrix for inflow and outflow.  Careful: If the 
@@ -230,28 +230,28 @@ poa_calculate_reaction_energetics <- function(net, mu, re_rates) {
     match_n_quantified <- dir_match & !is.na(mu_eff)
     match_n_quantified[is.na(match_n_quantified)] <- F
 
-    cat("===================================================================================\n")
-    cat("From totally", length(dir_match), "reaction directions", sum(dir_match == TRUE, na.rm=T), "are correct ")
-    cat(length(mismatch), "are incorrect and", length(undecided), "are undecided.\n")
+    if(con_fb) {
+        cat("===================================================================================\n")
+        cat("From totally", length(dir_match), "reaction directions", sum(dir_match == TRUE, na.rm=T), "are correct ")
+        cat(length(mismatch), "are incorrect and", length(undecided), "are undecided.\n")
      
-    m <- sum(dir_match == TRUE & is.na(mu_eff), na.rm=T)
-    cat("From the ones with matching directions", m, "can not be quantified - ", 
-         sum(re_rates[dir_match == TRUE & is.na(mu_eff)], na.rm=T)/sum(re_rates), "rate fraction!\n")
+        m <- sum(dir_match == TRUE & is.na(mu_eff), na.rm=T)
+        cat("From the ones with matching directions", m, "can not be quantified - ", 
+            sum(re_rates[dir_match == TRUE & is.na(mu_eff)], na.rm=T)/sum(re_rates), "rate fraction!\n")
     
-
-    if(length(re_rates) != 0)
-        cat("Weighted with reaction's rates mismatch is", sum(re_rates[mismatch])/sum(re_rates), 
-            "and undecided", sum(re_rates[undecided])/sum(re_rates), ".\n")
-    cat("From ", length(which(has_hv)), "reactions with hv there are", length(which(has_hv & mu_eff < 0)),
-        "that are directly dissipating and", length(which(has_hv & is.na(mu_eff))), "with NA\n")
-    cat("There are", length(which(has_hv & N[hv_id,] > 0)), "reactions that produce hv!",
-        length(which(has_hv & N[hv_id,] > 0 & mu_eff < 0)), "of them are dissipating and",
-        length(which(has_hv & N[hv_id,] > 0 & (dir_match == F | is.na(dir_match)))), "of them are mismatching or NA.\n")
-    cat("===================================================================================\n")
-    cat("overall there are ", sum(match_n_quantified), "reactions that match and are quantified. This is ", 
-        sum(re_rates[match_n_quantified])/sum(re_rates), "in terms of rates explained!\n")
-    cat("===================================================================================\n")
-
+        if(length(re_rates) != 0)
+            cat("Weighted with reaction's rates mismatch is", sum(re_rates[mismatch])/sum(re_rates), 
+                "and undecided", sum(re_rates[undecided])/sum(re_rates), ".\n")
+        cat("From ", length(which(has_hv)), "reactions with hv there are", length(which(has_hv & mu_eff < 0)),
+            "that are directly dissipating and", length(which(has_hv & is.na(mu_eff))), "with NA\n")
+        cat("There are", length(which(has_hv & N[hv_id,] > 0)), "reactions that produce hv!",
+            length(which(has_hv & N[hv_id,] > 0 & mu_eff < 0)), "of them are dissipating and",
+            length(which(has_hv & N[hv_id,] > 0 & (dir_match == F | is.na(dir_match)))), "of them are mismatching or NA.\n")
+        cat("===================================================================================\n")
+        cat("overall there are ", sum(match_n_quantified), "reactions that match and are quantified. This is ", 
+            sum(re_rates[match_n_quantified])/sum(re_rates), "in terms of rates explained!\n")
+        cat("===================================================================================\n")
+    }
 
     return(data.frame(mu_in=mu_in, mu_out=mu_out, mu_eff=mu_eff, dir_match=dir_match, has_hv=has_hv, match_n_quantified=match_n_quantified))
 }
@@ -261,7 +261,7 @@ poa_calculate_reaction_energetics <- function(net, mu, re_rates) {
 # for every pathway is returned in a data frame and also extensive feedback is 
 # given to the user as console output.
 
-poa_calculate_pathway_energetics <- function(net, mu, ems, em_rates, re_rates=c()) {
+poa_calculate_pathway_energetics <- function(net, mu, ems, em_rates, re_rates=c(), con_fb=F) {
     # first (re)calculate pathway's explained fraction
     x <- apply(abs(ems), 1, sum)*em_rates
     exp_f <- x / sum(x)
@@ -359,29 +359,30 @@ poa_calculate_pathway_energetics <- function(net, mu, ems, em_rates, re_rates=c(
     match_n_quantified <- match_interactions & !is.na(hv_in_D) & !is.na(delta_mu_D)
     match_n_quantified[is.na(match_n_quantified)] <- F 
 
-    cat("===================================================================================\n")
-    cat("From", nrow(ems), "pathways on a reaction level", length(which(match_all_reactions)),
-        "match on reaction level with", length(which(!match_all_reactions)), "mismatches and", 
-        length(which(is.na(match_all_reactions))), "are NA!\n")
-    cat("On pathway level", length(which(match_interactions)),
-        "match", length(which(!match_interactions)), "mismatches and", 
-        length(which(is.na(match_interactions))), "are NA!\n")
+    if(con_fb) {
+        cat("===================================================================================\n")
+        cat("From", nrow(ems), "pathways on a reaction level", length(which(match_all_reactions)),
+            "match on reaction level with", length(which(!match_all_reactions)), "mismatches and", 
+            length(which(is.na(match_all_reactions))), "are NA!\n")
+        cat("On pathway level", length(which(match_interactions)),
+            "match", length(which(!match_interactions)), "mismatches and", 
+            length(which(is.na(match_interactions))), "are NA!\n")
     
-    m <- sum(is.na(dis_D) & match_interactions, na.rm=T)
-    cat("Of the ones matching on pathway level", m, "are non quantifyable -", sum(exp_f[is.na(dis_D) & match_interactions], na.rm=T),
-        "in terms of explained fraction!\n")
+        m <- sum(is.na(dis_D) & match_interactions, na.rm=T)
+        cat("Of the ones matching on pathway level", m, "are non quantifyable -", sum(exp_f[is.na(dis_D) & match_interactions], na.rm=T),
+            "in terms of explained fraction!\n")
 
-    cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions], na.rm=T)/sum(em_rates), 
-        "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
+        cat("Weighted with pathway's rates mismatch is", sum(em_rates[!match_interactions], na.rm=T)/sum(em_rates), 
+            "and undecided", sum(em_rates[is.na(match_interactions)])/sum(em_rates), ".\n")
 
-    cat("Weighted with pathway's explained fraction mismatch is", sum(exp_f[!match_interactions], na.rm=T), 
-        "and undecided", sum(exp_f[is.na(match_interactions)]), ".\n")
+        cat("Weighted with pathway's explained fraction mismatch is", sum(exp_f[!match_interactions], na.rm=T), 
+            "and undecided", sum(exp_f[is.na(match_interactions)]), ".\n")
 
-    cat("===================================================================================\n")
-    cat("overall there are ", sum(match_n_quantified), "pathways that match and are quantified. This is ", 
-        sum(exp_f[match_n_quantified]), "in terms of explained rate fraction!\n")
-    cat("===================================================================================\n")
-
+        cat("===================================================================================\n")
+        cat("overall there are ", sum(match_n_quantified), "pathways that match and are quantified. This is ", 
+            sum(exp_f[match_n_quantified]), "in terms of explained rate fraction!\n")
+        cat("===================================================================================\n")
+    }
 
     return(data.frame(hv_in, delta_mu, dis, eff, match_all_reactions, all_species_present, hv_in_D,
                        delta_mu_D, dis_D, eff_D, match_interactions, match_n_quantified, interacting_species_present,
