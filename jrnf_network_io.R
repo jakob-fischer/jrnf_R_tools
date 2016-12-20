@@ -892,7 +892,6 @@ jrnf_plot_network <- function(net, prep=c(), layout_f=layout.auto, rate_v=c(), m
 #            (means graph has to be layouted again)
 # mark_pseudor - mark in- and outflow reactions
 #  
-# TODO How to mark multiplicity of reactions? By text or by size?
 # TODO Plot colored pathway last (order of edges in graph has to be changed)
 #
 # To giving a consistent return value for different parameters a naming scheme 

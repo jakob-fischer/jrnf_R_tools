@@ -330,12 +330,13 @@ poa_calculate_pathway_energetics <- function(net, mu, ems, em_rates, re_rates=c(
     for(i in 1:nrow(ems)) {
 
         # calculate thermodynamic properties from reaction data
-        hv_in[i] <- sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff > 0 & ems[i,] != 0])
+        hv_in[i] <- sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff > 0 & re_en$has_hv & ems[i,] != 0])
         dis[i] <- -sum((ems[i,]*re_en$mu_eff)[re_en$mu_eff < 0  & ems[i,] != 0])
         match_all_reactions[i] <- all(re_en$dir_match[which(ems[i,]!=0)])
 
         # calculate the thermodynamic properties of the pathways directly    
-        hv_in_D[i] <- max(0, sum((bilance_sp_hv[i,]*mu)[bilance_sp_hv[i,]!=0]))
+        # hv_in_D[i] <- max(0, sum((bilance_sp_hv[i,]*mu)[bilance_sp_hv[i,]!=0]))
+        hv_in_D[i] <- sum((bilance_sp_hv[i,]*mu)[bilance_sp_hv[i,]!=0])
         delta_mu_D[i] <- sum((bilance_sp[i,]*mu)[bilance_sp[i,]!=0])
         all_species_present[i] <- all(is.finite( re_en$mu_eff[ems[i,] != 0] ))         
 

@@ -159,7 +159,6 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
                         rea <- N_red[,s_sample[k]]*s_sign[k]
 
                         l <- min(-((initial_con - c/100)/rea)[rea < 0])
-                        # TODO It occured that the argument of min was empty, check if that is really possible / how to handle it?
                         if(!is.finite(l)) {
                             cat("Error randomizing reaction initials: ", jrnf_reaction_to_string(net, k), "\n")
                             cat("rea=", rea, "\n")
