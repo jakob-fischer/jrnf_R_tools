@@ -128,6 +128,8 @@ sb_plot_evol_core <- function() {
     plt("evol_cycling_f_mean.eps", "mean cycling", rec$od_cycling_f_mean)
     plt("evol_cycling_f_max.eps", "max cycling", rec$od_cycling_f_max)
 
+    plt("evol_weight_rates_f_mean_DIR.eps", "mean weight*rates", rec$od_weight_rates_f_mean)
+    plt("evol_weight_rates_f_max_DIR.eps", "mean weight*rates", rec$od_weight_rates_f_max)
     plt("evol_weight_rates_f_mean.eps", "mean weight*rates", rec$od_weight_f_mean*rec$od_rates_f_mean)
     plt("evol_weight_flux_f_mean.eps", "mean weight*flux", rec$od_weight_f_mean*rec$od_flux_f_mean)
 

@@ -476,7 +476,8 @@ sb_evol_build_results <- function(res) {
                      od_rates_f_max=numeric(), od_weight_f_max=numeric(),
                      od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
                      od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
-                     od_cycling_f_mean=numeric())
+                     od_cycling_f_mean=numeric(), od_weight_rates_f_mean=numeric(),
+                     od_weight_rates_f_max=numeric())
     # shortcuts
     net_l = res$net_list;
     res_l = res$res_list
@@ -525,7 +526,9 @@ sb_evol_build_results <- function(res) {
                                    od_flux_f_mean=as.numeric(dyn$flux_f_mean[bp]),
                                    od_rates_f_mean=as.numeric(dyn$rates_f_mean[bp]),  
                                    od_weight_f_mean=as.numeric(dyn$weight_f_mean[bp]),
-                                   od_cycling_f_mean=as.numeric(dyn$cycling_f_mean[bp])))
+                                   od_cycling_f_mean=as.numeric(dyn$cycling_f_mean[bp]),
+                                   od_weight_rates_f_mean=as.numeric(mean(xres$eval_weight$org_f * xres$eval_rates$rates_org_f)),
+                                   od_weight_rates_f_max=as.numeric(max(xres$eval_weight$org_f * xres$eval_rates$rates_org_f))))
         }
     }
 
@@ -582,7 +585,8 @@ sb_evol_build_results_core <- function(res) {
                      od_rates_f_max=numeric(), od_weight_f_max=numeric(),
                      od_cycling_f_max=numeric(), od_flux_f_mean=numeric(),
                      od_rates_f_mean=numeric(), od_weight_f_mean=numeric(),
-                     od_cycling_f_mean=numeric())
+                     od_cycling_f_mean=numeric(), od_weight_rates_f_mean=numeric(),
+                     od_weight_rates_f_max=numeric())
     # shortcuts
     net_l = res$net_list;
     res_l = res$res_list
@@ -632,7 +636,9 @@ sb_evol_build_results_core <- function(res) {
                                         od_flux_f_mean=as.numeric(dyn_l$flux_f_mean[i]),
                                         od_rates_f_mean=as.numeric(dyn_l$rates_f_mean[i]),  
                                         od_weight_f_mean=as.numeric(dyn_l$weight_f_mean[i]),
-                                        od_cycling_f_mean=as.numeric(dyn_l$cycling_f_mean[i])))
+                                        od_cycling_f_mean=as.numeric(dyn_l$cycling_f_mean[i]),
+                                        od_weight_rates_f_mean=as.numeric(mean(xres$eval_weight$org_f * xres$eval_rates$rates_org_f)),
+                                        od_weight_rates_f_max=as.numeric(max(xres$eval_weight$org_f * xres$eval_rates$rates_org_f))))
              }
          }
 
