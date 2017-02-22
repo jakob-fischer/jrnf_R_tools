@@ -14,6 +14,9 @@ if(!exists("sourced_cycles"))
 if(!exists("sourced_jrnf_network"))
     source("jrnf_network.R")
 
+if(!exists("sourced_jrnf_network_io"))
+    source("jrnf_network_io.R")
+
 
 # Function prints elementary mode <em> of network <net> to standard output. If
 # the option <discard_s> is active reactions that have only one educt and no 
@@ -314,7 +317,7 @@ pa_pathways_to_ltable <- function(filename, pw, net, add_info=1, style=1, longta
     # Standard argument for add_info (==1) is interpreted as having to replace it
     # by a data frame that adds a number for each pathway as single string. 
     if(is.numeric(add_info))
-        add_info <- pa_h_add_count_column(nrow(pw))
+        add_info <- jrnf_h_add_count_column(nrow(pw))
 
     # fill up spaces (adds spaces to string to make the table code look smoother)
     fus <- function(x, s=25) {

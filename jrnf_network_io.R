@@ -537,7 +537,7 @@ jrnf_species_name_to_latex_rep <- function(sp_n) {
 # index as additional information the numbers of rows of the new data frame
 # can be given.
 
-pa_h_add_count_column <- function(x) {
+jrnf_h_add_count_column <- function(x) {
     if(!is.data.frame(x))
         return(data.frame(EMPTY=paste("(", as.character(1:x), ")", sep="")))
     else 
@@ -568,7 +568,7 @@ jrnf_network_to_ltable <- function(filename, net, add_info=1, marked=c(), sep=c(
     # Standard argument for add_info (==1) is interpreted as having to replace it
     # by a data frame that adds a number for each reaction as single string.
     if(is.numeric(add_info))
-        add_info <- pa_h_add_count_column(nrow(net[[2]]))
+        add_info <- jrnf_h_add_count_column(nrow(net[[2]]))
 
     # fill up spaces (adds spaces to string to make the table code look smoother
     fus <- function(x, s=25) {
