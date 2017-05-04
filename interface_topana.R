@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # R-tools for handling export of jrnf-networks to calculate elementary modes with 
 # metatool and handle import of results. Most of this is redundant as the 

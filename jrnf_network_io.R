@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Part of the jrnf R codebase that is responsible for loading and writing networks 
 # to the file system (in different file formats). Internally the reaction networks

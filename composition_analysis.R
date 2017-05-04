@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: Basic functionality for using elementary composition of chemical
 #              species for network. At the moment this only contains loading of
 #              a elementary composition database and a function for simply testing

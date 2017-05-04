@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Methods for evolving a reaction network consisting of an anorganic core and 
 # multiple organisms. Each time the network is simulated for a fixed time that

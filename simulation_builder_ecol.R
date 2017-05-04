@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Module for creating simulations of artificial ecosystems with a wide range of
 # parameters (different Energies, different driving force, different 

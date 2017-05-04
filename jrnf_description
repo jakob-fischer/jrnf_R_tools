@@ -1,6 +1,6 @@
     Description of the Reaction Network File Format (JRNF)
     ======================================================
-    (date: 1st September 2014   author: Jakob Fischer   mail:jakob@automorph.info) 
+    (date: 1st September 2014   author: Jakob Fischer   mail:mail@jakobfischer.eu) 
 
 The jrnf-file format describes a reaction network consisting out of a set of chemical
 species, reaction between those species and (thermo)dynamic parameters. The format 

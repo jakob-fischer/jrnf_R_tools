@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Similar to "simulation_builder_ecol.R" this module generates a gib number of
 # simulations in the file system and evaluates them after they have been 

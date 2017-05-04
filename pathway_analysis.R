@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Tool with algorithm which determines pathways / elementary flux modes of
 # reaction networks. The main functionality for calculating reaction

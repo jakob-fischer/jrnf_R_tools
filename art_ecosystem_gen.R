@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Generation of artificial ecosystems. AE are reaction networks with an 
 # elementary composition of species that are driven thermodynamically by 

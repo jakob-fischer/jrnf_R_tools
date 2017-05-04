@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Scripts for automating the solving of reaction networks with the odeint_rnet
 # tool. The functions in this file allow to generate scripts which then can 

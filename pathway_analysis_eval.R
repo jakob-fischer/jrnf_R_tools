@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # This file contains code that allows deeper analysis after reaction networks have 
 # been calculated and a decomposition (coefficients) of the steady state has been

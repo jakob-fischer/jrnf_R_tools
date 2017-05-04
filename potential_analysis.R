@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # Code for calculation of chemical potentials of column models of atmospheric 
 # chemistry as well as the analysis of the interaction of chemical potentials

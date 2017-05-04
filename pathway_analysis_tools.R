@@ -1,4 +1,4 @@
-# author: jakob fischer (jakob@automorph.info)
+# author: jakob fischer (mail@jakobfischer.eu)
 # description: 
 # File contains code that is necessary for pathway analysis code (pathway_analysis.R)
 # but generic enough to be usefull outside of the specific algorithm used there.
