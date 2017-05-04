@@ -90,7 +90,9 @@ sb_generator_ecol_mul <- function(path_s, netgen, bvalues, cvalues, N_nets, N_en
             system(paste("mkdir ", next_dir, sep=""))
             setwd(as.character(next_dir))
 
-            net <- jrnf_ae_draw_energies(net, i==1 && flat_energies, limit_AE)
+            # if no flat energies use first network with given energies!
+            if(flat_energies || i > 1)  
+                net <- jrnf_ae_draw_energies(net, i==1 && flat_energies, limit_AE)
             net <- jrnf_calculate_rconst(net, 1)  
 
             cat("writing energies in netfile.\n")
@@ -379,8 +381,6 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
     add_em <- function(rev, cutoff, i_net) {
         if(is.na(cutoff))
             cutoff <- 0
-
-        cat("length(ex_state_hashes)= ", length(ex_state_hashes[[i_net]]), "\n")
 
         # create and hash steady state for extended network net_ext[[x]]
         r_ext <- c(rev, jrnf_calculate_concentration_change(res_nets[[i_net]], rev))    
