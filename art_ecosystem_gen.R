@@ -418,7 +418,7 @@ jrnf_ae_create <- function(N, M, no_2fold, no_hv, comp=c(), cat_as_lin=T,
         comp$energy <- c(comp$energy, max(max(comp$energy)+5, 50))
         comp$name <- c(comp$name, hv_name) 
     } else 
-        # This assumes
+        # This assumes one hv species is included in the composition
         N <- nrow(comp$composition)-1
 
     hv_id <- which(comp$name == hv_name)  # shortcut
