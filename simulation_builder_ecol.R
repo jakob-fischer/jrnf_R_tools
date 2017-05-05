@@ -400,6 +400,10 @@ sb_em_analysis_ecol <- function(res_nets, res, c_max=4, do_precise=F, param=list
              
             for(l in 1:nrow(x_em))
                 x_em[l,] <- x_em[l,]*(sign(r_ext))
+
+            # have to remove degenerate cases (if found because of numerical problems)
+            not_zero = apply(x_em, 1, sum) != 0
+            x_em = matrix(x_em[not_zero,], ncol=ncol(x_em))
               
             # Add found pathways to existing ones for this network... 
             em_matrix[[i_net]] <<- rbind(em_matrix[[i_net]], x_em)
